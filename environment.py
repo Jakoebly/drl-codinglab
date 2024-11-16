@@ -150,6 +150,7 @@ class Environment(object):
         free_capacity = self.agent_capacity - self.agent_load
         item_locs = self.item_locs
         item_times = [(15-i) for i in self.item_times]  # remaining time
+        # Maybe also distance to each item
 
         # Zero Padding for fixed number of neurons => item dummys
         while len(item_locs) < 24:
