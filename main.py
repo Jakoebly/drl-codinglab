@@ -3,7 +3,7 @@
 
 
 # set seed
-seed = ...  # TODO: set seed to allow for reproducibility of results
+seed = 42  # TODO: set seed to allow for reproducibility of results
 
 import os
 os.environ['PYTHONHASHSEED'] = str(seed)

@@ -112,11 +112,11 @@ class Environment(object):
 
         # item pick-up
         if (self.agent_load < self.agent_capacity) and (self.agent_loc in self.item_locs):
-                self.agent_load += 1
-                idx = self.item_locs.index(self.agent_loc)
-                self.item_locs.pop(idx)
-                self.item_times.pop(idx)
-                rew += self.reward / 2
+            self.agent_load += 1
+            idx = self.item_locs.index(self.agent_loc)
+            self.item_locs.pop(idx)
+            self.item_times.pop(idx)
+            rew += self.reward / 2
 
         # item drop-off
         if self.agent_loc == self.target_loc:
