@@ -78,8 +78,7 @@ class Environment(object):
                 self.remaining_training_episodes = deepcopy(self.training_episodes)
             episode = random.choice(self.remaining_training_episodes)
             self.remaining_training_episodes.remove(episode)
-        self.data = pd.read_csv(self.data_dir + f'/variant_{self.variant}/episode_data/episode_{episode:03d}.csv',
-                                index_col=0)
+        self.data = pd.read_csv(self.data_dir + f'/variant_{self.variant}/episode_data/episode_{episode:03d}.csv', index_col=0)
 
         return self.get_obs()
 
@@ -143,9 +142,18 @@ class Environment(object):
 
         return rew, next_obs, done
 
-    # TODO: implement function that gives the input features for the neural network(s)
+    # DONE: implement function that gives the input features for the neural network(s)
     #       based on the current state of the environment
+    '''Returns current position of agent, free carry capacity of agent, and zero-padded item locations and times (24 total). This leads to a required 2 + 1 + 24 * (2 + 1) = 75 input neurons for a NN.'''
     def get_obs(self):
-        ...
+        agent_pos = self.agent_loc
+        free_capacity = self.agent_capacity - self.agent_load
+        item_locs = self.item_locs
+        item_times = [(15-i) for i in self.item_times]  # remaining time
 
-        return ...
+        # Zero Padding for fixed number of neurons => item dummys
+        while len(item_locs) < 24:
+            item_locs.append((-1, -1))  # non-existent position => to mark dummy
+            item_times.append(0)  # no remaining time => to mark dummy
+
+        return (agent_pos, free_capacity, item_locs, item_times)
