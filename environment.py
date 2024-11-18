@@ -27,11 +27,11 @@ class Environment(object):
         self.reward = 25 if self.variant == 2 else 15
         self.data_dir = data_dir
 
-        self.training_episodes = pd.read_csv(self.data_dir + f'/variant_{self.variant}/training_episodes.csv')
+        self.training_episodes = pd.read_csv(self.data_dir + f"/variant_{self.variant}/training_episodes.csv")
         self.training_episodes = self.training_episodes.training_episodes.tolist()
-        self.validation_episodes = pd.read_csv(self.data_dir + f'/variant_{self.variant}/validation_episodes.csv')
+        self.validation_episodes = pd.read_csv(self.data_dir + f"/variant_{self.variant}/validation_episodes.csv")
         self.validation_episodes = self.validation_episodes.validation_episodes.tolist()
-        self.test_episodes = pd.read_csv(self.data_dir + f'/variant_{self.variant}/test_episodes.csv')
+        self.test_episodes = pd.read_csv(self.data_dir + f"/variant_{self.variant}/test_episodes.csv")
         self.test_episodes = self.test_episodes.test_episodes.tolist()
 
         self.remaining_training_episodes = deepcopy(self.training_episodes)
@@ -42,6 +42,7 @@ class Environment(object):
         else:
             self.agent_capacity = 3
 
+        # fmt: off
         if self.variant == 0 or self.variant == 1:
             self.eligible_cells = [(0,0), (0,1), (0,2), (0,3), (0,4),
                                    (1,0), (1,1), (1,2), (1,3), (1,4),
@@ -54,12 +55,13 @@ class Environment(object):
                                    (2,0),        (2,2),        (2,4),
                                    (3,0), (3,1), (3,2),        (3,4),
                                    (4,0), (4,1), (4,2),        (4,4)]
+        # fmt: on
 
     # initialize a new episode (specify if training, validation, or testing via the mode argument)
     def reset(self, mode):
-        modes = ['training', 'validation', 'testing']
+        modes = ["training", "validation", "testing"]
         if mode not in modes:
-            raise ValueError('Invalid mode. Expected one of: %s' % modes)
+            raise ValueError("Invalid mode. Expected one of: %s" % modes)
 
         self.step_count = 0
         self.agent_loc = (self.vertical_idx_target, self.horizontal_idx_target)
@@ -78,7 +80,7 @@ class Environment(object):
                 self.remaining_training_episodes = deepcopy(self.training_episodes)
             episode = random.choice(self.remaining_training_episodes)
             self.remaining_training_episodes.remove(episode)
-        self.data = pd.read_csv(self.data_dir + f'/variant_{self.variant}/episode_data/episode_{episode:03d}.csv', index_col=0)
+        self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
         return self.get_obs()
 
@@ -144,12 +146,13 @@ class Environment(object):
 
     # DONE: implement function that gives the input features for the neural network(s)
     #       based on the current state of the environment
-    '''Returns current position of agent, free carry capacity of agent, and zero-padded item locations and times (24 total). This leads to a required 2 + 1 + 24 * (2 + 1) = 75 input neurons for a NN.'''
+    """Returns current position of agent, free carry capacity of agent, and zero-padded item locations and times (24 total). This leads to a required 2 + 1 + 24 * (2 + 1) = 75 input neurons for a NN."""
+
     def get_obs(self):
         agent_pos = self.agent_loc
         free_capacity = self.agent_capacity - self.agent_load
         item_locs = self.item_locs
-        item_times = [(15-i) for i in self.item_times]  # remaining time
+        item_times = [(15 - i) for i in self.item_times]  # remaining time
         # Maybe also distance to each item
 
         # Zero Padding for fixed number of neurons => item dummys
@@ -158,3 +161,11 @@ class Environment(object):
             item_times.append(0)  # no remaining time => to mark dummy
 
         return (agent_pos, free_capacity, item_locs, item_times)
+
+    def get_state_len(self):
+        """Returns the length of one state i.e., the tupel that is returned by the get_obs() method."""
+        return 2 + 1 + 24 * (2 + 1)
+
+    def get_action_len(self):
+        """Returns the number of actions available."""
+        return 5

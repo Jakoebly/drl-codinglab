@@ -1,0 +1,174 @@
+from collections import deque
+import random
+import numpy as np
+from typing import List
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from keras import layers
+from environment import Environment
+import matplotlib.pyplot as plt
+
+# TODO:
+# - Switch to tf-only syntax
+# - NN updates could also happen only happen after every ith episode and with mutliple batches
+# - Implement gradient descent / ascent updates
+# - Add more typing hints
+
+
+class SAC_Agent:
+    def __init__(self, env: Environment, gamma: float, initial_alpha: float, alpha_decay: float, rho: float, mem_maxlen: int, batch_size: int):
+        # Environment
+        self.env = env
+
+        # General Parameters
+        self.state_size = env.get_state_len()
+        self.action_size = env.get_action_len()
+        self.gamma = gamma
+        self.alpha = initial_alpha
+        self.alpha_decay = alpha_decay
+        self.rho = rho
+
+        # Replay Buffer. Format: (s,a,r,s',d)
+        self.replay_buffer = deque(maxlen=mem_maxlen)  # supports more efficient append()
+        self.batch_size = batch_size
+
+        # Neural Networks, TODO: act. fct? => squashed gaussian policy?
+        self.actor = self.nn_model(input_size=self.state_size, output_size=self.action_size, output_act_fct="softmax")
+        self.critic_1 = self.nn_model(input_size=self.state_size, output_size=1, output_act_fct="linear")
+        self.critic_2 = self.nn_model(input_size=self.state_size, output_size=1, output_act_fct="linear")
+        self.critic_tgt_1 = self.clone_nn(self.critic_1)
+        self.critic_tgt_2 = self.clone_nn(self.critic_2)
+
+        # Neural Network Gradients
+        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+        self.critic_1_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+        self.critic_2_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+        self.critic_tgt_1_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+        self.critic_tgt_2_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+
+    def select_action(self, state):
+        """Draws an action from the probability distribution that is outputed by the actor NN given the current state."""
+        probabilities = self.actor(state)
+        action = np.random.choice([0, 1, 2, 3, 4], p=probabilities.numpy())
+        return action
+
+    def sample_observation(self):
+        """Randomly samples a single observation from the replay buffer."""
+        return random.choices(self.replay_buffer, k=self.batch_size)
+
+    def update_alpha(self):
+        """Updates current alpha according to alpha decay."""
+        return self.alpha * self.alpha_decay
+
+    def nn_model(self, input_size: int, output_size: int, output_act_fct: str):
+        """Returns a NN with an input layer the size of `input_size`, 2 hidden layers with a RELU act. fct., and an output layer with size `output_size` and act. fct. `output_act_fct`."""
+        model = keras.Sequential(
+            [
+                # Two hidden layers with a RELU act. fct. and 64 nodes each
+                layers.Dense(64, activation="relu", input_share=(input_size)),
+                layers.Dense(65, activation="relu"),
+                # Output layer with custom size and act. fct.
+                layers.Dense(output_size, activation=output_act_fct),
+            ]
+        )
+        return model
+
+    def clone_nn(self, og_model):
+        """Clones a NN, including its weights."""
+        model_clone = keras.models.clone_model(og_model)  # copy structure
+        model_clone.set_weights(og_model.get_weights())  # copy weights
+        return model_clone
+
+    def update_value_parameters(self):
+        # TODO: apply gradient to value NNs
+        pass
+
+    def update_policy_parameters(self):
+        # TODO: apply gradient to policy NN
+        pass
+
+    def update_tgt_networks(self):
+        # Polyak Averaging
+        self.critic_tgt_1 = self.rho * self.critic_tgt_1.get_weights() + (1 - self.rho) * self.critic_1.get_weights()
+        self.critic_tgt_2 = self.rho * self.critic_tgt_2.get_weights() + (1 - self.rho) * self.critic_2.get_weights()
+
+    def run_SAC(self, no_episodes: int, mode: str = "training") -> List[float]:
+        """Runs the SAC algorithm for `no_episodes`episodes. `mode`must be `training`, `validation`, or `testing`."""
+        rewards = deque(maxlen=no_episodes)  # contains rewards per episode
+
+        # Console Message
+        print(f"Starting {mode}...")
+
+        # Run All Episodes
+        for episode in range(no_episodes):
+            # Console Message
+            if (episode + 1) % 100 == 0:
+                print("Episode: " + str(episode + 1) + " / " + str(no_episodes))
+
+            # Reset Environment to Starting Position
+            current_state = self.env.reset()  # get starting position
+            episode_rew = 0  # reset total reward per episode
+
+            for t in range(self.env.episode_steps):
+                # Choose and Perform Action
+                action = self.select_action(current_state)  # sample action
+                rew, next_state, d = self.env.step(action)  # observe outcome of action
+
+                # Store Observation in Replay Buffer
+                if mode == "training":
+                    self.replay_buffer.append(current_state, action, rew, next_state, d)  # for NN update
+                episode_rew += rew  # increase total reward per episode
+
+                # End Episode if Done
+                if d:
+                    break
+
+            # Update internal variables
+            self.update_alpha()
+            rewards.append(episode_rew)
+
+            # Update NNs
+            self.update_value_parameters()
+            self.update_policy_parameters()
+            self.update_tgt_networks()
+
+        return rewards
+
+
+def _visualize_results(rewards: List[float]):
+    """Visualizes the episode rewards of the SAC algorithm."""
+    # Console Message
+    print(f"Average episode reward: {np.average(rewards)}")
+    print(f"Maximum episode reward: {np.max(rewards)}")
+
+    # Create Time-Series Line Chart
+    df = pd.DataFrame(np.array(rewards), columns=["Rewards"])
+    plt.figure(figsize=(10, 6))
+    plt.plot(df["Rewards"], label="Episode Data", color="#0066BD")
+    plt.title("SAC Performance")
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
+    plt.legend()
+    plt.show()
+
+
+def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool = True):
+    """Main method. Executes the SAC algorithm for the given environment."""
+    # Initialize SAC Agent with Hyperparameters
+    # fmt: off
+    agent = SAC_Agent(env=env,
+                      gamma=0.995,
+                      initial_alpha=1,
+                      alpha_decay=0.9,
+                      rho=0.5,
+                      mem_maxlen=1000,
+                      batch_size=10)
+    # fmt: on
+
+    # Perform Episode Runs
+    rewards = agent.run_SAC(no_episodes=no_episodes, mode=mode)
+
+    # Visualize results
+    if visualize:
+        _visualize_results(rewards)
