@@ -1,7 +1,7 @@
 from collections import deque
 import random
 import numpy as np
-from typing import List
+from typing import List, Tuple
 import pandas as pd
 import tensorflow as tf
 from tensorflow import keras
@@ -9,14 +9,18 @@ from keras import layers
 from environment import Environment
 import matplotlib.pyplot as plt
 
+# --------------------------------------------------------------------------------------------------------------------
 # TODO:
-# - Switch to tf-only syntax
+# - Switch to tf-only syntax, at least for gradient methods
 # - NN updates could also happen only happen after every ith episode and with mutliple batches
-# - Implement gradient descent / ascent updates
-# - Add more typing hints
+# - Implement gradient descent / ascent updates for policy network => reparameterization trick?
+# - First x episodes completely random action?
+# --------------------------------------------------------------------------------------------------------------------
 
 
 class SAC_Agent:
+    """Soft Actor-Critic algorithm. Source: https://spinningup.openai.com/en/latest/algorithms/sac.html."""
+
     def __init__(self, env: Environment, gamma: float, initial_alpha: float, alpha_decay: float, rho: float, mem_maxlen: int, batch_size: int):
         # Environment
         self.env = env
@@ -33,33 +37,33 @@ class SAC_Agent:
         self.replay_buffer = deque(maxlen=mem_maxlen)  # supports more efficient append()
         self.batch_size = batch_size
 
-        # Neural Networks, TODO: act. fct? => squashed gaussian policy?
+        # Neural Networks
+        # TODO: act. fct? => squashed gaussian policy?
+        # TODO: Critics need as input both the state and the action
         self.actor = self.nn_model(input_size=self.state_size, output_size=self.action_size, output_act_fct="softmax")
-        self.critic_1 = self.nn_model(input_size=self.state_size, output_size=1, output_act_fct="linear")
-        self.critic_2 = self.nn_model(input_size=self.state_size, output_size=1, output_act_fct="linear")
-        self.critic_tgt_1 = self.clone_nn(self.critic_1)
-        self.critic_tgt_2 = self.clone_nn(self.critic_2)
+        self.critic_1 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")
+        self.critic_2 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")
+        self.critic_tgt_1 = self.clone_nn(self.critic_1 + 1)
+        self.critic_tgt_2 = self.clone_nn(self.critic_2 + 1)
 
         # Neural Network Gradients
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
         self.critic_1_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
         self.critic_2_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
-        self.critic_tgt_1_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
-        self.critic_tgt_2_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
 
-    def select_action(self, state):
-        """Draws an action from the probability distribution that is outputed by the actor NN given the current state."""
+    def select_action(self, state: List) -> Tuple[int, float]:
+        """Draws an action from the probability distribution that is outputed by the actor NN given the current state. Returns the action and its probability."""
         probabilities = self.actor(state)
         action = np.random.choice([0, 1, 2, 3, 4], p=probabilities.numpy())
-        return action
+        return action, probabilities[0, action]
 
-    def sample_observation(self):
+    def sample_observation(self) -> List[List]:
         """Randomly samples a single observation from the replay buffer."""
         return random.choices(self.replay_buffer, k=self.batch_size)
 
     def update_alpha(self):
         """Updates current alpha according to alpha decay."""
-        return self.alpha * self.alpha_decay
+        self.alpha *= self.alpha_decay
 
     def nn_model(self, input_size: int, output_size: int, output_act_fct: str):
         """Returns a NN with an input layer the size of `input_size`, 2 hidden layers with a RELU act. fct., and an output layer with size `output_size` and act. fct. `output_act_fct`."""
@@ -80,18 +84,38 @@ class SAC_Agent:
         model_clone.set_weights(og_model.get_weights())  # copy weights
         return model_clone
 
-    def update_value_parameters(self):
-        # TODO: apply gradient to value NNs
-        pass
+    @tf.function
+    def update_value_parameters(self, current_state, action, rew, next_state, d):
+        """Update critic NNs via MSE. Inputs should be a tensor."""
+        # TODO: Necessary to use tf functions for simple math? e.g., tf.math.multiply()
+        with tf.GradientTape() as tape:  # Record operations for automatic differentiation
+            # Calculate Intermediary Values
+            next_action, next_prob = self.select_action(next_state)
+            clipped_q_val = tf.minimum(self.critic_tgt_1(next_state, next_action), self.critic_tgt_2(next_state, next_action))
+            y = rew + self.gamma * (1 - d) * (clipped_q_val - self.alpha * tf.math.log(next_prob))
 
+            # Calculate Loss Functions for Both Critics
+            critic_1_loss = tf.reduce_mean((self.critic_1(current_state, action) - y) ** 2)
+            critic_2_loss = tf.reduce_mean((self.critic_2(current_state, action) - y) ** 2)
+
+        # Compute Gradients
+        critic_1_grads = tape.gradient(critic_1_loss, self.critic_1.trainable_variables)
+        critic_2_grads = tape.gradient(critic_2_loss, self.critic_2.trainable_variables)
+
+        # Update NNs Parameters
+        self.critic_1_optimizer.apply_gradients(zip(critic_1_grads, self.critic_1.trainable_variables))
+        self.critic_2_optimizer.apply_gradients(zip(critic_2_grads, self.critic_2.trainable_variables))
+
+    @tf.function
     def update_policy_parameters(self):
         # TODO: apply gradient to policy NN
         pass
 
+    @tf.function
     def update_tgt_networks(self):
         # Polyak Averaging
-        self.critic_tgt_1 = self.rho * self.critic_tgt_1.get_weights() + (1 - self.rho) * self.critic_1.get_weights()
-        self.critic_tgt_2 = self.rho * self.critic_tgt_2.get_weights() + (1 - self.rho) * self.critic_2.get_weights()
+        self.critic_tgt_1.set_weights(self.rho * self.critic_tgt_1.get_weights() + (1 - self.rho) * self.critic_1.get_weights())
+        self.critic_tgt_2.set_weights(self.rho * self.critic_tgt_2.get_weights() + (1 - self.rho) * self.critic_2.get_weights())
 
     def run_SAC(self, no_episodes: int, mode: str = "training") -> List[float]:
         """Runs the SAC algorithm for `no_episodes`episodes. `mode`must be `training`, `validation`, or `testing`."""
@@ -112,7 +136,7 @@ class SAC_Agent:
 
             for t in range(self.env.episode_steps):
                 # Choose and Perform Action
-                action = self.select_action(current_state)  # sample action
+                action, _ = self.select_action(current_state)  # sample action
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
 
                 # Store Observation in Replay Buffer
