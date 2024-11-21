@@ -41,8 +41,8 @@ class SAC_Agent:
         self.actor = self.nn_model(input_size=self.state_size, output_size=self.action_size, output_act_fct="softmax")
         self.critic_1 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")  # critics need as input both the state and the action
         self.critic_2 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")  # critics need as input both the state and the action
-        self.critic_tgt_1 = self.clone_nn(self.critic_1 + 1)
-        self.critic_tgt_2 = self.clone_nn(self.critic_2 + 1)
+        self.critic_tgt_1 = self.clone_nn(self.critic_1)
+        self.critic_tgt_2 = self.clone_nn(self.critic_2)
 
         # Neural Network Gradients
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
@@ -51,7 +51,7 @@ class SAC_Agent:
 
     def select_action(self, state: List) -> Tuple[int, float]:
         """Draws an action from the probability distribution that is outputed by the actor NN given the current state. Returns the action and its probability."""
-        probabilities = self.actor(state)
+        probabilities = self.actor(np.array(state))
         action = np.random.choice([0, 1, 2, 3, 4], p=probabilities.numpy())
         return action, probabilities[0, action]
 
@@ -68,7 +68,7 @@ class SAC_Agent:
         model = keras.Sequential(
             [
                 # Two hidden layers with a RELU act. fct. and 64 nodes each
-                layers.Dense(64, activation="relu", input_share=(input_size)),
+                layers.Dense(64, activation="relu", input_shape=(input_size,)),
                 layers.Dense(65, activation="relu"),
                 # Output layer with custom size and act. fct.
                 layers.Dense(output_size, activation=output_act_fct),
@@ -141,7 +141,7 @@ class SAC_Agent:
                 print("Episode: " + str(episode + 1) + " / " + str(no_episodes))
 
             # Reset Environment to Starting Position
-            current_state = self.env.reset()  # get starting position
+            current_state = self.env.reset(mode)  # get starting position
             episode_rew = 0  # reset total reward per episode
 
             for t in range(self.env.episode_steps):
@@ -208,3 +208,8 @@ def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool
         _visualize_results(rewards)
 
     return rewards
+
+
+if __name__ == "__main__":
+    env = Environment(variant=0, data_dir="./data")
+    SAC_algorithm(env=env, no_episodes=800, mode="training")
