@@ -15,11 +15,12 @@ import matplotlib.pyplot as plt
 # - NN updates could also happen only happen after every ith episode and with mutliple batches
 # - Implement gradient descent / ascent updates for policy network => reparameterization trick?
 # - First x episodes completely random action?
+# - Temperature optimization
 # --------------------------------------------------------------------------------------------------------------------
 
 
 class SAC_Agent:
-    """Soft Actor-Critic algorithm. Source: https://spinningup.openai.com/en/latest/algorithms/sac.html."""
+    """Soft Actor-Critic algorithm. Source: https://spinningup.openai.com/en/latest/algorithms/sac.html (OpenAI) and https://arxiv.org/abs/1910.07207 (Christodoulou 2019)."""
 
     def __init__(self, env: Environment, gamma: float, initial_alpha: float, alpha_decay: float, rho: float, mem_maxlen: int, batch_size: int):
         # Environment
@@ -38,11 +39,9 @@ class SAC_Agent:
         self.batch_size = batch_size
 
         # Neural Networks
-        # TODO: act. fct? => squashed gaussian policy?
-        # TODO: Critics need as input both the state and the action
         self.actor = self.nn_model(input_size=self.state_size, output_size=self.action_size, output_act_fct="softmax")
-        self.critic_1 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")
-        self.critic_2 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")
+        self.critic_1 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")  # critics need as input both the state and the action
+        self.critic_2 = self.nn_model(input_size=self.state_size + 1, output_size=1, output_act_fct="linear")  # critics need as input both the state and the action
         self.critic_tgt_1 = self.clone_nn(self.critic_1 + 1)
         self.critic_tgt_2 = self.clone_nn(self.critic_2 + 1)
 
@@ -88,7 +87,7 @@ class SAC_Agent:
     def update_value_parameters(self, current_state, action, rew, next_state, d):
         """Update critic NNs via MSE. Inputs should be a tensor."""
         # TODO: Necessary to use tf functions for simple math? e.g., tf.math.multiply()
-        with tf.GradientTape() as tape:  # Record operations for automatic differentiation
+        with tf.GradientTape() as tape:  # record operations for automatic differentiation
             # Calculate Intermediary Values
             next_action, next_prob = self.select_action(next_state)
             clipped_q_val = tf.minimum(self.critic_tgt_1(next_state, next_action), self.critic_tgt_2(next_state, next_action))
@@ -107,9 +106,21 @@ class SAC_Agent:
         self.critic_2_optimizer.apply_gradients(zip(critic_2_grads, self.critic_2.trainable_variables))
 
     @tf.function
-    def update_policy_parameters(self):
-        # TODO: apply gradient to policy NN
-        pass
+    def update_policy_parameters(self, current_state):
+        # TODO: Is this the right loss function formula?
+        with tf.GradientTape() as tape:  # record operations for automatic differentiation
+            # Calculate Intermediary Values
+            action, prob = self.select_action(current_state)
+            clipped_q_val = tf.minimum(self.critic_tgt_1(current_state, action), self.critic_tgt_2(current_state, action))
+
+            # Calculate Loss Function for Actor
+            policy_loss = tf.reduce_mean(self.alpha * tf.math.log(prob + 1e-8) - clipped_q_val)  # +1e-8 to prevent possibility of log 0 error
+
+        # Compute Gradient
+        policy_grads = tape.gradient(policy_loss, self.actor.trainable_variables)
+
+        # Update NN Parameters
+        self.actor_optimizer.apply_gradients(zip(policy_grads, self.actor.trainable_variables))
 
     @tf.function
     def update_tgt_networks(self):
@@ -177,8 +188,8 @@ def _visualize_results(rewards: List[float]):
     plt.show()
 
 
-def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool = True):
-    """Main method. Executes the SAC algorithm for the given environment."""
+def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool = True) -> List[float]:
+    """Main method. Executes the SAC algorithm for the given environment, visualizes it and returns the average achieved rewards."""
     # Initialize SAC Agent with Hyperparameters
     # fmt: off
     agent = SAC_Agent(env=env,
@@ -196,3 +207,5 @@ def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool
     # Visualize results
     if visualize:
         _visualize_results(rewards)
+
+    return rewards
