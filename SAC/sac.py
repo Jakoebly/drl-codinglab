@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 # TODO:
 # - Switch to tf-only syntax, at least for gradient methods
 # - NN updates could also happen only happen after every ith episode and with mutliple batches
-# - Implement gradient descent / ascent updates for policy network => reparameterization trick?
 # - First x episodes completely random action?
 # - Temperature optimization
 # --------------------------------------------------------------------------------------------------------------------
@@ -107,7 +106,7 @@ class SAC_Agent:
 
     @tf.function
     def update_policy_parameters(self, current_state):
-        # TODO: Is this the right loss function formula?
+        # TODO: Is this the right loss function formula? Reparameterization necessary?
         with tf.GradientTape() as tape:  # record operations for automatic differentiation
             # Calculate Intermediary Values
             action, prob = self.select_action(current_state)

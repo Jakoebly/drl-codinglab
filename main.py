@@ -8,18 +8,10 @@ from environment import Environment  # initialize environment
 
 # DONE: parse arguments
 parser = argparse.ArgumentParser(description="")  # instantiate the parser
-parser.add_argument(
-    "--experiment_name", type=str, default=datetime.now().strftime("%Y-%m-%d-%H.%M")
-)
-parser.add_argument(
-    "--variant", type=int, help="Problem variant (0=default, 1=larger capacity, 2=obstacles)"
-)
-parser.add_argument(
-    "--algorithm", type=str, help="Algorithm of the agent (dqn, ppo, sac)"
-)  # required pos arg
-parser.add_argument(
-    "--validation_model", type=str, nargs="?", help="Model weights for validation only"
-)  # required pos arg
+parser.add_argument("--experiment_name", type=str, default=datetime.now().strftime("%Y-%m-%d-%H.%M"))
+parser.add_argument("--variant", type=int, help="Problem variant (0=default, 1=larger capacity, 2=obstacles)")
+parser.add_argument("--algorithm", type=str, help="Algorithm of the agent (dqn, ppo, sac)")  # required pos arg
+parser.add_argument("--validation_model", type=str, nargs="?", help="Model weights for validation only")  # required pos arg
 parser.add_argument("--test", action="store_true", help="Do a test run")  # switch arg
 parser.add_argument("--save", action="store_true", help="Save run as JSON/CSV")  # switch arg
 args = parser.parse_args()  # parse
@@ -35,7 +27,7 @@ tf.random.set_seed(seed)
 
 # Set paths and initialize environment
 data_dir = "./data"  # DONE: specify relative path to data directory (e.g., './data', not './data/variant_0')
-variant = f"./data/variant_{args.variant}"  # DONE: specify problem variant (0 for base variant, 1 for first extension, 2 for second extension)
+variant = args.variant  # DONE: specify problem variant (0 for base variant, 1 for first extension, 2 for second extension)
 env = Environment(variant, data_dir)
 
 # DONE: execute training
