@@ -1,0 +1,3 @@
+- NN settings as parameter
+- Extensions as parameter
+- Configs?

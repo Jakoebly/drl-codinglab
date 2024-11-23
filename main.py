@@ -5,6 +5,7 @@ import random
 import numpy as np
 import tensorflow as tf
 from environment import Environment  # initialize environment
+from sac import SAC_Agent
 
 # DONE: parse arguments
 parser = argparse.ArgumentParser(description="")  # instantiate the parser
@@ -39,6 +40,29 @@ else:
         pass
     else:
         os.system(f"{args.algorithm}.py")
+
+
+no_episodes = {  # Length of CSV instead of hard-coding
+    "training": 800,
+    "validation": 100,
+    "testing": 100,
+}
+
+if args.algorithm.lower() == "sac":
+    # fmt: off
+    agent = SAC_Agent(env=env, 
+                      gamma=0.995, 
+                      initial_alpha=1, 
+                      alpha_decay=0.9, 
+                      rho=0.5, 
+                      mem_maxlen=1000, 
+                      batch_size=10)
+    # fmt: on
+
+    # Perform Episode Runs
+    rewards = agent.run_SAC(no_episodes=no_episodes[args.mode], mode=args.mode, visualize_results=True)
+    visualize_results(rewards)
+
 
 # TODO: Save results (rewards, actions, and environment) for each episode in subfolder
 # TODO: Save models from training

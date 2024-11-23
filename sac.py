@@ -49,15 +49,25 @@ class SAC_Agent:
         self.critic_1_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
         self.critic_2_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
 
-    def select_action(self, state: List) -> Tuple[int, float]:
+    def select_action(self, state: tf.Tensor) -> Tuple[int, float]:
         """Draws an action from the probability distribution that is outputed by the actor NN given the current state. Returns the action and its probability."""
-        probabilities = self.actor(np.array([state]))
+        probabilities = self.actor(tf.reshape(state, [-1, 75]))
         action = np.random.choice([0, 1, 2, 3, 4], p=probabilities[0].numpy())
         return action, probabilities[0, action]
 
-    def sample_observation(self) -> List:
-        """Randomly samples a single observation from the replay buffer."""
-        return random.choices(self.replay_buffer, k=self.batch_size)
+    def sample_observation(self) -> Tuple[tf.Tensor]:
+        """Randomly samples an observation from the replay buffer. Returns `(current_states, actions, rew, next_states, d)`, all of them being tensors."""
+        # Randomly Sample from Replay Buffer
+        batch = random.choices(self.replay_buffer, k=self.batch_size)
+
+        # Group Features and Convert Them to Tensors
+        current_states = tf.convert_to_tensor([batch[i][0] for i in range(len(batch))])
+        actions = tf.convert_to_tensor([batch[i][1] for i in range(len(batch))])
+        rew = tf.convert_to_tensor([batch[i][2] for i in range(len(batch))])
+        next_states = tf.convert_to_tensor([batch[i][3] for i in range(len(batch))])
+        d = tf.convert_to_tensor([batch[i][4] for i in range(len(batch))])
+
+        return (current_states, actions, rew, next_states, d)
 
     def update_alpha(self):
         """Updates current alpha according to alpha decay."""
@@ -162,7 +172,7 @@ class SAC_Agent:
 
             for t in range(self.env.episode_steps):
                 # Choose and Perform Action
-                action, _ = self.select_action(current_state)  # sample action
+                action, _ = self.select_action(tf.convert_to_tensor(current_state))  # sample action
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
                 next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
 
