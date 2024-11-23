@@ -51,11 +51,11 @@ class SAC_Agent:
 
     def select_action(self, state: List) -> Tuple[int, float]:
         """Draws an action from the probability distribution that is outputed by the actor NN given the current state. Returns the action and its probability."""
-        probabilities = self.actor(np.array(state))
-        action = np.random.choice([0, 1, 2, 3, 4], p=probabilities.numpy())
+        probabilities = self.actor(np.array([state]))
+        action = np.random.choice([0, 1, 2, 3, 4], p=probabilities[0].numpy())
         return action, probabilities[0, action]
 
-    def sample_observation(self) -> List[List]:
+    def sample_observation(self) -> List:
         """Randomly samples a single observation from the replay buffer."""
         return random.choices(self.replay_buffer, k=self.batch_size)
 
@@ -82,7 +82,7 @@ class SAC_Agent:
         model_clone.set_weights(og_model.get_weights())  # copy weights
         return model_clone
 
-    @tf.function
+    # @tf.function
     def update_value_parameters(self, current_state, action, rew, next_state, d):
         """Update critic NNs via MSE. Inputs should be a tensor."""
         # TODO: Necessary to use tf functions for simple math? e.g., tf.math.multiply()
@@ -104,7 +104,7 @@ class SAC_Agent:
         self.critic_1_optimizer.apply_gradients(zip(critic_1_grads, self.critic_1.trainable_variables))
         self.critic_2_optimizer.apply_gradients(zip(critic_2_grads, self.critic_2.trainable_variables))
 
-    @tf.function
+    # @tf.function
     def update_policy_parameters(self, current_state):
         # TODO: Is this the right loss function formula? Reparameterization necessary?
         with tf.GradientTape() as tape:  # record operations for automatic differentiation
@@ -121,13 +121,29 @@ class SAC_Agent:
         # Update NN Parameters
         self.actor_optimizer.apply_gradients(zip(policy_grads, self.actor.trainable_variables))
 
-    @tf.function
+    # @tf.function
     def update_tgt_networks(self):
         # Polyak Averaging
         self.critic_tgt_1.set_weights(self.rho * self.critic_tgt_1.get_weights() + (1 - self.rho) * self.critic_1.get_weights())
         self.critic_tgt_2.set_weights(self.rho * self.critic_tgt_2.get_weights() + (1 - self.rho) * self.critic_2.get_weights())
 
-    def run_SAC(self, no_episodes: int, mode: str = "training") -> List[float]:
+    def visualize_results(rewards: List[float]):
+        """Visualizes the episode rewards of the SAC algorithm."""
+        # Console Message
+        print(f"Average episode reward: {np.average(rewards)}")
+        print(f"Maximum episode reward: {np.max(rewards)}")
+
+        # Create Time-Series Line Chart
+        df = pd.DataFrame(np.array(rewards), columns=["Rewards"])
+        plt.figure(figsize=(10, 6))
+        plt.plot(df["Rewards"], label="Episode Data", color="#0066BD")
+        plt.title("SAC Performance")
+        plt.xlabel("Episode")
+        plt.ylabel("Reward")
+        plt.legend()
+        plt.show()
+
+    def run_SAC(self, no_episodes: int, mode: str = "training", visualize_results: bool = True) -> List[float]:
         """Runs the SAC algorithm for `no_episodes`episodes. `mode`must be `training`, `validation`, or `testing`."""
         rewards = deque(maxlen=no_episodes)  # contains rewards per episode
 
@@ -141,50 +157,42 @@ class SAC_Agent:
                 print("Episode: " + str(episode + 1) + " / " + str(no_episodes))
 
             # Reset Environment to Starting Position
-            current_state = self.env.reset(mode)  # get starting position
+            current_state = self.env.flatten_obs(self.env.reset(mode))  # get starting position
             episode_rew = 0  # reset total reward per episode
 
             for t in range(self.env.episode_steps):
                 # Choose and Perform Action
                 action, _ = self.select_action(current_state)  # sample action
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
+                next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
 
                 # Store Observation in Replay Buffer
                 if mode == "training":
-                    self.replay_buffer.append(current_state, action, rew, next_state, d)  # for NN update
+                    self.replay_buffer.append([current_state, action, rew, next_state, d])  # for NN update
                 episode_rew += rew  # increase total reward per episode
 
                 # End Episode if Done
                 if d:
                     break
 
+                # Continue with next state
+                current_state = next_state
+
             # Update internal variables
             self.update_alpha()
             rewards.append(episode_rew)
 
             # Update NNs
-            self.update_value_parameters()
-            self.update_policy_parameters()
-            self.update_tgt_networks()
+            if mode == "training":
+                train_current_state, train_action, train_rew, train_next_state, train_d = self.sample_observation()
+                self.update_value_parameters(train_current_state, train_action, train_rew, train_next_state, train_d)
+                self.update_policy_parameters(train_current_state)
+                self.update_tgt_networks()
+
+        if visualize_results:
+            self.visualize_results(rewards)
 
         return rewards
-
-
-def _visualize_results(rewards: List[float]):
-    """Visualizes the episode rewards of the SAC algorithm."""
-    # Console Message
-    print(f"Average episode reward: {np.average(rewards)}")
-    print(f"Maximum episode reward: {np.max(rewards)}")
-
-    # Create Time-Series Line Chart
-    df = pd.DataFrame(np.array(rewards), columns=["Rewards"])
-    plt.figure(figsize=(10, 6))
-    plt.plot(df["Rewards"], label="Episode Data", color="#0066BD")
-    plt.title("SAC Performance")
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.legend()
-    plt.show()
 
 
 def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool = True) -> List[float]:
@@ -201,11 +209,7 @@ def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool
     # fmt: on
 
     # Perform Episode Runs
-    rewards = agent.run_SAC(no_episodes=no_episodes, mode=mode)
-
-    # Visualize results
-    if visualize:
-        _visualize_results(rewards)
+    rewards = agent.run_SAC(no_episodes=no_episodes, mode=mode, visualize_results=True)
 
     return rewards
 

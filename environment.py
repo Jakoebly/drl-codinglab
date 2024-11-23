@@ -12,6 +12,7 @@ import random
 import pandas as pd
 from copy import deepcopy
 from itertools import compress
+import numpy as np
 
 
 class Environment(object):
@@ -160,7 +161,13 @@ class Environment(object):
             item_locs.append((-1, -1))  # non-existent position => to mark dummy
             item_times.append(0)  # no remaining time => to mark dummy
 
-        return (agent_pos, free_capacity, item_locs, item_times)
+        return [agent_pos, free_capacity, item_locs, item_times]
+
+    def flatten_obs(self, obs):
+        """Flattens the list returned from the get_obs() method."""
+        obs[1] = [obs[1]]
+        obs[2] = np.array(obs[2]).flatten()
+        return [elem for row in obs for elem in row]
 
     def get_state_len(self):
         """Returns the length of one state i.e., the tupel that is returned by the get_obs() method."""
