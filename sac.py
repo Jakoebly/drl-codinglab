@@ -11,10 +11,12 @@ import matplotlib.pyplot as plt
 
 # --------------------------------------------------------------------------------------------------------------------
 # TODO:
-# - Switch to tf-only syntax, at least for gradient methods
+# - Switch to tf-only syntax, at least for gradient methods => Necessary to use tf functions for simple math? e.g., tf.math.multiply()
 # - NN updates could also happen only happen after every ith episode and with mutliple batches
 # - First x episodes completely random action?
 # - Temperature optimization
+# - NN structure as input parameters
+# - Policy loss function correct? Reparameterization necessary?
 # --------------------------------------------------------------------------------------------------------------------
 
 
@@ -51,9 +53,10 @@ class SAC_Agent:
 
     def select_action(self, state: tf.Tensor) -> Tuple[int, float]:
         """Draws an action from the probability distribution that is outputed by the actor NN given the current state. Returns the action and its probability."""
-        probabilities = self.actor(tf.reshape(state, [-1, 75]))
-        action = np.random.choice([0, 1, 2, 3, 4], p=probabilities[0].numpy())
-        return action, probabilities[0, action]
+        p = self.actor(tf.reshape(state, [-1, 75]))  # probability for each action and observation
+        actions = [np.random.choice([0, 1, 2, 3, 4], p=p[i].numpy()) for i in range(len(p))]  # sample actions for all observations
+        probabilities = [p[i, actions[i]] for i in range(len(actions))]  # probabilities of sampled actions
+        return tf.convert_to_tensor(actions), tf.squeeze(probabilities)  # tf.squeeze flattens tensor
 
     def sample_observation(self) -> Tuple[tf.Tensor]:
         """Randomly samples an observation from the replay buffer. Returns `(current_states, actions, rew, next_states, d)`, all of them being tensors."""
@@ -95,20 +98,32 @@ class SAC_Agent:
     # @tf.function
     def update_value_parameters(self, current_state, action, rew, next_state, d):
         """Update critic NNs via MSE. Inputs should be a tensor."""
-        # TODO: Necessary to use tf functions for simple math? e.g., tf.math.multiply()
-        with tf.GradientTape() as tape:  # record operations for automatic differentiation
+        # Define Loss Function
+        with tf.GradientTape() as tape_1:  # record operations for automatic differentiation
             # Calculate Intermediary Values
             next_action, next_prob = self.select_action(next_state)
-            clipped_q_val = tf.minimum(self.critic_tgt_1(next_state, next_action), self.critic_tgt_2(next_state, next_action))
-            y = rew + self.gamma * (1 - d) * (clipped_q_val - self.alpha * tf.math.log(next_prob))
+            critic_tgt_input = tf.concat([next_state, tf.reshape(next_action, [10, 1])], axis=1)  # combine state and action tensors into one
+            clipped_q_val = tf.squeeze(tf.minimum(self.critic_tgt_1(critic_tgt_input), self.critic_tgt_2(critic_tgt_input)))  # tf.squeeze to flatten tensor
+            y = tf.cast(rew, tf.float32) + tf.cast((1 - d), tf.float32) * (clipped_q_val - self.alpha * tf.math.log(next_prob))  # castings necessary as tf only works with equal dtypes
 
-            # Calculate Loss Functions for Both Critics
-            critic_1_loss = tf.reduce_mean((self.critic_1(current_state, action) - y) ** 2)
-            critic_2_loss = tf.reduce_mean((self.critic_2(current_state, action) - y) ** 2)
+            # Calculate Loss Functions for First Critics
+            critic_loss_input = tf.concat([current_state, tf.reshape(action, [10, 1])], axis=1)  # combine state and action tensors into one
+            critic_1_loss = tf.reduce_mean((tf.squeeze(self.critic_1(critic_loss_input)) - y) ** 2)  # tf.queeze to flatten tensor
+
+        with tf.GradientTape() as tape_2:  # record operations for automatic differentiation
+            # Calculate Intermediary Values
+            next_action, next_prob = self.select_action(next_state)
+            critic_tgt_input = tf.concat([next_state, tf.reshape(next_action, [10, 1])], axis=1)  # combine state and action tensors into one
+            clipped_q_val = tf.squeeze(tf.minimum(self.critic_tgt_1(critic_tgt_input), self.critic_tgt_2(critic_tgt_input)))  # tf.squeeze to flatten tensor
+            y = tf.cast(rew, tf.float32) + tf.cast((1 - d), tf.float32) * (clipped_q_val - self.alpha * tf.math.log(next_prob))  # castings necessary as tf only works with equal dtypes
+
+            # Calculate Loss Functions for Second Critics
+            critic_loss_input = tf.concat([current_state, tf.reshape(action, [10, 1])], axis=1)  # combine state and action tensors into one
+            critic_2_loss = tf.reduce_mean((tf.squeeze(self.critic_2(critic_loss_input)) - y) ** 2)  # tf.queeze to flatten tensor
 
         # Compute Gradients
-        critic_1_grads = tape.gradient(critic_1_loss, self.critic_1.trainable_variables)
-        critic_2_grads = tape.gradient(critic_2_loss, self.critic_2.trainable_variables)
+        critic_1_grads = tape_1.gradient(critic_1_loss, self.critic_1.trainable_variables)
+        critic_2_grads = tape_2.gradient(critic_2_loss, self.critic_2.trainable_variables)
 
         # Update NNs Parameters
         self.critic_1_optimizer.apply_gradients(zip(critic_1_grads, self.critic_1.trainable_variables))
@@ -116,14 +131,16 @@ class SAC_Agent:
 
     # @tf.function
     def update_policy_parameters(self, current_state):
-        # TODO: Is this the right loss function formula? Reparameterization necessary?
+        """Update actor NN via loss function from https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py. Input should be a tensor."""
+        # Define Loss Function
         with tf.GradientTape() as tape:  # record operations for automatic differentiation
             # Calculate Intermediary Values
             action, prob = self.select_action(current_state)
-            clipped_q_val = tf.minimum(self.critic_tgt_1(current_state, action), self.critic_tgt_2(current_state, action))
+            critic_tgt_input = tf.concat([current_state, tf.reshape(action, [10, 1])], axis=1)  # combine state and action tensors into one
+            clipped_q_val = tf.squeeze(tf.minimum(self.critic_tgt_1(critic_tgt_input), self.critic_tgt_2(critic_tgt_input)))  # tf.queeze to flatten tensor
 
             # Calculate Loss Function for Actor
-            policy_loss = tf.reduce_mean(self.alpha * tf.math.log(prob + 1e-8) - clipped_q_val)  # +1e-8 to prevent possibility of log 0 error
+            policy_loss = tf.reduce_mean(prob * (self.alpha * tf.math.log(prob + 1e-8) - clipped_q_val))  # +1e-8 to prevent possibility of log 0 error
 
         # Compute Gradient
         policy_grads = tape.gradient(policy_loss, self.actor.trainable_variables)
@@ -133,9 +150,20 @@ class SAC_Agent:
 
     # @tf.function
     def update_tgt_networks(self):
-        # Polyak Averaging
-        self.critic_tgt_1.set_weights(self.rho * self.critic_tgt_1.get_weights() + (1 - self.rho) * self.critic_1.get_weights())
-        self.critic_tgt_2.set_weights(self.rho * self.critic_tgt_2.get_weights() + (1 - self.rho) * self.critic_2.get_weights())
+        """Updates critic tgt NN weights with critic NN weights using Polyak Averaging."""
+        # Model Weigths
+        critic_1_weights = self.critic_1.get_weights()
+        critic_2_weights = self.critic_2.get_weights()
+        critic_tgt_1_weights = self.critic_tgt_1.get_weights()
+        critic_tgt_2_weights = self.critic_tgt_2.get_weights()
+
+        # Polyak Averaging on a Per Layer Basis
+        new_tgt_weights_1 = [self.rho * critic_tgt_1_weights[layer] + (1 - self.rho) * critic_1_weights[layer] for layer in range(len(critic_tgt_1_weights))]
+        new_tgt_weights_2 = [self.rho * critic_tgt_2_weights[layer] + (1 - self.rho) * critic_2_weights[layer] for layer in range(len(critic_tgt_2_weights))]
+
+        # Update Critic Tgt Model Weights
+        self.critic_tgt_1.set_weights(new_tgt_weights_1)
+        self.critic_tgt_2.set_weights(new_tgt_weights_2)
 
     def visualize_results(rewards: List[float]):
         """Visualizes the episode rewards of the SAC algorithm."""
