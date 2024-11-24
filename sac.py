@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 # - Temperature optimization
 # - NN structure as input parameters
 # - Policy loss function correct? Reparameterization necessary?
+# - @tf.function currently not compatible with numpy operations
+# - Algorithm seems to de-converge again (see picture)
 # --------------------------------------------------------------------------------------------------------------------
 
 
@@ -102,23 +104,23 @@ class SAC_Agent:
         with tf.GradientTape() as tape_1:  # record operations for automatic differentiation
             # Calculate Intermediary Values
             next_action, next_prob = self.select_action(next_state)
-            critic_tgt_input = tf.concat([next_state, tf.reshape(next_action, [10, 1])], axis=1)  # combine state and action tensors into one
+            critic_tgt_input = tf.concat([next_state, tf.reshape(next_action, [self.batch_size, 1])], axis=1)  # combine state and action tensors into one
             clipped_q_val = tf.squeeze(tf.minimum(self.critic_tgt_1(critic_tgt_input), self.critic_tgt_2(critic_tgt_input)))  # tf.squeeze to flatten tensor
             y = tf.cast(rew, tf.float32) + tf.cast((1 - d), tf.float32) * (clipped_q_val - self.alpha * tf.math.log(next_prob))  # castings necessary as tf only works with equal dtypes
 
             # Calculate Loss Functions for First Critics
-            critic_loss_input = tf.concat([current_state, tf.reshape(action, [10, 1])], axis=1)  # combine state and action tensors into one
+            critic_loss_input = tf.concat([current_state, tf.reshape(action, [self.batch_size, 1])], axis=1)  # combine state and action tensors into one
             critic_1_loss = tf.reduce_mean((tf.squeeze(self.critic_1(critic_loss_input)) - y) ** 2)  # tf.queeze to flatten tensor
 
         with tf.GradientTape() as tape_2:  # record operations for automatic differentiation
             # Calculate Intermediary Values
             next_action, next_prob = self.select_action(next_state)
-            critic_tgt_input = tf.concat([next_state, tf.reshape(next_action, [10, 1])], axis=1)  # combine state and action tensors into one
+            critic_tgt_input = tf.concat([next_state, tf.reshape(next_action, [self.batch_size, 1])], axis=1)  # combine state and action tensors into one
             clipped_q_val = tf.squeeze(tf.minimum(self.critic_tgt_1(critic_tgt_input), self.critic_tgt_2(critic_tgt_input)))  # tf.squeeze to flatten tensor
             y = tf.cast(rew, tf.float32) + tf.cast((1 - d), tf.float32) * (clipped_q_val - self.alpha * tf.math.log(next_prob))  # castings necessary as tf only works with equal dtypes
 
             # Calculate Loss Functions for Second Critics
-            critic_loss_input = tf.concat([current_state, tf.reshape(action, [10, 1])], axis=1)  # combine state and action tensors into one
+            critic_loss_input = tf.concat([current_state, tf.reshape(action, [self.batch_size, 1])], axis=1)  # combine state and action tensors into one
             critic_2_loss = tf.reduce_mean((tf.squeeze(self.critic_2(critic_loss_input)) - y) ** 2)  # tf.queeze to flatten tensor
 
         # Compute Gradients
@@ -136,7 +138,7 @@ class SAC_Agent:
         with tf.GradientTape() as tape:  # record operations for automatic differentiation
             # Calculate Intermediary Values
             action, prob = self.select_action(current_state)
-            critic_tgt_input = tf.concat([current_state, tf.reshape(action, [10, 1])], axis=1)  # combine state and action tensors into one
+            critic_tgt_input = tf.concat([current_state, tf.reshape(action, [self.batch_size, 1])], axis=1)  # combine state and action tensors into one
             clipped_q_val = tf.squeeze(tf.minimum(self.critic_tgt_1(critic_tgt_input), self.critic_tgt_2(critic_tgt_input)))  # tf.queeze to flatten tensor
 
             # Calculate Loss Function for Actor
@@ -165,7 +167,7 @@ class SAC_Agent:
         self.critic_tgt_1.set_weights(new_tgt_weights_1)
         self.critic_tgt_2.set_weights(new_tgt_weights_2)
 
-    def visualize_results(rewards: List[float]):
+    def visualize_results(self, rewards: List[float]):
         """Visualizes the episode rewards of the SAC algorithm."""
         # Console Message
         print(f"Average episode reward: {np.average(rewards)}")
@@ -233,25 +235,20 @@ class SAC_Agent:
         return rewards
 
 
-def SAC_algorithm(env: Environment, no_episodes: int, mode: str, visualize: bool = True) -> List[float]:
-    """Main method. Executes the SAC algorithm for the given environment, visualizes it and returns the average achieved rewards."""
+if __name__ == "__main__":
+    # Initialize Environment
+    env = Environment(variant=0, data_dir="./data")
+
     # Initialize SAC Agent with Hyperparameters
     # fmt: off
     agent = SAC_Agent(env=env,
-                      gamma=0.995,
-                      initial_alpha=1,
-                      alpha_decay=0.9,
-                      rho=0.5,
-                      mem_maxlen=1000,
-                      batch_size=10)
+                      gamma=0.99,
+                      initial_alpha=0.95,
+                      alpha_decay=1,
+                      rho=0.2,
+                      mem_maxlen=int(1e7),
+                      batch_size=20)
     # fmt: on
 
     # Perform Episode Runs
-    rewards = agent.run_SAC(no_episodes=no_episodes, mode=mode, visualize_results=True)
-
-    return rewards
-
-
-if __name__ == "__main__":
-    env = Environment(variant=0, data_dir="./data")
-    SAC_algorithm(env=env, no_episodes=800, mode="training")
+    rewards = agent.run_SAC(no_episodes=800, mode="training", visualize_results=True)
