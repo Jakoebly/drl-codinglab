@@ -50,18 +50,18 @@ no_episodes = {  # Length of CSV instead of hard-coding
 
 if args.algorithm.lower() == "sac":
     # fmt: off
-    agent = SAC_Agent(env=env, 
-                      gamma=0.995, 
-                      initial_alpha=1, 
-                      alpha_decay=0.9, 
-                      rho=0.5, 
-                      mem_maxlen=1000, 
+    agent = SAC_Agent(env=env,
+                      gamma=0.995,
+                      initial_alpha=1,
+                      alpha_decay=0.9,
+                      rho=0.5,
+                      mem_maxlen=1000,
                       batch_size=10)
     # fmt: on
 
     # Perform Episode Runs
     rewards = agent.run_SAC(no_episodes=no_episodes[args.mode], mode=args.mode, visualize_results=True)
-    visualize_results(rewards)
+    # visualize_results(rewards)
 
 
 # TODO: Save results (rewards, actions, and environment) for each episode in subfolder
