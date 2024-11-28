@@ -1,4 +1,5 @@
 from collections import deque
+import os
 import random
 import numpy as np
 from typing import List, Tuple
@@ -13,12 +14,11 @@ import matplotlib.pyplot as plt
 # TODO:
 # - Switch to tf-only syntax, at least for gradient methods => Necessary to use tf functions for simple math? e.g., tf.math.multiply()
 # - NN updates could also happen only happen after every ith episode and with mutliple batches
-# - First x episodes completely random action?
+# - First x episodes completely random action? => "warm-up steps" so that buffer is sufficiently large
 # - Temperature optimization
 # - NN structure as input parameters
 # - Policy loss function correct? Reparameterization necessary?
 # - @tf.function currently not compatible with numpy operations
-# - Algorithm seems to de-converge again (see picture)
 # - Save and load model weights
 # --------------------------------------------------------------------------------------------------------------------
 
@@ -84,8 +84,8 @@ class SAC_Agent:
         model = keras.Sequential(
             [
                 # Two hidden layers with a RELU act. fct. and 64 nodes each
-                layers.Dense(64, activation="relu", input_shape=(input_size,)),
-                layers.Dense(65, activation="relu"),
+                layers.Dense(128, activation="relu", input_shape=(input_size,)),  # was: 64
+                layers.Dense(128, activation="relu"),  # was: 64
                 # Output layer with custom size and act. fct.
                 layers.Dense(output_size, activation=output_act_fct),
             ]
@@ -206,6 +206,14 @@ class SAC_Agent:
         # Console Message
         print(f"Starting {mode}...")
 
+        # Load Model in Validation and Testing Mode
+        if mode != "training":
+            self.actor.load_weights("./checkpoints/sac-actor.weights.h5")
+            self.critic_1.load_weights("./checkpoints/sac-critic1.weights.h5")
+            self.critic_2.load_weights("./checkpoints/sac-critic2.weights.h5")
+            self.critic_tgt_1.load_weights("./checkpoints/sac-critic1-tgt.weights.h5")
+            self.critic_tgt_2.load_weights("./checkpoints/sac-critic2-tgt.weights.h5")
+
         # Run All Episodes
         for episode in range(no_episodes):
             # Console Message
@@ -214,7 +222,7 @@ class SAC_Agent:
 
             # Reset Environment to Starting Position
             current_state = self.env.flatten_obs(self.env.reset(mode))  # get starting position
-            episode_rew = []  # reset total reward per episode
+            episode_rew = 0  # reset total reward per episode
 
             for t in range(self.env.episode_steps):
                 # Choose and Perform Action
@@ -225,18 +233,18 @@ class SAC_Agent:
                 # Store Observation in Replay Buffer
                 if mode == "training":
                     self.replay_buffer.append([current_state, action, rew, next_state, d])  # for NN update
-                episode_rew.append(rew)  # increase total reward per episode
+                episode_rew += rew  # increase total reward per episode
 
                 # End Episode if Done
                 if d:
                     break
 
-                # Continue with next state
+                # Continue With Next State
                 current_state = next_state
 
-            # Update internal variables
+            # Update Internal Variables
             self._update_alpha()
-            rewards.append(np.mean(episode_rew))
+            rewards.append(episode_rew)
 
             # Update NNs
             if mode == "training":
@@ -245,8 +253,22 @@ class SAC_Agent:
                 self._update_policy_parameters(train_current_state)
                 self._update_tgt_networks()
 
+        # Print and Visualize Results
         if visualize_results:
             self._visualize_results(rewards)
+
+        # Save Model Weights in Training
+        if mode == "training":
+            # Create Folder If It Doesn't Exist
+            if not os.path.exists("./checkpoints"):
+                os.makedirs("./checkpoints")
+
+            # Save Weights
+            self.actor.save_weights("./checkpoints/sac-actor.weights.h5")
+            self.critic_1.save_weights("./checkpoints/sac-critic1.weights.h5")
+            self.critic_2.save_weights("./checkpoints/sac-critic2.weights.h5")
+            self.critic_tgt_1.save_weights("./checkpoints/sac-critic1-tgt.weights.h5")
+            self.critic_tgt_2.save_weights("./checkpoints/sac-critic2-tgt.weights.h5")
 
         return rewards
 
@@ -258,12 +280,12 @@ if __name__ == "__main__":
     # Initialize SAC Agent with Hyperparameters
     # fmt: off
     agent = SAC_Agent(env=env,
-                      gamma=0.99,
-                      initial_alpha=1,
-                      alpha_decay=0.995,
-                      rho=0.2,
-                      mem_maxlen=int(1e7),
-                      batch_size=20)
+                      gamma=0.99,  # was: 0.99
+                      initial_alpha=0.2,  # was: 1
+                      alpha_decay=1,  # was: 0.995
+                      rho=0.01,  # was: 0.2
+                      mem_maxlen=int(1e7),  # was: int(1e7)
+                      batch_size=64)  # was: 20
     # fmt: on
 
     # Perform Episode Runs
