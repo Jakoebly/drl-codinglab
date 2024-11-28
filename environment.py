@@ -152,8 +152,8 @@ class Environment(object):
     def get_obs(self):
         agent_pos = self.agent_loc
         free_capacity = self.agent_capacity - self.agent_load
-        item_locs = self.item_locs
-        item_times = [(15 - i) for i in self.item_times]  # remaining time
+        item_locs = list.copy(self.item_locs)
+        item_times = [(15 - i) for i in list.copy(self.item_times)]  # remaining time
         # Maybe also distance to each item
 
         # Zero Padding for fixed number of neurons => item dummys
