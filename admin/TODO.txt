@@ -1,3 +1,7 @@
 - NN settings as parameter
 - Extensions as parameter
 - Configs?
+- Training/testing wrapper
+- Outsource common functions (e.g. visualzations) to utils 
+- Define settings.py
+- nn function: Use one for all. Specfiy loss function. Make dynamic (add nn archtiecture as parameter)
