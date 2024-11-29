@@ -1,0 +1,11 @@
+{
+  "gamma": 0.95,
+  "epsilon": 1,
+  "batch_size": 32,
+  "epsilon_min": 0.18,
+  "epsilon_decay": 0.99,
+  "learning_rate": 0.01,
+  "target_update_interval": 25,
+  "eval_interval": 50,
+  "mem_maxlen": 1000
+}

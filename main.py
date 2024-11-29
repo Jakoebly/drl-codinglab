@@ -4,8 +4,13 @@ import os
 import random
 import numpy as np
 import tensorflow as tf
-from environment import Environment  # initialize environment
+
 from sac import SAC_Agent
+
+from environment import Environment  # initialize environment
+from SAC import sac
+from DQN import dqn
+from PPO import ppo
 
 # DONE: parse arguments
 parser = argparse.ArgumentParser(description="")  # instantiate the parser
@@ -48,7 +53,22 @@ no_episodes = {  # Length of CSV instead of hard-coding
     "testing": 100,
 }
 
-if args.algorithm.lower() == "sac":
+if args.algorithm.lower() == "dqn":
+    # fmt: off
+    # TODO: Add as config import
+    agent = DQN_Agent(gamma = 0.95,
+                      epsilon = 1,
+                      batch_size = 32,
+                      epsilon_min = 0.18,
+                      epsilon_decay = 0.99,
+                      learning_rate = 0.01,
+                      target_update_interval = 25,
+                      eval_interval = 50,
+                      mem_maxlen = 1000)
+    # fmt: on
+
+
+elif args.algorithm.lower() == "sac":
     # fmt: off
     agent = SAC_Agent(env=env,
                       gamma=0.995,
@@ -58,11 +78,21 @@ if args.algorithm.lower() == "sac":
                       mem_maxlen=1000,
                       batch_size=10)
     # fmt: on
+    #rewards = agent.run_SAC(no_episodes=no_episodes[args.mode], mode=args.mode, visualize_results=True)
 
-    # Perform Episode Runs
-    rewards = agent.run_SAC(no_episodes=no_episodes[args.mode], mode=args.mode, visualize_results=True)
-    # visualize_results(rewards)
+rewards = agent.run(no_episodes = no_episodes[args.mode], mode = args.mode, visualize_results = args.visualize)
 
+# Save Results
+if args.save_results:
+    results_path = f"./results/{args.experiment_name}_{args.algorithm}_{args.mode}.json"
+    os.makedirs(os.path.dirname(results_path), exist_ok=True)
+    with open(results_path, "w") as f:
+        json.dump({"rewards": rewards, "replay_buffer": list(replay_buffer)}, f)
 
+# Visualization
+if args.visualize:
+    ut.visualize_results(rewards)
+
+#train_start_time = datetime.now()
 # TODO: Save results (rewards, actions, and environment) for each episode in subfolder
 # TODO: Save models from training

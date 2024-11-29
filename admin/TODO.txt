@@ -5,3 +5,12 @@
 - Outsource common functions (e.g. visualzations) to utils 
 - Define settings.py
 - nn function: Use one for all. Specfiy loss function. Make dynamic (add nn archtiecture as parameter)
+
+- Store the following after each train run:
+-- Run (Rewards, Observations, Actions, Time of Run, Hyperparams used)
+-- Standard Visualizations
+-- Weights/Model
+
+Store the following after each test run:
+-- Run (Rewards, Observations, Actions, Time of Run, Hyperparams used, Weights used)
+-- Standard Visualizations

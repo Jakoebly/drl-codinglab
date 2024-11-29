@@ -11,11 +11,6 @@ from collections import deque
 import os
 from typing import List, Tuple
 import pandas as pd
-import matplotlib.pyplot as plt
-
-
-#from settings import *
-#import Utils.hyperparameter_tuning as hp
 
 class DQN_AGENT:
     def __init__(self, env: Environment,
@@ -77,11 +72,11 @@ class DQN_AGENT:
             utils.load_model_weights(WEIGHT_PATH, model)
         return model'''
     
-    def _select_action(self, state: tf.Tensor, mode: str = "training"):
+    '''def _select_action(self, state: tf.Tensor, mode: str = "training"):
         if mode == "training":
             return self.select_randon_action()
         else:
-            return self.select_greedy_action(state)
+            return self.select_greedy_action(state)'''
     
     def select_random_action(self):
         if np.random.uniform(0, 1) <= self.epsilon:
@@ -151,7 +146,7 @@ class DQN_AGENT:
 
             for step in range(self.env.episode_steps):
                 # Choose and Perform Action
-                action = self._select_action(tf.convert_to_tensor(current_state))  # sample action
+                action = self.select_random_action()  # sample action
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
                 next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
 
@@ -190,7 +185,7 @@ class DQN_AGENT:
 
             print("episode: {}/{} | score: {} | e: {:.3f}".format(episode + 1, no_episodes, rew, agent.epsilon))
 
-        return rewards  # Rewards per episode as the result of training or testing
+        return rewards, self.replay_buffer
 
 
     def test_DQN(self, no_episodes: int, mode, eval: bool = False, visualize_results: bool = True) -> List[float]:
@@ -210,7 +205,7 @@ class DQN_AGENT:
 
             for step in range(self.env.episode_steps):
                 # Choose and Perform Action
-                action = self._select_action(tf.convert_to_tensor(current_state))  # sample action
+                action = self.select_greedy_action(state = tf.convert_to_tensor(current_state))
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
                 next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
                 episode_rew += rew  # increase total reward per episode
@@ -224,18 +219,15 @@ class DQN_AGENT:
 
         return rewards
 
-
-
-    def run_DQN(self, no_episodes: int, mode: str = "training", visualize_results: bool = True) -> List[float]:
+    def run(self, no_episodes: int, mode: str = "training", visualize_results: bool = True) -> List[float]:
         # Console Message
         print(f"Starting {mode}...")
 
         if mode == "training":
-            rewards = self.train_DQN(no_episodes = no_episodes, visualize_results=visualize_results)
+            rewards, replay_buffer = self.train_DQN(no_episodes = no_episodes, visualize_results=visualize_results)
 
-        elif mode == "testing":
+        else:
             rewards = self.test_DQN(no_episodes = no_episodes, visualize_results=visualize_results)
-
 
 
 if __name__ == "__main__":
@@ -244,7 +236,7 @@ if __name__ == "__main__":
 
     # Initialize SAC Agent with Hyperparameters
     # fmt: off
-    agent = DQN_Agent(env=env,
+    agent = DQN_AGENT(env=env,
                       gamma=0.99,  # was: 0.99
                       initial_alpha=0.2,  # was: 1
                       alpha_decay=1,  # was: 0.995
@@ -252,6 +244,7 @@ if __name__ == "__main__":
                       mem_maxlen=int(1e7),  # was: int(1e7)
                       batch_size=64)  # was: 20
     # fmt: on
+    rewards = agent.run(no_episodes=800, mode="training", visualize_results=True)
 
-    # Perform Episode Runs
-    rewards = agent.run_SAC(no_episodes=800, mode="training", visualize_results=True)
+    
+
