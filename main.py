@@ -15,7 +15,7 @@ from PPO import ppo
 # DONE: parse arguments
 parser = argparse.ArgumentParser(description="")  # instantiate the parser
 parser.add_argument("--experiment_name", type=str, default=datetime.now().strftime("%Y-%m-%d-%H.%M"))
-parser.add_argument("--variant", type=int, help="Problem variant (0=default, 1=larger capacity, 2=obstacles)")
+parser.add_argument("--variant", type=int, help="Problem variant (0 = default, 1 = larger capacity, 2 = obstacles)")
 parser.add_argument("--algorithm", type=str, help="Algorithm of the agent (dqn, ppo, sac)")  # required pos arg
 parser.add_argument("--validation_model", type=str, nargs="?", help="Model weights for validation only")  # required pos arg
 parser.add_argument("--test", action="store_true", help="Do a test run")  # switch arg
@@ -82,17 +82,15 @@ elif args.algorithm.lower() == "sac":
 
 rewards = agent.run(no_episodes = no_episodes[args.mode], mode = args.mode, visualize_results = args.visualize)
 
-# Save Results
+
+# TODO: Save results (rewards, actions, and environment) for each episode in subfolder
 if args.save_results:
     results_path = f"./results/{args.experiment_name}_{args.algorithm}_{args.mode}.json"
     os.makedirs(os.path.dirname(results_path), exist_ok=True)
     with open(results_path, "w") as f:
         json.dump({"rewards": rewards, "replay_buffer": list(replay_buffer)}, f)
+# TODO: Save models from training
 
-# Visualization
+# TODO: Visualization
 if args.visualize:
     ut.visualize_results(rewards)
-
-#train_start_time = datetime.now()
-# TODO: Save results (rewards, actions, and environment) for each episode in subfolder
-# TODO: Save models from training

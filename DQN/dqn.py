@@ -229,6 +229,8 @@ class DQN_AGENT:
         else:
             rewards = self.test_DQN(no_episodes = no_episodes, visualize_results=visualize_results)
 
+        return rewards
+
 
 if __name__ == "__main__":
     # Initialize Environment
@@ -245,6 +247,3 @@ if __name__ == "__main__":
                       batch_size=64)  # was: 20
     # fmt: on
     rewards = agent.run(no_episodes=800, mode="training", visualize_results=True)
-
-    
-
