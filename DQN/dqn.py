@@ -4,7 +4,7 @@ from keras import layers
 import numpy as np
 import random
 from datetime import datetime
-from Utils import utils
+#from Utils import utils
 from environment import Environment
 from collections import deque
 
@@ -12,7 +12,7 @@ import os
 from typing import List, Tuple
 import pandas as pd
 
-class DQN_AGENT:
+class DQN_Agent:
     def __init__(self, env: Environment,
                  gamma: float,
                  epsilon: float,
@@ -238,12 +238,16 @@ if __name__ == "__main__":
 
     # Initialize SAC Agent with Hyperparameters
     # fmt: off
-    agent = DQN_AGENT(env=env,
-                      gamma=0.99,  # was: 0.99
-                      initial_alpha=0.2,  # was: 1
-                      alpha_decay=1,  # was: 0.995
-                      rho=0.01,  # was: 0.2
-                      mem_maxlen=int(1e7),  # was: int(1e7)
-                      batch_size=64)  # was: 20
+    agent = DQN_Agent(gamma = 0.95,
+                      epsilon = 1,
+                      batch_size = 32,
+                      epsilon_min = 0.18,
+                      epsilon_decay = 0.99,
+                      learning_rate = 0.01,
+                      target_update_interval = 25,
+                      eval_interval = 50,
+                      mem_maxlen = 1000)
     # fmt: on
-    rewards = agent.run(no_episodes=800, mode="training", visualize_results=True)
+    rewards = agent.run(no_episodes=800, mode = "training", visualize_results = True)
+
+    print(rewards)

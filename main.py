@@ -89,6 +89,7 @@ if args.save_results:
     os.makedirs(os.path.dirname(results_path), exist_ok=True)
     with open(results_path, "w") as f:
         json.dump({"rewards": rewards, "replay_buffer": list(replay_buffer)}, f)
+        
 # TODO: Save models from training
 
 # TODO: Visualization
