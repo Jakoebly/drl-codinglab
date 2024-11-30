@@ -84,7 +84,7 @@ class DQN_Agent:
             layers.Dense(128, activation="relu"),
             layers.Dense(self.action_size, activation="linear")
         ])
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr), loss='mse')
+        #model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr), loss='mse')
         return model
     
     
@@ -147,9 +147,9 @@ class DQN_Agent:
         )
     
     @tf.function
-    def compute_q_targets(self, rewards, dones, max_q_next):
+    def compute_q_targets(self, reward, done, max_q_next):
         """Compute the target Q-values for the Bellman equation."""
-        return rewards + (1 - dones) * self.gamma * max_q_next
+        return reward + (1 - done) * self.gamma * max_q_next
 
     @tf.function
     def train_step(self, states, actions, rewards, next_states, dones):
@@ -254,7 +254,8 @@ class DQN_Agent:
         for episode in range(no_episodes):
             # Console Message
             if (episode + 1) % 100 == 0:
-                print("Episode: " + str(episode + 1) + " / " + str(no_episodes))
+                #print(f"Episode: " + {str(episode + 1)} + " / " + str(no_episodes) + "---"  )
+                print(f"Episode:  {str(episode + 1)} / {str(no_episodes)} --- Epsilon: {self.epsilon}"  )
 
             current_state = self.env.flatten_obs(self.env.reset(mode))  # get starting position
             episode_rew = 0
@@ -307,7 +308,9 @@ class DQN_Agent:
 
             #print("episode: {}/{} | score: {} | e: {:.3f}".format(episode + 1, no_episodes, rew, agent.epsilon))
 
-        return rewards, self.replay_buffer
+        #TODO: Save Model, Save Rewards, Save Actions
+
+        return train_rewards
 
 
     def test_DQN(self, no_episodes: int, mode, eval: bool = False, visualize_results: bool = True) -> List[float]:
@@ -347,7 +350,7 @@ class DQN_Agent:
         print(f"Starting {mode}...")
 
         if mode == "training":
-            rewards, replay_buffer = self.train_DQN(no_episodes = no_episodes, mode=mode,visualize_results=visualize_results)
+            rewards = self.train_DQN(no_episodes = no_episodes, mode=mode,visualize_results=visualize_results)
 
         else:
             rewards = self.test_DQN(no_episodes = no_episodes, visualize_results=visualize_results)
@@ -362,15 +365,14 @@ if __name__ == "__main__":
     # Initialize SAC Agent with Hyperparameters
     # fmt: off
     agent = DQN_Agent(env = env,
-                      gamma = 0.95,
+                      gamma = 0.99,
                       epsilon = 1,
-                      batch_size = 128,
+                      batch_size = 512,
                       epsilon_min = 0.1,
-                      epsilon_decay = 0.999,
-                      learning_rate = 0.01,
+                      epsilon_decay = 0.995,
+                      learning_rate = 0.025,
                       target_update_interval = 50,
                       eval_interval = 50,
                       mem_maxlen = 2000)
     # fmt: on
-    rewards = agent.run(no_episodes = 1000, mode = "training", visualize_results = True)
-    print(rewards)
+    rewards = agent.run(no_episodes = 800, mode = "training", visualize_results = True)
