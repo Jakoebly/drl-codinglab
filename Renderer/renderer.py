@@ -91,4 +91,4 @@ class Renderer:
 
         self.previous_target_count = target_count
 
-        plt.pause(0.1)
+        plt.pause(0.0001)

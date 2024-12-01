@@ -80,7 +80,7 @@ elif args.algorithm.lower() == "sac":
     # fmt: on
     #rewards = agent.run_SAC(no_episodes=no_episodes[args.mode], mode=args.mode, visualize_results=True)
 
-rewards = agent.run(no_episodes = no_episodes[args.mode], mode = args.mode, visualize_results = args.visualize)
+rewards = agent.run(no_episodes = no_episodes[args.mode], mode = args.mode)
 
 
 # TODO: Save results (rewards, actions, and environment) for each episode in subfolder

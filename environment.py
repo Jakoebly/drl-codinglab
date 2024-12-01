@@ -177,20 +177,24 @@ class Environment(object):
     #       based on the current state of the environment
     """Returns current position of agent, free carry capacity of agent, and zero-padded item locations and times (24 total). This leads to a required 2 + 1 + 24 * (2 + 1) = 75 input neurons for a NN."""
 
-    #TODO: No zero padding
-    #TODO: Eucledian distance to each item (new list)
-    #TODO: Eucledian distance from item to target
+    #TODO: PADDING
+    #TODO: Item Position RELATIV not absolut
+    #TODO: Manhatten distance to each item (new list)
+    #TODO: Manhatten distance from item to target
     #TODO: Number of items present on field
     #TODO: Abstand zur nächsten wand
-    #TODO: Abstand -1 als padding
+    #TODO: Past Items Vector
+    #TODO: Delte items where distance > remaining time
 
+    #TODO: DNN, CNN, RNN
 
+    # This was our old get_obs()
     '''def get_obs(self):
         agent_pos = self.agent_loc
         free_capacity = self.agent_capacity - self.agent_load
         item_locs = list.copy(self.item_locs)
         item_times = [(self.max_response_time - i) for i in list.copy(self.item_times)]  # remaining time
-        item_distances = list.copy(self.item_distances)
+        #item_distances = list.copy(self.item_distances)
 
         # Zero Padding for fixed number of neurons => item dummys
         while len(item_locs) < 24:
@@ -199,6 +203,7 @@ class Environment(object):
 
         return [agent_pos, free_capacity, item_locs, item_times]'''
 
+    # New get_obs()
     def get_obs(self):
         agent_pos = np.array(self.agent_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count])  # Normalize position
         free_capacity = np.array([self.agent_capacity - self.agent_load])  # Free capacity as a scalar
@@ -220,7 +225,7 @@ class Environment(object):
 
         valid_mask = np.array([1] * len(item_locs) + [0] * (max_items - len(item_locs)))
 
-        # NO NEED FOR FLATTEN OBS
+        # NO NEED FOR FLATTEN OBS - Check if this is correct
         observation = np.concatenate([
             agent_pos.flatten(),  # Flattened agent position
             free_capacity,  # Free capacity
@@ -234,11 +239,11 @@ class Environment(object):
         return observation
 
     # TODO: Delete or intergate into get_obs()
-    def flatten_obs(self, obs):
+    '''def flatten_obs(self, obs):
         """Flattens the list returned from the get_obs() method."""
         obs[1] = [obs[1]]
         obs[2] = np.array(obs[2]).flatten()
-        return [elem for row in obs for elem in row]
+        return [elem for row in obs for elem in row]'''
 
     '''def get_state_len(self):
         """Returns the length of one state i.e., the tupel that is returned by the get_obs() method."""

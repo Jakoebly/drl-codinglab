@@ -3,11 +3,12 @@ from tensorflow import keras
 from keras import layers
 import numpy as np
 import random
-#from Utils import utils
 from environment import Environment
 from collections import deque
 
 from typing import List, Tuple
+
+from Utils import utils as ut
 
 class DQN_Agent:
     def __init__(self, env: Environment,
@@ -32,11 +33,13 @@ class DQN_Agent:
         self.epsilon_decay = epsilon_decay
         self.lr = learning_rate
 
+        
+        # Replay buffer
         self.replay_buffer = deque(maxlen=mem_maxlen)
-        #self.actual_model = self._nn_model(input_size = self.state_size, output_size=self.action_size, output_act_fct = "softmax")
-        #self.target_model = self._nn_model(input_size = self.state_size, output_size=self.action_size, output_act_fct = "softmax")
+
         self.actual_model = self._build_model()
         self.target_model = self._build_model()
+        self.update_target_weights()
 
         # Other attributes
         self.target_update_interval = target_update_interval
@@ -46,19 +49,6 @@ class DQN_Agent:
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.loss_fn = tf.keras.losses.MeanSquaredError()
 
-    '''def _nn_model(self, input_size: int, output_size: int, output_act_fct: str, load_old_model=False):
-        """Returns a NN with input layer of size `input_size`, 2 hidden layers, and an output layer."""
-        model = keras.Sequential(
-            [
-                keras.Input(shape=(input_size,)),  # Input layer
-                layers.Dense(128, activation="relu"),  # Hidden layer 1
-                layers.Dense(128, activation="relu"),  # Hidden layer 2
-                layers.Dense(output_size, activation=output_act_fct),  # Output layer
-            ]
-        )
-        # Compile the model
-        model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.lr), loss="mse")
-        return model
 
     def _build_model(self):
         """Builds the Q-network."""
@@ -67,64 +57,12 @@ class DQN_Agent:
             layers.Dense(128, activation="relu"),
             layers.Dense(128, activation="relu"),
             layers.Dense(128, activation="relu"),
+            layers.Dense(128, activation="relu"),
             layers.Dense(self.action_size, activation="linear")
         ])
         #model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr), loss='mse')
-        return model'''
-    
-    def _build_model(self):
-        inputs = keras.Input(shape=(self.state_size,))
-
-        # Agent features
-        agent_pos_input = inputs[:, :2]  # First 2 values: agent position
-        free_capacity_input = inputs[:, 2:3]  # Next value: free capacity
-
-        # Item-related inputs
-        items_input = inputs[:, 3:]
-        item_locs = layers.Reshape((24, 2))(items_input[:, :48])  # Reshape into (24, 2) for locations
-        item_times = items_input[:, 48:72]  # Remaining times
-        item_agent_distances = items_input[:, 72:96]  # Distances to agent
-        item_target_distances = items_input[:, 96:120]  # Distances to target
-        valid_mask = items_input[:, 120:144]  # Validity mask
-
-        # Expand the mask to match the shape of item_locs
-        valid_mask_expanded = layers.Reshape((24, 1))(valid_mask)
-
-        # Apply the mask to item features
-        masked_item_locs = layers.Multiply()([item_locs, valid_mask_expanded])
-        masked_item_times = layers.Multiply()([item_times, valid_mask])
-        masked_item_agent_distances = layers.Multiply()([item_agent_distances, valid_mask])
-        masked_item_target_distances = layers.Multiply()([item_target_distances, valid_mask])
-
-        # Flatten all masked item features for further processing
-        flattened_item_locs = layers.Flatten()(masked_item_locs)
-        combined_item_features = layers.Concatenate()([
-            flattened_item_locs,
-            masked_item_times,
-            masked_item_agent_distances,
-            masked_item_target_distances
-        ])
-
-        # Process agent features
-        agent_pos_layer = layers.Dense(64, activation="relu")(agent_pos_input)
-        free_capacity_layer = layers.Dense(32, activation="relu")(free_capacity_input)
-
-        # Process combined item features
-        items_layer = layers.Dense(128, activation="relu")(combined_item_features)
-
-        # Combine all features
-        concat = layers.Concatenate()([agent_pos_layer, free_capacity_layer, items_layer])
-        hidden = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(concat)
-        hidden = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(hidden)
-
-        # Output layer
-        outputs = layers.Dense(self.action_size, activation="linear")(hidden)
-
-        model = keras.Model(inputs=inputs, outputs=outputs)
         return model
-
-
-  
+      
     # Function to update weights of target network - check whether there is enough samples for the minibatch
     def update_target_weights(self):
         #if t % self.target_model_time == 0 and len(self.memory) >= self.batch_size:
@@ -133,10 +71,11 @@ class DQN_Agent:
         
     def select_random_action(self, state):
         """Select an action using epsilon-greedy policy."""
-        if tf.random.uniform(()) < self.epsilon.numpy():
-            # Use TensorFlow's random function
-            #return tf.random.uniform(shape=(), maxval=self.action_size, dtype=tf.int32)
-            return random.randint(0, self.action_size - 1)
+        #if tf.random.uniform(()) < self.epsilon.numpy():
+        if tf.random.uniform(()) < self.epsilon:
+            # Select a random action using TensorFlow
+            #return random.randint(0, self.action_size - 1)
+            return tf.random.uniform([], maxval=self.action_size, dtype=tf.int32)
         else:
             return self.select_greedy_action(state)
 
@@ -144,6 +83,7 @@ class DQN_Agent:
         state = tf.expand_dims(tf.convert_to_tensor(state, dtype=tf.float32), axis=0)
         q_values = self.actual_model(state, training=False)
         return tf.argmax(q_values[0]).numpy()
+    
 
     # Here newly observed transitions are stored in the experience replay buffer
     def record(self, state, action, reward, next_state, done):
@@ -160,6 +100,21 @@ class DQN_Agent:
             tf.convert_to_tensor(next_states, dtype=tf.float32),
             tf.convert_to_tensor(dones, dtype=tf.float32),
         )
+    
+    '''def sample_batch(self) -> Tuple[tf.Tensor]:
+        """Sample a batch from the replay buffer."""
+        indices = tf.random.uniform([self.batch_size], maxval=self.buffer_size, dtype=tf.int32)
+        batch = self.replay_buffer.gather(indices)
+
+        # Split batch into separate components
+        states = batch[:, 0]
+        actions = tf.cast(batch[:, 1], tf.int32)
+        rewards = batch[:, 2]
+        next_states = batch[:, 3]
+        dones = batch[:, 4]
+
+        return states, actions, rewards, next_states, dones'''
+
     
     @tf.function
     def compute_q_targets(self, reward, done, max_q_next):
@@ -188,6 +143,21 @@ class DQN_Agent:
         grads = tape.gradient(loss, self.actual_model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.actual_model.trainable_variables))
         return loss
+    
+    '''def train_step(self, states, actions, rewards, next_states, dones):
+        with tf.GradientTape() as tape:
+            q_values = self.actual_model(states, training=True)
+            indices = tf.stack([tf.range(self.batch_size), actions], axis=1)
+            q_values_pred = tf.gather_nd(q_values, indices)
+
+            max_q_next = tf.reduce_max(self.target_model(next_states, training=False), axis=1)
+            targets = self.compute_q_targets(rewards, dones, max_q_next)
+
+            loss = self.loss_fn(targets, q_values_pred)
+
+        grads = tape.gradient(loss, self.actual_model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.actual_model.trainable_variables))
+        return loss'''
 
 
     # updates epsilon after each episode as long as it is larger than our defined minvalue
@@ -293,6 +263,7 @@ class DQN_Agent:
 
                 if render:
                     self.env.render()  # Call the render method
+
                 if d:
                     break
                 
@@ -380,13 +351,13 @@ if __name__ == "__main__":
     agent = DQN_Agent(env = env,
                       gamma = 0.99,
                       epsilon = 1,
-                      batch_size = 128,
-                      epsilon_min = 0.08,
+                      batch_size = 512,
+                      epsilon_min = 0.05,
                       epsilon_decay = 0.9965,
-                      learning_rate = 0.03,
+                      learning_rate = 0.01,
                       target_update_interval = 25,
                       eval_interval = 50,
                       mem_maxlen = 2000)
     # fmt: on
     rewards = agent.run(no_episodes = 800, mode = "training")
-    print(rewards)
+    ut.rewards_plotting(rewards)
