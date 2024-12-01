@@ -26,7 +26,6 @@ class DQN_Agent:
         self.action_size = self.env.get_action_len()
 
         self.gamma = gamma
-        #self.epsilon = epsilon
         self.epsilon = tf.Variable(initial_value=epsilon, dtype = tf.float32, trainable = False)
         self.batch_size = batch_size
         self.epsilon_min = epsilon_min
@@ -38,7 +37,6 @@ class DQN_Agent:
         #self.target_model = self._nn_model(input_size = self.state_size, output_size=self.action_size, output_act_fct = "softmax")
         self.actual_model = self._build_model()
         self.target_model = self._build_model()
-        #self.update_target_weights()
 
         # Other attributes
         self.target_update_interval = target_update_interval
@@ -48,20 +46,7 @@ class DQN_Agent:
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.loss_fn = tf.keras.losses.MeanSquaredError()
 
-    '''def _nn_model(self, input_size: int, output_size: int, output_act_fct: str, load_old_model = False):
-        """Returns a NN with an input layer the size of `input_size`, 2 hidden layers with a RELU act. fct., and an output layer with size `output_size` and act. fct. `output_act_fct`."""
-        model = keras.Sequential(
-            [
-                # Two hidden layers with a RELU act. fct. and 64 nodes each
-                layers.Dense(128, activation="relu", input_shape=(input_size,)),  # was: 64
-                layers.Dense(128, activation="relu"),  # was: 64
-                # Output layer with custom size and act. fct.
-                layers.Dense(output_size, activation = output_act_fct),
-            ]
-        )
-        return model'''
-    
-    def _nn_model(self, input_size: int, output_size: int, output_act_fct: str, load_old_model=False):
+    '''def _nn_model(self, input_size: int, output_size: int, output_act_fct: str, load_old_model=False):
         """Returns a NN with input layer of size `input_size`, 2 hidden layers, and an output layer."""
         model = keras.Sequential(
             [
@@ -85,30 +70,61 @@ class DQN_Agent:
             layers.Dense(self.action_size, activation="linear")
         ])
         #model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr), loss='mse')
-        return model
-    
-    
-    '''def nn_model(self, state_size, action_size, load_old_model):
-        """Define the neural network."""
-        inputs = tf.keras.Input(shape=(state_size,))
-        prev_layer = inputs
-        for no_neurons in self.nn_architecture:
-            prev_layer = tf.keras.layers.Dense(no_neurons, activation='relu')(prev_layer)
-
-        outputs = tf.keras.layers.Dense(action_size)(prev_layer)
-        model = tf.keras.Model(inputs=inputs, outputs=outputs)
-        model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr), loss = 'mse')
-
-        if load_old_model:
-            utils.load_model_weights(WEIGHT_PATH, model)
         return model'''
     
-    '''def select_random_action(self, state = None):
-        if tf.random.uniform(()) < self.epsilon.numpy():
-            return random.randint(0, self.action_size - 1)
-        else:
-            return self.select_greedy_action(state)'''
-    
+    def _build_model(self):
+        inputs = keras.Input(shape=(self.state_size,))
+
+        # Agent features
+        agent_pos_input = inputs[:, :2]  # First 2 values: agent position
+        free_capacity_input = inputs[:, 2:3]  # Next value: free capacity
+
+        # Item-related inputs
+        items_input = inputs[:, 3:]
+        item_locs = layers.Reshape((24, 2))(items_input[:, :48])  # Reshape into (24, 2) for locations
+        item_times = items_input[:, 48:72]  # Remaining times
+        item_agent_distances = items_input[:, 72:96]  # Distances to agent
+        item_target_distances = items_input[:, 96:120]  # Distances to target
+        valid_mask = items_input[:, 120:144]  # Validity mask
+
+        # Expand the mask to match the shape of item_locs
+        valid_mask_expanded = layers.Reshape((24, 1))(valid_mask)
+
+        # Apply the mask to item features
+        masked_item_locs = layers.Multiply()([item_locs, valid_mask_expanded])
+        masked_item_times = layers.Multiply()([item_times, valid_mask])
+        masked_item_agent_distances = layers.Multiply()([item_agent_distances, valid_mask])
+        masked_item_target_distances = layers.Multiply()([item_target_distances, valid_mask])
+
+        # Flatten all masked item features for further processing
+        flattened_item_locs = layers.Flatten()(masked_item_locs)
+        combined_item_features = layers.Concatenate()([
+            flattened_item_locs,
+            masked_item_times,
+            masked_item_agent_distances,
+            masked_item_target_distances
+        ])
+
+        # Process agent features
+        agent_pos_layer = layers.Dense(64, activation="relu")(agent_pos_input)
+        free_capacity_layer = layers.Dense(32, activation="relu")(free_capacity_input)
+
+        # Process combined item features
+        items_layer = layers.Dense(128, activation="relu")(combined_item_features)
+
+        # Combine all features
+        concat = layers.Concatenate()([agent_pos_layer, free_capacity_layer, items_layer])
+        hidden = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(concat)
+        hidden = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(hidden)
+
+        # Output layer
+        outputs = layers.Dense(self.action_size, activation="linear")(hidden)
+
+        model = keras.Model(inputs=inputs, outputs=outputs)
+        return model
+
+
+  
     # Function to update weights of target network - check whether there is enough samples for the minibatch
     def update_target_weights(self):
         #if t % self.target_model_time == 0 and len(self.memory) >= self.batch_size:
@@ -129,7 +145,6 @@ class DQN_Agent:
         q_values = self.actual_model(state, training=False)
         return tf.argmax(q_values[0]).numpy()
 
-    
     # Here newly observed transitions are stored in the experience replay buffer
     def record(self, state, action, reward, next_state, done):
         self.replay_buffer.append((state, action, reward, next_state, done))
@@ -149,7 +164,8 @@ class DQN_Agent:
     @tf.function
     def compute_q_targets(self, reward, done, max_q_next):
         """Compute the target Q-values for the Bellman equation."""
-        return reward + (1 - done) * self.gamma * max_q_next
+        q_target = reward + (1 - done) * self.gamma * max_q_next
+        return q_target
 
     @tf.function
     def train_step(self, states, actions, rewards, next_states, dones):
@@ -249,15 +265,17 @@ class DQN_Agent:
 
         for episode in range(no_episodes):
             if (episode + 1) % 100 == 0:
-                print(f"--- Episode:  {str(episode + 1)} / {str(no_episodes)} --- Epsilon: {self.epsilon} ---" )
+                inter_train_rew = np.mean(train_rewards[-100:])
+                print(f"--- Episode:  {str(episode + 1)} / {str(no_episodes)} --- Avg. Reward Last 100 Episodes: {inter_train_rew} --- Epsilon: {self.epsilon} ---" )
 
-            current_state = self.env.flatten_obs(self.env.reset("training"))
+            #current_state = self.env.flatten_obs(self.env.reset("training"))
+            current_state = self.env.reset("training")
             episode_rew = 0
 
             for step in range(self.env.episode_steps):
                 action = self.select_random_action(state = current_state)  # sample action
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
-                next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
+                #next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
 
                 episode_rew += rew  # increase total reward per episode
 
@@ -362,12 +380,13 @@ if __name__ == "__main__":
     agent = DQN_Agent(env = env,
                       gamma = 0.99,
                       epsilon = 1,
-                      batch_size = 512,
+                      batch_size = 128,
                       epsilon_min = 0.08,
-                      epsilon_decay = 0.995,
-                      learning_rate = 0.025,
+                      epsilon_decay = 0.9965,
+                      learning_rate = 0.03,
                       target_update_interval = 25,
                       eval_interval = 50,
                       mem_maxlen = 2000)
     # fmt: on
-    rewards = agent.run(no_episodes = 800, mode = "training", render=True)
+    rewards = agent.run(no_episodes = 800, mode = "training")
+    print(rewards)
