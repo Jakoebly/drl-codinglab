@@ -115,7 +115,7 @@ class DQN_Agent:
         self.target_model.set_weights(self.actual_model.get_weights())
         #print("Updated Target Network")
         
-    def select_random_action(self, state=None):
+    def select_random_action(self, state):
         """Select an action using epsilon-greedy policy."""
         if tf.random.uniform(()) < self.epsilon.numpy():
             # Use TensorFlow's random function
@@ -180,10 +180,6 @@ class DQN_Agent:
         #self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         self.epsilon.assign(tf.maximum(self.epsilon_min, self.epsilon * self.epsilon_decay))
 
-
-
-
-
     '''def _sample_observation(self) -> Tuple[tf.Tensor]:
         """Randomly samples an observation from the replay buffer. Returns `(current_states, actions, rew, next_states, d)`, all of them being tensors."""
         # Randomly Sample from Replay Buffer
@@ -246,23 +242,19 @@ class DQN_Agent:
             self.actual_model.fit(current_states, Q_target, epochs=1, verbose=0)'''
 
 
-    def train_DQN(self, no_episodes: int, mode, visualize_results: bool = True):
+    def train_DQN(self, no_episodes: int, render: bool = False):
         """Train the agent."""
         #rewards = deque(maxlen = no_episodes)
         train_rewards = []
 
         for episode in range(no_episodes):
-            # Console Message
             if (episode + 1) % 100 == 0:
-                #print(f"Episode: " + {str(episode + 1)} + " / " + str(no_episodes) + "---"  )
-                print(f"Episode:  {str(episode + 1)} / {str(no_episodes)} --- Epsilon: {self.epsilon}"  )
+                print(f"--- Episode:  {str(episode + 1)} / {str(no_episodes)} --- Epsilon: {self.epsilon} ---" )
 
-            current_state = self.env.flatten_obs(self.env.reset(mode))  # get starting position
+            current_state = self.env.flatten_obs(self.env.reset("training"))
             episode_rew = 0
 
             for step in range(self.env.episode_steps):
-                # Choose and Perform Action
-                #action = self.select_random_action(state = tf.convert_to_tensor(current_state))  # sample action
                 action = self.select_random_action(state = current_state)  # sample action
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
                 next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
@@ -281,16 +273,15 @@ class DQN_Agent:
                 if step % self.target_update_interval == 0:
                     self.update_target_weights()  # Updating the weights of the target network every t episodes
 
+                if render:
+                    self.env.render()  # Call the render method
                 if d:
                     break
                 
-                # Continue With Next State
                 current_state = next_state
 
-            # Update Internal Variables
             self.update_epsilon()
             train_rewards.append(episode_rew)
-            #print(f"Step: {episode + 1}/{no_episodes} | Score: {episode_rew:.2f} | Epsilon: {self.epsilon:.3f}")
             print(f"Episode {episode + 1}/{no_episodes}: Total Reward = {episode_rew}")
 
             # Function that evaluates the agent's performance for every x episodes
@@ -309,51 +300,55 @@ class DQN_Agent:
             #print("episode: {}/{} | score: {} | e: {:.3f}".format(episode + 1, no_episodes, rew, agent.epsilon))
 
         #TODO: Save Model, Save Rewards, Save Actions
+        print(f"Training finished. Average Reward: {np.mean(train_rewards)}")
 
-        return train_rewards
+        trained_model = self.actual_model
 
+        return train_rewards, trained_model
 
-    def test_DQN(self, no_episodes: int, mode, eval: bool = False, visualize_results: bool = True) -> List[float]:
-        rewards = deque(maxlen = no_episodes)
+    def test_DQN(self, no_episodes: int, eval: bool = False,) -> List[float]:
+        test_rewards = []
         # TODO: Define which weights to load
         if not eval:
             self.actual_model.load_weights("./checkpoints/sac-actor.weights.h5")
             self.target_model.load_weights("./checkpoints/sac-actor.weights.h5")
 
         for episode in range(no_episodes):
-            # Console Message
             if (episode + 1) % 100 == 0:
-                print("Episode: " + str(episode + 1) + " / " + str(no_episodes))
+                print(f"--- Episode:  {str(episode + 1)} / {str(no_episodes)} ---")
 
-            current_state = self.env.flatten_obs(self.env.reset(mode))  # get starting position
+            current_state = self.env.flatten_obs(self.env.reset("training"))  # get starting position
             episode_rew = 0
 
             for step in range(self.env.episode_steps):
-                # Choose and Perform Action
                 #action = self.select_greedy_action(state = tf.convert_to_tensor(current_state))
                 action = self.select_greedy_action(state = current_state)
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
                 next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
                 episode_rew += rew  # increase total reward per episode
-                current_state = next_state
 
                 if d:
                     break
 
-            rewards.append(episode_rew)
-            print(f"Step: {episode + 1}/{no_episodes} | Score: {episode_rew:.2f} | Epsilon: {self.epsilon:.3f}")
+                current_state = next_state
 
-        return rewards
+            test_rewards.append(episode_rew)
+            print(f"Episode {episode + 1}/{no_episodes}: Total Reward = {episode_rew}")
 
-    def run(self, no_episodes: int, mode: str = "training", visualize_results: bool = True):
+        print(f"Testing finished. Average Reward: {np.mean(test_rewards)}")
+
+        return test_rewards
+
+    def run(self, no_episodes: int, mode: str = "training", visualize_results: bool = True, render: bool = False):
         # Console Message
         print(f"Starting {mode}...")
 
         if mode == "training":
-            rewards = self.train_DQN(no_episodes = no_episodes, mode=mode,visualize_results=visualize_results)
+            rewards, trained_model = self.train_DQN(no_episodes = no_episodes, render = render)
+            #ut.store_model(trained_model)
 
         else:
-            rewards = self.test_DQN(no_episodes = no_episodes, visualize_results=visualize_results)
+            rewards = self.test_DQN(no_episodes = no_episodes, eval = False)
 
         return rewards
 
@@ -362,17 +357,17 @@ if __name__ == "__main__":
     # Initialize Environment
     env = Environment(variant = 0, data_dir = "drl-codinglab/data/")
 
-    # Initialize SAC Agent with Hyperparameters
+    # Initialize DQN Agent with Hyperparameters
     # fmt: off
     agent = DQN_Agent(env = env,
                       gamma = 0.99,
                       epsilon = 1,
                       batch_size = 512,
-                      epsilon_min = 0.1,
+                      epsilon_min = 0.08,
                       epsilon_decay = 0.995,
                       learning_rate = 0.025,
-                      target_update_interval = 50,
+                      target_update_interval = 25,
                       eval_interval = 50,
                       mem_maxlen = 2000)
     # fmt: on
-    rewards = agent.run(no_episodes = 800, mode = "training", visualize_results = True)
+    rewards = agent.run(no_episodes = 800, mode = "training", render=True)

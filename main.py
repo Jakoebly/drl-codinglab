@@ -56,7 +56,7 @@ no_episodes = {  # Length of CSV instead of hard-coding
 if args.algorithm.lower() == "dqn":
     # fmt: off
     # TODO: Add as config import
-    agent = DQN_Agent(gamma = 0.95,
+    agent = DQN_Agent(gamma = 0.99,
                       epsilon = 1,
                       batch_size = 32,
                       epsilon_min = 0.18,
@@ -94,4 +94,4 @@ if args.save_results:
 
 # TODO: Visualization
 if args.visualize:
-    ut.visualize_results(rewards)
+    #visualize_results(rewards)

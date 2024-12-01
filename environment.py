@@ -14,6 +14,8 @@ from copy import deepcopy
 from itertools import compress
 import numpy as np
 
+from Renderer.renderer import Renderer
+
 
 class Environment(object):
     def __init__(self, variant, data_dir):
@@ -38,6 +40,7 @@ class Environment(object):
         self.remaining_training_episodes = deepcopy(self.training_episodes)
         self.validation_episode_counter = 0
 
+
         if self.variant == 0 or self.variant == 2:
             self.agent_capacity = 1
         else:
@@ -57,6 +60,15 @@ class Environment(object):
                                    (3,0), (3,1), (3,2),        (3,4),
                                    (4,0), (4,1), (4,2),        (4,4)]
         # fmt: on
+
+
+        # RENDERING ONLY:
+        self.renderer = Renderer(
+            grid_size=(self.vertical_cell_count, self.horizontal_cell_count),
+            eligible_cells=self.eligible_cells,
+            max_response_time = self.max_response_time
+        )
+        self.target_count = 0
 
     # initialize a new episode (specify if training, validation, or testing via the mode argument)
     def reset(self, mode):
@@ -123,8 +135,9 @@ class Environment(object):
         # item drop-off
         if self.agent_loc == self.target_loc:
             rew += self.agent_load * self.reward / 2
+            self.target_count += self.agent_load
             self.agent_load = 0
-
+            
         # track how long ago items appeared
         self.item_times = [i + 1 for i in self.item_times]
 
@@ -144,6 +157,24 @@ class Environment(object):
         next_obs = self.get_obs()
 
         return rew, next_obs, done
+    
+    def render(self):
+        """
+        Call the renderer to visualize the environment.
+        """
+        if self.renderer:
+            self.renderer.render(
+                agent_loc=self.agent_loc,
+                target_loc=self.target_loc,
+                item_locs=self.item_locs,
+                item_times=self.item_times,
+                agent_load=self.agent_load,
+                target_count=self.target_count
+            )
+        else:
+            print("Renderer not initialized.")
+
+
 
     # DONE: implement function that gives the input features for the neural network(s)
     #       based on the current state of the environment
