@@ -14,7 +14,7 @@ class Renderer:
         self.grid_size = grid_size
         self.eligible_cells = eligible_cells
         self.max_response_time = max_response_time
-        self.previous_target_count = 0  # Tracks the previous target count for sparks effect
+        self.previous_target_count = 0
         self.image_dir = "drl-codinglab\Renderer\Images"
 
         # Load images
@@ -25,7 +25,6 @@ class Renderer:
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
 
-        # Initialize the figure and axis
         self.fig, self.ax = plt.subplots(figsize=(5, 5))
         self._pre_render_grid()
 
@@ -42,7 +41,6 @@ class Renderer:
         self.ax.set_yticklabels([])
         self.ax.grid(False)
 
-        # Render cells (eligible and ineligible)
         all_cells = [(r, c) for r in range(rows) for c in range(cols)]
         for cell in all_cells:
             x, y = cell
@@ -60,43 +58,37 @@ class Renderer:
         :param agent_load: Integer indicating the number of items the agent is carrying.
         :param target_count: Integer indicating the number of items dropped at the target.
         """
-        # Clear the dynamic elements but preserve grid settings
         self.ax.clear()
         self._pre_render_grid()
 
         rows, cols = self.grid_size
 
-        # Plot agent
         agent_x, agent_y = agent_loc
         self.ax.imshow(self.agent_img, extent=(agent_y - 0.5, agent_y + 0.5,
                                                rows - 1 - agent_x - 0.5, rows - 1 - agent_x + 0.5))
-        # Display the number of items carried next to the agent
-        self.ax.text(agent_y + 0.3, rows - 1 - agent_x, f"{agent_load}",
+    
+        self.ax.text(agent_y - 0.3, rows - 1 - agent_x, f"{agent_load}",
                      color="black", fontsize=12, ha="left", va="center",
                      bbox=dict(facecolor="white", edgecolor="black"))
 
-        # Plot target
         target_x, target_y = target_loc
         self.ax.imshow(self.target_img, extent=(target_y - 0.5, target_y + 0.5,
                                                 rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5))
-        # Display the number of items dropped at the target
+   
         self.ax.text(target_y, rows - 1 - target_x, f"{target_count}",
                      color="red", fontsize=12, ha="center", va="center",
                      bbox=dict(facecolor="white", edgecolor="black"))
 
-        # Show sparks effect if the target count increased
         if target_count > self.previous_target_count:
             self.ax.imshow(self.sparks_img, extent=(target_y - 0.5, target_y + 0.5,
                                                     rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5))
 
-        # Plot items with dynamic size based on lifetime
         for (item_x, item_y), response_time in zip(item_locs, item_times):
-            lifetime = (self.max_response_time - response_time) / self.max_response_time  # Normalized lifetime (0 to 1)
+            lifetime = (self.max_response_time - response_time) / self.max_response_time
             size_factor = 0.3 + 0.7 * lifetime  # Scale size from 0.3 to 1.0
             self.ax.imshow(self.item_img, extent=(item_y - 0.5 * size_factor, item_y + 0.5 * size_factor,
                                                   rows - 1 - item_x - 0.5 * size_factor, rows - 1 - item_x + 0.5 * size_factor))
 
-        # Update the previous target count
         self.previous_target_count = target_count
 
-        plt.pause(0.2)  # Pause briefly to update the figure
+        plt.pause(0.1)
