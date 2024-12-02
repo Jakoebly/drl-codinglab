@@ -262,10 +262,10 @@ if __name__ == "__main__":
                       batch_size = 512,
                       epsilon_min = 0.1,
                       epsilon_decay = 0.997,
-                      learning_rate = 0.01,
+                      learning_rate = 0.005,
                       target_update_interval = 75,
                       eval_interval = 50,
-                      mem_maxlen = 2000)
+                      mem_maxlen = 5000)
     # fmt: on
     rewards = agent.run(no_episodes = 800, mode = "training", render = False)
     ut.rewards_plotting(rewards)
