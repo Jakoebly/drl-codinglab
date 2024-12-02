@@ -97,6 +97,7 @@ class Environment(object):
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
         return self.get_obs()
+        #return self.get_cnn_obs()
 
     # take one environment step based on the action act
     def step(self, act):
@@ -154,6 +155,8 @@ class Environment(object):
 
         # get new observation
         next_obs = self.get_obs()
+        #next_obs = self.get_cnn_obs()
+
 
         return rew, next_obs, done
 
@@ -258,7 +261,7 @@ class Environment(object):
         return np.concatenate(
             (
                 np.array(agent_position),  # Agent position | Dim: 2 (x,y)
-                #np.array(item_position).flatten(),  # Absolute positions of items | Dim: 24*2 (x,y)
+                np.array(item_position).flatten(),  # Absolute positions of items | Dim: 24*2 (x,y)
                 np.array(items_remaining_time),  # Remaining time for each items | Dim: 24
                 np.array(manhattan_distances),  # Manhattan distances to items | Dim: 24
 
@@ -266,22 +269,50 @@ class Environment(object):
                 np.array(relative_item_target_distance).flatten(), # Relative distance from items to target | Dim: 24*2 (x,y)
 
                 [free_capacity],  # Free capacity of the agent | Dim: 1
-                #[item_dropped],  # Whether items are on the grid | Dim: 1
+                [item_dropped],  # Whether items are on the grid | Dim: 1
 
-                #[remaining_time_closest_item],  # Remaining time of closest item | Dim: 1
-                #[distance_to_closest_item],  # Distance to closest item | Dim: 1
-                #[distance_to_target],  # Distance to target | Dim: 1
-                #[distance_closest_item_to_target],  # Distance from closest item to target | Dim: 1
+                [remaining_time_closest_item],  # Remaining time of closest item | Dim: 1
+                [distance_to_closest_item],  # Distance to closest item | Dim: 1
+                [distance_to_target],  # Distance to target | Dim: 1
+                [distance_closest_item_to_target],  # Distance from closest item to target | Dim: 1
                 distance_to_walls,   # Distances to walls | Dim: 4 (up, down, left, right)
 
                 past_items_vector_flat # Past items vector tracking item spawn counts | Dim: 25
             )
         )
+    
+    def get_cnn_obs(self) -> np.ndarray:
+        """Returns the state of the environment as a 3D grid with multiple channels."""
+        grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
+
+        # Channel 1: Agent position
+        agent_channel = np.zeros(grid_shape)
+        agent_channel[self.agent_loc] = 1  # Mark the agent's position on the grid
+
+        # Channel 2: Item positions
+        item_positions_channel = np.zeros(grid_shape)
+        for loc in self.item_locs:
+            item_positions_channel[loc] = 1  # Mark item positions on the grid
+
+        # Channel 3: Remaining times of items (normalized)
+        remaining_times_channel = np.zeros(grid_shape)
+        for loc, time in zip(self.item_locs, self.item_times):
+            remaining_times_channel[loc] = (self.max_response_time - time) / self.max_response_time
+
+        # Channel 4: Past items (spawn counts at each position)
+        past_items_vector = np.zeros((self.vertical_cell_count, self.horizontal_cell_count))
+        for loc in self.item_locs:
+            past_items_vector[loc] += 1
+        past_items_channel = np.copy(past_items_vector)
+
+        # Stack all channels into a 3D grid
+        state = np.stack([agent_channel, item_positions_channel, remaining_times_channel, past_items_channel], axis=-1)
+        return state
+
 
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        #return 2 + 24*2 + 1 + 1 + 24 * 2 + 24 + 24 * 2 + 2 + 4 + 25
-        return 176
+        return 83
     
     '''def get_state_len(self):
         """Dynamically calculate the length of one state."""
