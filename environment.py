@@ -207,26 +207,25 @@ class Environment(object):
         # Time until items disappear
         items_remaining_time = [(self.max_response_time - current) for current in self.item_times]
         # (Relative) Distance from Agent to Items
-        item_distance = [((item[0] - agent_position[0]), (item[1] - agent_position[1])) for item in self.item_locs]
+        relative_item_distance = [((item[0] - agent_position[0]), (item[1] - agent_position[1])) for item in self.item_locs]
         # (Relative) Distance from Items to Target Cell
-        item_target_distance = [
-        (item[0] - self.target_loc[0], item[1] - self.target_loc[1]) for item in self.item_locs
-        ]
+        relative_item_target_distance = [(item[0] - self.target_loc[0], item[1] - self.target_loc[1]) for item in self.item_locs]
+        # Compute Manhattan distances to all items
+        manhattan_distances = [manhatten_dist(agent_position, item) for item in self.item_locs]
+        # Determine the closest item
+        if manhattan_distances:
+            closest_idx = int(np.argmin(manhattan_distances))
+            distance_to_closest_item = manhattan_distances[closest_idx]  # Manhattan distance to closest item
+            remaining_time_closest_item = items_remaining_time[closest_idx]  # Remaining time of closest item
+            distance_closest_item_to_target = manhatten_dist(self.item_locs[closest_idx], self.target_loc)  # Distance from closest item to target
 
-        # Remove items that are not reachable in time
-        for i, _ in enumerate(item_distance):
-            if manhatten_dist([0, 0], item_distance[i]) > items_remaining_time[i]:
-                item_distance[i] = (-100, -100)
-                items_remaining_time[i] = 0
+        else:
+            distance_to_closest_item = -1000
+            remaining_time_closest_item = -1000
+            distance_closest_item_to_target = -1000
 
-        # Zero Padding for fixed NN input size => at most 24 items can exist at once
-        while len(item_distance) < 24:
-            item_distance.append((-100, -100))
-            items_remaining_time.append(0)
-            item_target_distance.append((-100, -100))
-
-        # Dropoff direction (at (2,0))
-        dropoff_dir = (self.target_loc[0] - agent_position[0], self.target_loc[1] - agent_position[1])
+        # Determine Manhattan distance and direction to target
+        distance_to_target = manhatten_dist(agent_position, self.target_loc)
 
         # Distance to the closest wall
         distance_to_walls = [
@@ -242,24 +241,47 @@ class Environment(object):
             past_items_vector[loc] += 1
         past_items_vector_flat = past_items_vector.flatten()
 
+        '''# Remove items that are not reachable in time
+        for i in range(len(manhattan_distances)):
+            if manhattan_distances[i] > items_remaining_time[i]:
+                manhattan_distances[i] = 0
+                items_remaining_time[i] = 0'''
+
+        # Zero Padding for fixed NN input size => at most 24 items can exist at once
+        while len(item_position) < 24:
+            item_position.append((-1000, -1000))
+            manhattan_distances.append(-1000)
+            items_remaining_time.append(-1000)
+            relative_item_distance.append((-1000, -1000))
+            relative_item_target_distance.append((-1000, -1000))
 
         return np.concatenate(
-            (np.array(agent_position),
-             np.array(item_position),
-            [free_capacity],
-            [item_dropped],
-            np.array(item_distance).flatten(),
-            np.array(items_remaining_time),
-            np.array(item_target_distance).flatten(),
-            dropoff_dir,
-            distance_to_walls,
-            past_items_vector_flat,
+            (
+                np.array(agent_position),  # Agent position | Dim: 2 (x,y)
+                #np.array(item_position).flatten(),  # Absolute positions of items | Dim: 24*2 (x,y)
+                np.array(items_remaining_time),  # Remaining time for each items | Dim: 24
+                np.array(manhattan_distances),  # Manhattan distances to items | Dim: 24
+
+                np.array(relative_item_distance).flatten(), # Relative distance to items | Dim: 24*2 (x,y)
+                np.array(relative_item_target_distance).flatten(), # Relative distance from items to target | Dim: 24*2 (x,y)
+
+                [free_capacity],  # Free capacity of the agent | Dim: 1
+                #[item_dropped],  # Whether items are on the grid | Dim: 1
+
+                #[remaining_time_closest_item],  # Remaining time of closest item | Dim: 1
+                #[distance_to_closest_item],  # Distance to closest item | Dim: 1
+                #[distance_to_target],  # Distance to target | Dim: 1
+                #[distance_closest_item_to_target],  # Distance from closest item to target | Dim: 1
+                distance_to_walls,   # Distances to walls | Dim: 4 (up, down, left, right)
+
+                past_items_vector_flat # Past items vector tracking item spawn counts | Dim: 25
             )
         )
 
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 2 + 1 + 1 + 24 * 2 + 24 + 24 * 2 + 2 + 4 + 25
+        #return 2 + 24*2 + 1 + 1 + 24 * 2 + 24 + 24 * 2 + 2 + 4 + 25
+        return 176
     
     '''def get_state_len(self):
         """Dynamically calculate the length of one state."""
