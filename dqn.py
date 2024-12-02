@@ -60,6 +60,23 @@ class DQN_Agent:
         ])
         #model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr), loss='mse')
         return model
+    
+    def _build_cnn_model(self):
+        """Builds a CNN-based Q-network."""
+        input_shape = (self.env.vertical_cell_count, self.env.horizontal_cell_count, 3)  # Assuming a 2D grid with 3 channels
+        model = tf.keras.Sequential([
+            layers.Conv2D(32, kernel_size=3, strides=1, activation='relu', input_shape=input_shape),
+            layers.Conv2D(64, kernel_size=3, strides=1, activation='relu'),
+            layers.Conv2D(128, kernel_size=3, strides=1, activation='relu'),
+            layers.Flatten(),
+  
+            layers.Dense(128, activation='relu'),
+            layers.Dense(128, activation='relu'),
+  
+            layers.Dense(self.action_size, activation='linear')
+        ])
+        return model
+
       
     def update_target_weights(self):
         self.target_model.set_weights(self.actual_model.get_weights())

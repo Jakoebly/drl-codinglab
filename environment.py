@@ -245,6 +245,7 @@ class Environment(object):
 
         return np.concatenate(
             (np.array(agent_position),
+             np.array(item_position),
             [free_capacity],
             [item_dropped],
             np.array(item_distance).flatten(),
