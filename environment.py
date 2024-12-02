@@ -9,6 +9,7 @@
 # it is not picked up (if agent wants to pick it up, it has to stay in the cell in the next time step)
 
 import random
+from typing import List, Tuple
 import pandas as pd
 from copy import deepcopy
 from itertools import compress
@@ -17,8 +18,12 @@ import numpy as np
 from Renderer.renderer import Renderer
 
 
+def manhatten_dist(pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
+    return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
+
+
 class Environment(object):
-    def __init__(self, variant, data_dir):
+    def __init__(self, variant, data_dir, render=False):
         self.variant = variant
         self.vertical_cell_count = 5
         self.horizontal_cell_count = 5
@@ -40,7 +45,6 @@ class Environment(object):
         self.remaining_training_episodes = deepcopy(self.training_episodes)
         self.validation_episode_counter = 0
 
-
         if self.variant == 0 or self.variant == 2:
             self.agent_capacity = 1
         else:
@@ -61,14 +65,10 @@ class Environment(object):
                                    (4,0), (4,1), (4,2),        (4,4)]
         # fmt: on
 
-
         # RENDERING ONLY:
-        self.renderer = Renderer(
-            grid_size=(self.vertical_cell_count, self.horizontal_cell_count),
-            eligible_cells=self.eligible_cells,
-            max_response_time = self.max_response_time
-        )
-        self.target_count = 0 # Counts number of items dropped off at target cell
+        if render:
+            self.renderer = Renderer(grid_size=(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
+        self.target_count = 0  # Counts number of items dropped off at target cell
 
     # initialize a new episode (specify if training, validation, or testing via the mode argument)
     def reset(self, mode):
@@ -136,7 +136,7 @@ class Environment(object):
             rew += self.agent_load * self.reward / 2
             self.target_count += self.agent_load
             self.agent_load = 0
-            
+
         # track how long ago items appeared
         self.item_times = [i + 1 for i in self.item_times]
 
@@ -156,112 +156,73 @@ class Environment(object):
         next_obs = self.get_obs()
 
         return rew, next_obs, done
-    
+
     def render(self):
         """
         Call the renderer to visualize the environment.
         """
         if self.renderer:
-            self.renderer.render(
-                agent_loc=self.agent_loc,
-                target_loc=self.target_loc,
-                item_locs=self.item_locs,
-                item_times=self.item_times,
-                agent_load=self.agent_load,
-                target_count=self.target_count
-            )
+            self.renderer.render(agent_loc=self.agent_loc, target_loc=self.target_loc, item_locs=self.item_locs, item_times=self.item_times, agent_load=self.agent_load, target_count=self.target_count)
         else:
             print("Renderer not initialized.")
 
     # DONE: implement function that gives the input features for the neural network(s)
     #       based on the current state of the environment
-    """Returns current position of agent, free carry capacity of agent, and zero-padded item locations and times (24 total). This leads to a required 2 + 1 + 24 * (2 + 1) = 75 input neurons for a NN."""
 
-    #TODO: PADDING
-    #TODO: Item Position RELATIV not absolut
-    #TODO: Manhatten distance to each item (new list)
-    #TODO: Manhatten distance from item to target
-    #TODO: Number of items present on field
-    #TODO: Abstand zur nächsten wand
-    #TODO: Past Items Vector
-    #TODO: Delte items where distance > remaining time
+    # TODO: PADDING
+    # TODO: Item Position RELATIV not absolut
+    # TODO: Manhatten distance to each item (new list)
+    # TODO: Manhatten distance from item to target
+    # TODO: Number of items present on field
+    # TODO: Abstand zur nächsten wand
+    # TODO: Past Items Vector
+    # TODO: Delte items where distance > remaining time
 
-    #TODO: DNN, CNN, RNN
+    # TODO: DNN, CNN, RNN
 
-    # This was our old get_obs()
-    '''def get_obs(self):
+    # Updated old get obs which directly includes flattening
+    def get_obs2(self):
         agent_pos = self.agent_loc
         free_capacity = self.agent_capacity - self.agent_load
         item_locs = list.copy(self.item_locs)
-        item_times = [(self.max_response_time - i) for i in list.copy(self.item_times)]  # remaining time
-        #item_distances = list.copy(self.item_distances)
+        item_times = [(self.max_response_time - i) for i in list.copy(self.item_times)]
 
-        # Zero Padding for fixed number of neurons => item dummys
+        # Zero Padding for fixed number of items (24)
         while len(item_locs) < 24:
-            item_locs.append((-1, -1))  # non-existent position => to mark dummy
-            item_times.append(0)  # no remaining time => to mark dummy
+            item_locs.append((-10000, -10000))
+            item_times.append(0)
 
-        return [agent_pos, free_capacity, item_locs, item_times]'''
+        obs = np.concatenate([np.array(agent_pos).flatten(), np.array([free_capacity]), np.array(item_locs).flatten(), np.array(item_times).flatten()])
 
-    # New get_obs()
-    def get_obs(self):
-        agent_pos = np.array(self.agent_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count])  # Normalize position
-        free_capacity = np.array([self.agent_capacity - self.agent_load])  # Free capacity as a scalar
+        return obs  # len(obs) == 75
 
-        item_locs = (
-            np.array(self.item_locs) / np.array([self.vertical_cell_count, self.horizontal_cell_count])
-            if self.item_locs else np.empty((0, 2))
-        )
-        item_times = np.array([self.max_response_time - i for i in self.item_times])  # Remaining times
-        item_distances = np.linalg.norm(item_locs - np.array(self.agent_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count]), axis=1) if len(item_locs) > 0 else np.array([])
-        target_distances = np.linalg.norm(item_locs - np.array(self.target_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count]), axis=1) if len(item_locs) > 0 else np.array([])
+    def get_obs(self) -> List[float]:
+        """Returns the state of the environment as a 1-dimensional list of floats."""
+        agent_pos = self.agent_loc
+        free_capacity = self.agent_capacity - self.agent_load  # carry capacity of agent
+        item_dropped = int(len(self.item_locs) > 0)  # flag that shows if an item currently exists on the grid
 
-        max_items = 24  # Maximum number of items
-        padding_value = -1  # Explicit padding value
-        padded_item_locs = np.pad(item_locs, ((0, max_items - len(item_locs)), (0, 0)), constant_values=padding_value)
-        padded_item_times = np.pad(item_times, (0, max_items - len(item_times)), constant_values=padding_value)
-        padded_item_distances = np.pad(item_distances, (0, max_items - len(item_distances)), constant_values=padding_value)
-        padded_target_distances = np.pad(target_distances, (0, max_items - len(target_distances)), constant_values=padding_value)
+        item_dist = [((item[0] - agent_pos[0]), (item[1] - agent_pos[1])) for item in self.item_locs]  # distance from agent to items
+        remaining_times = [(self.max_response_time - current) for current in self.item_times]  # time until items disappear
 
-        valid_mask = np.array([1] * len(item_locs) + [0] * (max_items - len(item_locs)))
+        # Remove items that are not reachable in time
+        for i, _ in enumerate(item_dist):
+            if manhatten_dist([0, 0], item_dist[i]) > remaining_times[i]:
+                item_dist[i] = (-100, -100)
+                remaining_times[i] = 0
 
-        # NO NEED FOR FLATTEN OBS - Check if this is correct
-        observation = np.concatenate([
-            agent_pos.flatten(),  # Flattened agent position
-            free_capacity,  # Free capacity
-            padded_item_locs.flatten(),  # Flattened item locations
-            padded_item_times,  # Item times
-            padded_item_distances,  # Distances to agent
-            padded_target_distances,  # Distances to target
-            valid_mask  # Validity mask
-        ])
-        
-        return observation
+        # Zero Padding for fixed NN input size => at most 24 items can exist at once
+        while len(item_dist) < 24:
+            item_dist.append((-100, -100))
+            remaining_times.append(0)
 
-    # TODO: Delete or intergate into get_obs()
-    '''def flatten_obs(self, obs):
-        """Flattens the list returned from the get_obs() method."""
-        obs[1] = [obs[1]]
-        obs[2] = np.array(obs[2]).flatten()
-        return [elem for row in obs for elem in row]'''
+        dropoff_dir = (2 - agent_pos[0], 0 - agent_pos[1])  # dropoff for items is at (2,0)
 
-    '''def get_state_len(self):
-        """Returns the length of one state i.e., the tupel that is returned by the get_obs() method."""
-        return 2 + 1 + 24 * (2 + 1)'''
-    
+        return np.concatenate((agent_pos, [free_capacity], [item_dropped], np.array(item_dist).flatten(), remaining_times, dropoff_dir))
+
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        # Agent position (2), free capacity (1)
-        agent_features = 2 + 1
-        
-        # Items (24 max): locations (2 per item), times (1 per item), distances (2 per item)
-        item_features = 24 * (2 + 1 + 1 + 1)  # locations + times + distances to agent + distances to target
-        
-        # Validity mask (24 binary values)
-        mask_features = 24
-
-        return agent_features + item_features + mask_features
-
+        return 2 + 1 + 1 + 24 * 2 + 24 + 2
 
     def get_action_len(self):
         """Returns the number of actions available."""

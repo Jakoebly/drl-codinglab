@@ -1,31 +1,33 @@
-from collections import deque
 import os
-import random
-import numpy as np
+import time
 from typing import List, Tuple
-import pandas as pd
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
+
 from environment import Environment
-import matplotlib.pyplot as plt
+
 
 # --------------------------------------------------------------------------------------------------------------------
 # TODO:
 # - Optimize get_obs() and NN structure (CNNs, Recurrent Units, ...)
 # - Temperature optimization with tf.Variable() => loss function is similar to policy loss (inlcude E_D[.])
-# - Make Replay Buffer a fixed size => should not grow because of @tf.function => use numpy.empty()
-# - Convert sample_observation() and select_action() tensorflow methods
 # - Try out SACD with greedy policy as input to test if it is working
 # - NN updates could also happen only happen after every ith episode and with mutliple batches
 # - First x episodes completely random action? => "warm-up steps" so that buffer is sufficiently large
+# - Add rendering option
+# - Requirements.txt with all needed packages
 # --------------------------------------------------------------------------------------------------------------------
 
 
 class SAC_Agent:
     """Soft Actor-Critic algorithm. Source: https://spinningup.openai.com/en/latest/algorithms/sac.html (OpenAI) and https://arxiv.org/abs/1910.07207 (Christodoulou 2019)."""
 
-    def __init__(self, env: Environment, gamma: float, initial_alpha: float, alpha_decay: float, rho: float, mem_maxlen: int, batch_size: int):
+    def __init__(self, env: Environment, gamma: float, initial_alpha: float, alpha_decay: float, rho: float, mem_maxlen: int, batch_size: int, learning_rate: float):
         # Environment
         self.env = env
 
@@ -37,8 +39,10 @@ class SAC_Agent:
         self.alpha_decay = alpha_decay
         self.rho = rho
 
-        # Replay buffer. Format: (s,a,r,s',d)
-        self.replay_buffer = deque(maxlen=mem_maxlen)  # supports more efficient append()
+        # Replay buffer. Format: (s,a,r,s',d) in a flattened form
+        self.buffer_size = mem_maxlen
+        self.buffer_width = 2 * self.state_size + 3  # current_state, next_state, action, reward, and done flag
+        self.replay_buffer = np.empty((self.buffer_size, self.buffer_width))
         self.batch_size = batch_size
 
         # Neural networks
@@ -49,15 +53,15 @@ class SAC_Agent:
         self.critic_tgt_2 = self._clone_nn(self.critic_2)
 
         # Neural network gradients
-        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
-        self.critic_1_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
-        self.critic_2_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        self.critic_1_optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        self.critic_2_optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
-    # @tf.function
+    # @tf.function(reduce_retracing=True)
     def _select_action(self, state: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         """Draws an action from the probability distribution that is outputed by the actor NN given the current state. Returns the action and its probability."""
         # Compute probabilities for each action and observation
-        p = self.actor(tf.reshape(state, [-1, 75]))  # Probability for each action and observation
+        p = self.actor(tf.reshape(state, [-1, self.state_size]))  # Probability for each action and observation
 
         # Sample actions based on probabilities
         actions = tf.random.categorical(tf.math.log(p), num_samples=1)  # Sample actions; input must be log probs
@@ -69,17 +73,24 @@ class SAC_Agent:
 
         return actions, probabilities
 
-    @tf.function
-    def _sample_observation(self, replay_buffer: tf.Tensor, current_size: int) -> Tuple[tf.Tensor]:
+    # @tf.function(reduce_retracing=True)
+    def _sample_observation(self, buffer_tensor: tf.Tensor, current_buffer_size: int) -> Tuple[tf.Tensor]:
         """Randomly samples an observation from the replay buffer. Returns `(current_states, actions, rew, next_states, d)`, all of them being tensors."""
-        # Randomly sample indices from replay buffer
-        indices = tf.random.uniform(shape=(self.batch_size,), minval=0, maxval=current_size, dtype=tf.int32)
+        # Generate random indices for sampling
+        indices = tf.random.uniform(shape=(self.batch_size,), minval=0, maxval=current_buffer_size, dtype=tf.int32)
 
-        # Collect sample from replay buffer
-        batch = tf.gather(replay_buffer, indices)
+        # Gather samples based on the indices
+        batch = tf.gather(buffer_tensor, indices)
 
-        return (batch[:, 0:75], batch[:, 75], batch[:, 76], batch[:, 77:152], batch[:, 152])  # form: (current_states, actions, rew, next_states, d)
+        return (
+            tf.slice(batch, begin=[0, 0], size=[-1, self.state_size]),  # current states
+            tf.slice(batch, begin=[0, self.state_size], size=[-1, 1]),  # actions
+            tf.slice(batch, begin=[0, self.state_size + 1], size=[-1, 1]),  # rewards
+            tf.slice(batch, begin=[0, self.state_size + 2], size=[-1, self.state_size]),  # next states
+            tf.slice(batch, begin=[0, self.state_size * 2 + 2], size=[-1, 1]),  # done flags
+        )
 
+    # @tf.function(reduce_retracing=True)
     def _update_alpha(self):
         """Updates current alpha according to alpha decay."""
         self.alpha *= self.alpha_decay
@@ -104,7 +115,7 @@ class SAC_Agent:
         model_clone.set_weights(og_model.get_weights())  # copy weights
         return model_clone
 
-    # @tf.function
+    # @tf.function(reduce_retracing=True)
     def _update_value_parameters(self, current_state, action, rew, next_state, d):
         """Update critic NNs via MSE. Inputs should be a tensor."""
         # Define loss function
@@ -138,13 +149,13 @@ class SAC_Agent:
         self.critic_1_optimizer.apply_gradients(zip(critic_1_grads, self.critic_1.trainable_variables))
         self.critic_2_optimizer.apply_gradients(zip(critic_2_grads, self.critic_2.trainable_variables))
 
-    # @tf.function
+    # @tf.function(reduce_retracing=True)
     def _update_policy_parameters(self, current_state):
         """Update actor NN via loss function from https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py. Input should be a tensor."""
         # Define Loss Function
         with tf.GradientTape() as tape:  # record operations for automatic differentiation
             # Calculate probability for each action and observation
-            probs = self.actor(tf.reshape(current_state, [-1, 75]))
+            probs = self.actor(tf.reshape(current_state, [-1, self.state_size]))
 
             # Repeat current_state tensor to have each state self.action_size times
             states_expanded = tf.tile(tf.expand_dims(current_state, axis=1), [1, self.action_size, 1])  # shape: (batch_size, action_size, state_size)
@@ -165,8 +176,6 @@ class SAC_Agent:
             # Compute policy loss
             inner_term = self.alpha * tf.math.log(probs + 1e-8) - clipped_q_vals  # +1e-8 to prevent possibility of log 0 error
             policy_loss = tf.reduce_mean(tf.reduce_sum(probs * inner_term, axis=1))  # tf.reduce_sum to compute dotproduct of probs and inner term
-            # policy_loss = tf.reduce_mean( alpha * tf.reduce_sum(action_probs * log_action_probs, axis=1) - tf.reduce_sum(action_probs * q_values, axis=1) )
-            # TODO
 
         # Compute gradient
         policy_grads = tape.gradient(policy_loss, self.actor.trainable_variables)
@@ -177,19 +186,21 @@ class SAC_Agent:
     # @tf.function
     def _update_tgt_networks(self):
         """Updates critic tgt NN weights with critic NN weights using Polyak Averaging."""
-        # Model Weigths
-        critic_1_weights = self.critic_1.get_weights()
-        critic_2_weights = self.critic_2.get_weights()
-        critic_tgt_1_weights = self.critic_tgt_1.get_weights()
-        critic_tgt_2_weights = self.critic_tgt_2.get_weights()
+        # Get weights as TensorFlow variables
+        critic_1_weights = self.critic_1.trainable_variables
+        critic_2_weights = self.critic_2.trainable_variables
+        critic_tgt_1_weights = self.critic_tgt_1.trainable_variables
+        critic_tgt_2_weights = self.critic_tgt_2.trainable_variables
 
-        # Polyak averaging on a per layer basis
-        new_tgt_weights_1 = [self.rho * critic_tgt_1_weights[layer] + (1 - self.rho) * critic_1_weights[layer] for layer in range(len(critic_tgt_1_weights))]
-        new_tgt_weights_2 = [self.rho * critic_tgt_2_weights[layer] + (1 - self.rho) * critic_2_weights[layer] for layer in range(len(critic_tgt_2_weights))]
+        # Perform Polyak averaging for each layer
+        new_tgt_weights_1 = [self.rho * tgt_w + (1 - self.rho) * src_w for tgt_w, src_w in zip(critic_tgt_1_weights, critic_1_weights)]
+        new_tgt_weights_2 = [self.rho * tgt_w + (1 - self.rho) * src_w for tgt_w, src_w in zip(critic_tgt_2_weights, critic_2_weights)]
 
-        # Update critic tgt model weights
-        self.critic_tgt_1.set_weights(new_tgt_weights_1)
-        self.critic_tgt_2.set_weights(new_tgt_weights_2)
+        # Apply updated weights to target networks
+        for var, new_val in zip(self.critic_tgt_1.trainable_variables, new_tgt_weights_1):
+            var.assign(new_val)
+        for var, new_val in zip(self.critic_tgt_2.trainable_variables, new_tgt_weights_2):
+            var.assign(new_val)
 
     def _visualize_results(self, rewards: List[float]):
         """Visualizes the episode rewards of the SAC algorithm."""
@@ -198,9 +209,8 @@ class SAC_Agent:
         print(f"Maximum episode reward: {np.max(rewards)}")
 
         # Create time-series line chart
-        df = pd.DataFrame(np.array(rewards), columns=["Rewards"])
         plt.figure(figsize=(10, 6))
-        plt.plot(df["Rewards"], label="Episode Data", color="#0066BD")
+        plt.plot(rewards, label="Episode Data", color="#0066BD")
         plt.title("SAC Performance")
         plt.xlabel("Episode")
         plt.ylabel("Reward")
@@ -209,10 +219,12 @@ class SAC_Agent:
 
     def run_SAC(self, no_episodes: int, mode: str = "training", visualize_results: bool = True) -> List[float]:
         """Runs the SAC algorithm for `no_episodes`episodes. `mode`must be `training`, `validation`, or `testing`."""
-        rewards = deque(maxlen=no_episodes)  # contains rewards per episode
+        rewards = np.empty(no_episodes)  # contains rewards per episode
+        current_buffer_size = 0  # number of filled rows in replay buffer
 
         # Console message
         print(f"Starting {mode}...")
+        start_time = time.time()
 
         # Load model if in validation or testing mode
         if mode != "training":
@@ -229,7 +241,7 @@ class SAC_Agent:
                 print("Episode: " + str(episode + 1) + " / " + str(no_episodes))
 
             # Reset environment to starting position
-            current_state = self.env.flatten_obs(self.env.reset(mode))  # get starting position
+            current_state = self.env.reset(mode)  # get starting position
             episode_rew = 0  # reset total reward per episode
 
             for t in range(self.env.episode_steps):
@@ -237,12 +249,13 @@ class SAC_Agent:
                 action, _ = self._select_action(tf.convert_to_tensor(current_state))  # sample action
                 action = int(action)  # unpack tensor
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
-                next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
 
-                # Store observation in replay buffer
+                # Store observation in replay buffer for NNs updates
                 if mode == "training":
-                    self.replay_buffer.append(current_state + [action, rew] + next_state + [d])  # save flattened for NN update
+                    self.replay_buffer[current_buffer_size % self.buffer_size] = np.concatenate((current_state, [action, rew], next_state, [d]))  # modulo to prevent buffer overflow
+
                 episode_rew += rew  # increase total reward per episode
+                current_buffer_size += 1
 
                 # End episode if done
                 if d:
@@ -253,16 +266,14 @@ class SAC_Agent:
 
             # Update internal variables
             self._update_alpha()
-            rewards.append(episode_rew)
+            rewards[episode] = episode_rew
 
             # Update NNs
             if mode == "training":
                 # Prepare training batch
-                current_buffer_size = len(self.replay_buffer)
-                modified_buffer = self.replay_buffer + [153 * [0]] * (self.replay_buffer.maxlen - current_buffer_size)
-                modified_buffer = tf.convert_to_tensor(modified_buffer)
-                # modified_buffer = tf.pad(tf.convert_to_tensor(self.replay_buffer), [[0, self.replay_buffer.maxlen - current_buffer_size], [0, 0]])  # make buffer a tensor of fixed size
-                train_current_state, train_action, train_rew, train_next_state, train_d = self._sample_observation(modified_buffer, current_buffer_size)  # sample from buffer
+                train_current_state, train_action, train_rew, train_next_state, train_d = self._sample_observation(
+                    tf.convert_to_tensor(self.replay_buffer, dtype=tf.float32), tf.minimum(current_buffer_size, self.buffer_size)
+                )  # min to prevent buffer overflow and make sure all inputs are tensors
 
                 # Perform gradient methods
                 self._update_value_parameters(train_current_state, train_action, train_rew, train_next_state, train_d)
@@ -270,6 +281,8 @@ class SAC_Agent:
                 self._update_tgt_networks()
 
         # Print and visualize results
+        end_time = time.time()
+        print(f"Completed. Total runtime: {(end_time-start_time):.5f} seconds")
         if visualize_results:
             self._visualize_results(rewards)
 
@@ -300,8 +313,9 @@ if __name__ == "__main__":
                       initial_alpha=0.1,  # was: 1; try 0.1 - 0.001
                       alpha_decay=1,  # was: 0.995
                       rho=0.01,  # was: 0.2
-                      mem_maxlen=int(1e7),  # was: int(1e7)
-                      batch_size=64)  # was: 20
+                      mem_maxlen=int(1e5),  # was: int(1e7)
+                      batch_size=64,  # was: 20
+                      learning_rate=0.0001)  # was: 0.0005
     # fmt: on
 
     # Perform episode runs
