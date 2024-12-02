@@ -1,14 +1,15 @@
-from collections import deque
 import os
 import time
-import numpy as np
 from typing import List, Tuple
-import pandas as pd
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
+
 from environment import Environment
-import matplotlib.pyplot as plt
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -19,6 +20,7 @@ import matplotlib.pyplot as plt
 # - NN updates could also happen only happen after every ith episode and with mutliple batches
 # - First x episodes completely random action? => "warm-up steps" so that buffer is sufficiently large
 # - Add rendering option
+# - Requirements.txt with all needed packages
 # --------------------------------------------------------------------------------------------------------------------
 
 
@@ -201,9 +203,8 @@ class SAC_Agent:
         print(f"Maximum episode reward: {np.max(rewards)}")
 
         # Create time-series line chart
-        df = pd.DataFrame(np.array(rewards), columns=["Rewards"])
         plt.figure(figsize=(10, 6))
-        plt.plot(df["Rewards"], label="Episode Data", color="#0066BD")
+        plt.plot(rewards, label="Episode Data", color="#0066BD")
         plt.title("SAC Performance")
         plt.xlabel("Episode")
         plt.ylabel("Reward")
@@ -212,7 +213,7 @@ class SAC_Agent:
 
     def run_SAC(self, no_episodes: int, mode: str = "training", visualize_results: bool = True) -> List[float]:
         """Runs the SAC algorithm for `no_episodes`episodes. `mode`must be `training`, `validation`, or `testing`."""
-        rewards = []  # contains rewards per episode
+        rewards = np.empty(no_episodes)  # contains rewards per episode
         current_buffer_size = 0  # number of filled rows in replay buffer
 
         # Console message
@@ -260,7 +261,7 @@ class SAC_Agent:
 
             # Update internal variables
             self._update_alpha()
-            rewards.append(episode_rew)
+            rewards[episode] = episode_rew
 
             # Update NNs
             if mode == "training":
