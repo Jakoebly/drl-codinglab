@@ -37,10 +37,11 @@ class GymEnvironment:
         reward, next_state, done = self.env.step(action)
         return self.flatten_state(next_state), reward, done
 
-    def trainPPO(self, agent, no_episodes):
-        return self.runPPO(agent, no_episodes, training=True)
+    def trainPPO(self, agent, no_episodes, render):
+        return self.runPPO(agent, no_episodes, render, training=True)
 
-    def runPPO(self, agent, no_episodes, training=False):
+    def runPPO(self, agent, no_episodes, render, training=False):
+
         rew_total = []
 
         for episode in range(no_episodes):
@@ -100,6 +101,8 @@ class GymEnvironment:
                         log_probs = [policy_probabilities(logits_array[i], actions_array[i]) for i in range(len(actions_array))]
                         agent.memory.store_many(states_array, actions_array, rewards_array, log_probs, values_array, next_states_array, advantage_est, targets)
                     break
+                if render:
+                    self.env.render()
 
             rew_total.append(rew_episode)
             print(f"Reward Total: {rew_total}")
@@ -179,6 +182,7 @@ class PPO_Agent:
     def select_action(self, state):
         logits = self.actor.predict(state.reshape(1, -1)).flatten()
         action = np.random.choice(5, p=tf.nn.softmax(logits).numpy())
+        # action = np.argmax(tf.nn.softmax(logits).numpy())
         return logits, action
 
     def calc_advantage(self, state, rewards, values, done, t):
@@ -282,7 +286,7 @@ if __name__ == "__main__":
     tf.random.set_seed(seed)
 
     variant = 0
-    data_dir = "C:/Users/jakob/OneDrive/Uni/Master/3. Semester/Coding Lab/drl-codinglab/data"
+    data_dir = "/data"
     no_of_actions = 5
 
     gamma = 0.99
@@ -315,7 +319,7 @@ if __name__ == "__main__":
     train_environment = GymEnvironment(variant, data_dir)
 
     train_episodes = 200
-    rew_train = train_environment.trainPPO(agent, train_episodes)
+    rew_train = train_environment.trainPPO(agent, train_episodes, render=True)
 
     test_environment = GymEnvironment(variant, data_dir)
     test_episodes = 50
