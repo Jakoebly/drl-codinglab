@@ -178,10 +178,8 @@ class Environment(object):
     # TODO: Past Items Vector
     # TODO: Delte items where distance > remaining time
 
-    # TODO: DNN, CNN, RNN
-
     # Updated old get obs which directly includes flattening
-    def get_obs2(self):
+    '''def get_obs2(self):
         agent_pos = self.agent_loc
         free_capacity = self.agent_capacity - self.agent_load
         item_locs = list.copy(self.item_locs)
@@ -194,35 +192,78 @@ class Environment(object):
 
         obs = np.concatenate([np.array(agent_pos).flatten(), np.array([free_capacity]), np.array(item_locs).flatten(), np.array(item_times).flatten()])
 
-        return obs  # len(obs) == 75
+        return obs  # len(obs) == 75'''
 
     def get_obs(self) -> List[float]:
         """Returns the state of the environment as a 1-dimensional list of floats."""
-        agent_pos = self.agent_loc
-        free_capacity = self.agent_capacity - self.agent_load  # carry capacity of agent
-        item_dropped = int(len(self.item_locs) > 0)  # flag that shows if an item currently exists on the grid
-
-        item_dist = [((item[0] - agent_pos[0]), (item[1] - agent_pos[1])) for item in self.item_locs]  # distance from agent to items
-        remaining_times = [(self.max_response_time - current) for current in self.item_times]  # time until items disappear
+        # Absolut Agent Position
+        agent_position = self.agent_loc
+        # Free Capacity
+        free_capacity = self.agent_capacity - self.agent_load
+        # Flag that shows if an item currently exists on the grid
+        item_dropped = int(len(self.item_locs) > 0)
+        # Absolute Item positions
+        item_position = list.copy(self.item_locs)
+        # Time until items disappear
+        items_remaining_time = [(self.max_response_time - current) for current in self.item_times]
+        # (Relative) Distance from Agent to Items
+        item_distance = [((item[0] - agent_position[0]), (item[1] - agent_position[1])) for item in self.item_locs]
+        # (Relative) Distance from Items to Target Cell
+        item_target_distance = [
+        (item[0] - self.target_loc[0], item[1] - self.target_loc[1]) for item in self.item_locs
+        ]
 
         # Remove items that are not reachable in time
-        for i, _ in enumerate(item_dist):
-            if manhatten_dist([0, 0], item_dist[i]) > remaining_times[i]:
-                item_dist[i] = (-100, -100)
-                remaining_times[i] = 0
+        for i, _ in enumerate(item_distance):
+            if manhatten_dist([0, 0], item_distance[i]) > items_remaining_time[i]:
+                item_distance[i] = (-100, -100)
+                items_remaining_time[i] = 0
 
         # Zero Padding for fixed NN input size => at most 24 items can exist at once
-        while len(item_dist) < 24:
-            item_dist.append((-100, -100))
-            remaining_times.append(0)
+        while len(item_distance) < 24:
+            item_distance.append((-100, -100))
+            items_remaining_time.append(0)
+            item_target_distance.append((-100, -100))
 
-        dropoff_dir = (2 - agent_pos[0], 0 - agent_pos[1])  # dropoff for items is at (2,0)
+        # Dropoff direction (at (2,0))
+        dropoff_dir = (self.target_loc[0] - agent_position[0], self.target_loc[1] - agent_position[1])
 
-        return np.concatenate((agent_pos, [free_capacity], [item_dropped], np.array(item_dist).flatten(), remaining_times, dropoff_dir))
+        # Distance to the closest wall
+        distance_to_walls = [
+            agent_position[0],
+            self.vertical_cell_count - 1 - agent_position[0],
+            agent_position[1],
+            self.horizontal_cell_count - 1 - agent_position[1],
+        ]
+
+        # Past Items Vector (track how many items have spawned at each position)
+        past_items_vector = np.zeros((self.vertical_cell_count, self.horizontal_cell_count))
+        for loc in self.item_locs:
+            past_items_vector[loc] += 1
+        past_items_vector_flat = past_items_vector.flatten()
+
+
+        return np.concatenate(
+            (np.array(agent_position),
+            [free_capacity],
+            [item_dropped],
+            np.array(item_distance).flatten(),
+            np.array(items_remaining_time),
+            np.array(item_target_distance).flatten(),
+            dropoff_dir,
+            distance_to_walls,
+            past_items_vector_flat,
+            )
+        )
 
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 2 + 1 + 1 + 24 * 2 + 24 + 2
+        return 2 + 1 + 1 + 24 * 2 + 24 + 24 * 2 + 2 + 4 + 25
+    
+    '''def get_state_len(self):
+        """Dynamically calculate the length of one state."""
+        obs = self.get_obs()
+        return len(obs)'''
 
     def get_action_len(self):
         """Returns the number of actions available."""
