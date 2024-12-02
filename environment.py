@@ -202,42 +202,27 @@ class Environment(object):
             item_times.append(0)  # no remaining time => to mark dummy
 
         return [agent_pos, free_capacity, item_locs, item_times]'''
-
-
-    # New get_obs()
+    
+    # Updated old get obs which directly includes flattening
     def get_obs(self):
-        agent_pos = np.array(self.agent_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count])  # Normalize position
-        free_capacity = np.array([self.agent_capacity - self.agent_load])  # Free capacity as a scalar
+        agent_pos = self.agent_loc
+        free_capacity = self.agent_capacity - self.agent_load
+        item_locs = list.copy(self.item_locs)
+        item_times = [(self.max_response_time - i) for i in list.copy(self.item_times)]
 
-        item_locs = (
-            np.array(self.item_locs) / np.array([self.vertical_cell_count, self.horizontal_cell_count])
-            if self.item_locs else np.empty((0, 2))
-        )
-        item_times = np.array([self.max_response_time - i for i in self.item_times])  # Remaining times
-        item_distances = np.linalg.norm(item_locs - np.array(self.agent_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count]), axis=1) if len(item_locs) > 0 else np.array([])
-        target_distances = np.linalg.norm(item_locs - np.array(self.target_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count]), axis=1) if len(item_locs) > 0 else np.array([])
+        # Zero Padding for fixed number of items (24)
+        while len(item_locs) < 24:
+            item_locs.append((-10000, -10000))
+            item_times.append(0)
 
-        max_items = 24  # Maximum number of items
-        padding_value = -1  # Explicit padding value
-        padded_item_locs = np.pad(item_locs, ((0, max_items - len(item_locs)), (0, 0)), constant_values=padding_value)
-        padded_item_times = np.pad(item_times, (0, max_items - len(item_times)), constant_values=padding_value)
-        padded_item_distances = np.pad(item_distances, (0, max_items - len(item_distances)), constant_values=padding_value)
-        padded_target_distances = np.pad(target_distances, (0, max_items - len(target_distances)), constant_values=padding_value)
-
-        valid_mask = np.array([1] * len(item_locs) + [0] * (max_items - len(item_locs)))
-
-        # NO NEED FOR FLATTEN OBS - Check if this is correct
-        observation = np.concatenate([
-            agent_pos.flatten(),  # Flattened agent position
-            free_capacity,  # Free capacity
-            padded_item_locs.flatten(),  # Flattened item locations
-            padded_item_times,  # Item times
-            padded_item_distances,  # Distances to agent
-            padded_target_distances,  # Distances to target
-            valid_mask  # Validity mask
+        obs = np.concatenate([
+            np.array(agent_pos).flatten(),
+            np.array([free_capacity]),
+            np.array(item_locs).flatten(),
+            np.array(item_times).flatten()
         ])
-        
-        return observation
+
+        return obs
 
     # TODO: Delete or intergate into get_obs()
     '''def flatten_obs(self, obs):
@@ -245,24 +230,22 @@ class Environment(object):
         obs[1] = [obs[1]]
         obs[2] = np.array(obs[2]).flatten()
         return [elem for row in obs for elem in row]'''
-
-    '''def get_state_len(self):
-        """Returns the length of one state i.e., the tupel that is returned by the get_obs() method."""
-        return 2 + 1 + 24 * (2 + 1)'''
     
+
+    # ADJUST!!!
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
         # Agent position (2), free capacity (1)
         agent_features = 2 + 1
         
         # Items (24 max): locations (2 per item), times (1 per item), distances (2 per item)
-        item_features = 24 * (2 + 1)  # locations + times + distances to agent + distances to target
+        item_features = 24 * (2 + 1 + 1)  # locations + times + distances to agent + distances to target
         
         # Validity mask (24 binary values)
         mask_features = 24
 
-        return agent_features + item_features + mask_features
-
+        #return agent_features + item_features + mask_features
+        return 75
 
     def get_action_len(self):
         """Returns the number of actions available."""

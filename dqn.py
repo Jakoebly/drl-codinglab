@@ -56,25 +56,21 @@ class DQN_Agent:
             layers.Dense(128, activation="relu"),
             layers.Dense(128, activation="relu"),
             layers.Dense(128, activation="relu"),
-            layers.Dense(128, activation="relu"),
             layers.Dense(self.action_size, activation="linear")
         ])
         #model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr), loss='mse')
         return model
       
-    # Function to update weights of target network - check whether there is enough samples for the minibatch
     def update_target_weights(self):
-        #if t % self.target_model_time == 0 and len(self.memory) >= self.batch_size:
         self.target_model.set_weights(self.actual_model.get_weights())
-        #print("Updated Target Network")
         
     def select_random_action(self, state):
         """Select an action using epsilon-greedy policy."""
         #if tf.random.uniform(()) < self.epsilon.numpy():
         if tf.random.uniform(()) < self.epsilon:
             # Select a random action using TensorFlow
-            #return random.randint(0, self.action_size - 1)
-            return tf.random.uniform([], maxval=self.action_size, dtype=tf.int32)
+            return random.randint(0, self.action_size - 1)
+            #return tf.random.uniform([], maxval=self.action_size, dtype=tf.int32)
         else:
             return self.select_greedy_action(state)
 
@@ -83,8 +79,6 @@ class DQN_Agent:
         q_values = self.actual_model(state, training=False)
         return tf.argmax(q_values[0]).numpy()
     
-
-    # Here newly observed transitions are stored in the experience replay buffer
     def record(self, state, action, reward, next_state, done):
         self.replay_buffer.append((state, action, reward, next_state, done))
 
@@ -100,25 +94,30 @@ class DQN_Agent:
             tf.convert_to_tensor(dones, dtype=tf.float32),
         )
     
-    '''def sample_batch(self) -> Tuple[tf.Tensor]:
-        """Sample a batch from the replay buffer."""
-        indices = tf.random.uniform([self.batch_size], maxval=self.buffer_size, dtype=tf.int32)
-        batch = self.replay_buffer.gather(indices)
+    def _sample_observation(self) -> Tuple[tf.Tensor]:
+        """Randomly samples an observation from the replay buffer. Returns `(current_states, actions, rew, next_states, d)`, all of them being tensors."""
+        # Randomly Sample from Replay Buffer
+        batch = random.choices(self.replay_buffer, k = self.batch_size)
+        # Group Features and Convert Them to Tensors
+        current_states = tf.convert_to_tensor([batch[i][0] for i in range(len(batch))])
+        actions = tf.convert_to_tensor([batch[i][1] for i in range(len(batch))])
+        rew = tf.convert_to_tensor([batch[i][2] for i in range(len(batch))])
+        next_states = tf.convert_to_tensor([batch[i][3] for i in range(len(batch))])
+        d = tf.convert_to_tensor([batch[i][4] for i in range(len(batch))])
 
-        # Split batch into separate components
-        states = batch[:, 0]
-        actions = tf.cast(batch[:, 1], tf.int32)
-        rewards = batch[:, 2]
-        next_states = batch[:, 3]
-        dones = batch[:, 4]
-
-        return states, actions, rewards, next_states, dones'''
+        return (current_states, actions, rew, next_states, d)
 
     @tf.function
     def compute_q_targets(self, reward, done, max_q_next):
         """Compute the target Q-values for the Bellman equation."""
         q_target = reward + (1 - done) * self.gamma * max_q_next
         return q_target
+    
+    # Updates epsilon after each episode as long as it is larger than our defined minvalue
+    @tf.function
+    def update_epsilon(self):
+        #self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        self.epsilon.assign(tf.maximum(self.epsilon_min, self.epsilon * self.epsilon_decay))
 
     @tf.function
     def train_step(self, states, actions, rewards, next_states, dones):
@@ -141,96 +140,10 @@ class DQN_Agent:
         grads = tape.gradient(loss, self.actual_model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.actual_model.trainable_variables))
         return loss
-    
-    '''def train_step(self, states, actions, rewards, next_states, dones):
-        with tf.GradientTape() as tape:
-            q_values = self.actual_model(states, training=True)
-            indices = tf.stack([tf.range(self.batch_size), actions], axis=1)
-            q_values_pred = tf.gather_nd(q_values, indices)
-
-            max_q_next = tf.reduce_max(self.target_model(next_states, training=False), axis=1)
-            targets = self.compute_q_targets(rewards, dones, max_q_next)
-
-            loss = self.loss_fn(targets, q_values_pred)
-
-        grads = tape.gradient(loss, self.actual_model.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.actual_model.trainable_variables))
-        return loss'''
-
-
-    # updates epsilon after each episode as long as it is larger than our defined minvalue
-    @tf.function
-    def update_epsilon(self):
-        #self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-        self.epsilon.assign(tf.maximum(self.epsilon_min, self.epsilon * self.epsilon_decay))
-
-    '''def _sample_observation(self) -> Tuple[tf.Tensor]:
-        """Randomly samples an observation from the replay buffer. Returns `(current_states, actions, rew, next_states, d)`, all of them being tensors."""
-        # Randomly Sample from Replay Buffer
-        batch = random.choices(self.replay_buffer, k = self.batch_size)
-        # Group Features and Convert Them to Tensors
-        current_states = tf.convert_to_tensor([batch[i][0] for i in range(len(batch))])
-        actions = tf.convert_to_tensor([batch[i][1] for i in range(len(batch))])
-        rew = tf.convert_to_tensor([batch[i][2] for i in range(len(batch))])
-        next_states = tf.convert_to_tensor([batch[i][3] for i in range(len(batch))])
-        d = tf.convert_to_tensor([batch[i][4] for i in range(len(batch))])
-
-        return (current_states, actions, rew, next_states, d)'''
-    
-    '''@tf.function
-    def train_step(self, states, actions, rewards, next_states, dones):
-        """Perform a single training step."""
-        with tf.GradientTape() as tape:
-            Q_values = self.actual_model(states, training=True)
-            Q_target = tf.identity(Q_values)
-            max_Q_next = tf.reduce_max(self.target_model(next_states, training=False), axis=1)
-            targets = self.compute_targets(rewards, dones, max_Q_next)
-
-            # Update Q-values for the actions taken
-            indices = tf.stack([tf.range(self.batch_size), actions], axis=1)
-            Q_target = tf.tensor_scatter_nd_update(Q_target, indices, targets)
-
-            loss = self.loss_fn(Q_values, Q_target)
-
-        # Apply gradients
-        grads = tape.gradient(loss, self.actual_model.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.actual_model.trainable_variables))
-        return loss'''
-
-    '''def update_actual_weights(self):
-        # Checking if the replay buffer is large enough to be sampled
-        if len(self.replay_buffer) >= self.batch_size:
-            current_states, actions, rewards, next_states, dones = self._sample_observation()
-
-            # Ensure all tensors have compatible types
-            rewards = tf.cast(rewards, dtype=tf.float32)
-            dones = tf.cast(dones, dtype=tf.float32)
-
-            # This reshaping is necessary for the nn input!
-            #current_states = np.squeeze(current_states, axis=1)
-            #next_states = np.squeeze(next_states, axis=1)
-
-            # Implementing the minibatch/replay buffer update algorithm as per the lecture
-            Q_target = self.actual_model.predict(current_states)
-            Q_next = self.target_model.predict(next_states)
-            #max_Q_next = np.max(Q_next, axis=1)
-            max_Q_next = tf.reduce_max(Q_next, axis=1)  # Ensure this is float32
-            max_Q_next = tf.cast(max_Q_next, dtype=tf.float32)
-
-            # Checking for terminal states with the "dones" flag
-            #targets = rewards + (1 - dones) * self.gamma * max_Q_next
-            targets = rewards + (1 - dones) * tf.constant(self.gamma, dtype=tf.float32) * max_Q_next
-
-            for i, action in enumerate(actions):
-                Q_target[i][action] = targets[i]
-            self.actual_model.fit(current_states, Q_target, epochs=1, verbose=0)'''
-
 
     def train_DQN(self, no_episodes: int, render: bool = False):
         """Train the agent."""
-        #rewards = deque(maxlen = no_episodes)
         train_rewards = []
-
         for episode in range(no_episodes):
             if (episode + 1) % 100 == 0:
                 inter_train_rew = np.mean(train_rewards[-100:])
@@ -245,12 +158,11 @@ class DQN_Agent:
                 rew, next_state, d = self.env.step(action)  # observe outcome of action
                 #next_state = self.env.flatten_obs(next_state)  # flatten observation to 1d array
 
-                episode_rew += rew  # increase total reward per episode
-
-                #self.replay_buffer.append([current_state, action, rew, next_state, d]) # Store Observation in Replay Buffer for NN update
+                episode_rew += rew
                 self.record(current_state, action, rew, next_state, d)
 
-                #self.update_actual_weights()  # Updating the weights using a replay buffer
+                #self.update_actual_weights()
+
                 # Perform training step
                 if len(self.replay_buffer) >= self.batch_size:
                     states, actions, rewards, next_states, dones = self.sample_batch()
@@ -269,9 +181,10 @@ class DQN_Agent:
 
             self.update_epsilon()
             train_rewards.append(episode_rew)
+
             print(f"Episode {episode + 1}/{no_episodes}: Total Reward = {episode_rew}")
 
-            # Function that evaluates the agent's performance for every x episodes
+            # EVALUATION - NOT NEEDED RIGHT NOW
             '''if (episode + 1) % self.eval_interval == 0:
                 eval_reward = self.test_DQN(no_episodes = 50, mode = "evaluation", visualize_results=False)
                 average_reward = np.mean(eval_reward)
@@ -286,9 +199,7 @@ class DQN_Agent:
 
             #print("episode: {}/{} | score: {} | e: {:.3f}".format(episode + 1, no_episodes, rew, agent.epsilon))
 
-        #TODO: Save Model, Save Rewards, Save Actions
         print(f"Training finished. Average Reward: {np.mean(train_rewards)}")
-
         trained_model = self.actual_model
 
         return train_rewards, trained_model
@@ -326,7 +237,7 @@ class DQN_Agent:
 
         return test_rewards
 
-    def run(self, no_episodes: int, mode: str = "training", visualize_results: bool = True, render: bool = False):
+    def run(self, no_episodes: int, mode: str = "training", render: bool = False):
         # Console Message
         print(f"Starting {mode}...")
 
@@ -349,12 +260,12 @@ if __name__ == "__main__":
                       gamma = 0.99,
                       epsilon = 1,
                       batch_size = 512,
-                      epsilon_min = 0.05,
-                      epsilon_decay = 0.9965,
+                      epsilon_min = 0.1,
+                      epsilon_decay = 0.997,
                       learning_rate = 0.01,
-                      target_update_interval = 100,
+                      target_update_interval = 75,
                       eval_interval = 50,
                       mem_maxlen = 2000)
     # fmt: on
-    rewards = agent.run(no_episodes = 800, mode = "training", render = True)
+    rewards = agent.run(no_episodes = 800, mode = "training", render = False)
     ut.rewards_plotting(rewards)
