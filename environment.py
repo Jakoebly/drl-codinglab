@@ -203,6 +203,7 @@ class Environment(object):
 
         return [agent_pos, free_capacity, item_locs, item_times]'''
 
+
     # New get_obs()
     def get_obs(self):
         agent_pos = np.array(self.agent_loc) / np.array([self.vertical_cell_count, self.horizontal_cell_count])  # Normalize position
@@ -255,7 +256,7 @@ class Environment(object):
         agent_features = 2 + 1
         
         # Items (24 max): locations (2 per item), times (1 per item), distances (2 per item)
-        item_features = 24 * (2 + 1 + 1 + 1)  # locations + times + distances to agent + distances to target
+        item_features = 24 * (2 + 1)  # locations + times + distances to agent + distances to target
         
         # Validity mask (24 binary values)
         mask_features = 24

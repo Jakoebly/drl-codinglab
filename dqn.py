@@ -33,7 +33,6 @@ class DQN_Agent:
         self.epsilon_decay = epsilon_decay
         self.lr = learning_rate
 
-        
         # Replay buffer
         self.replay_buffer = deque(maxlen=mem_maxlen)
 
@@ -115,7 +114,6 @@ class DQN_Agent:
 
         return states, actions, rewards, next_states, dones'''
 
-    
     @tf.function
     def compute_q_targets(self, reward, done, max_q_next):
         """Compute the target Q-values for the Bellman equation."""
@@ -341,7 +339,6 @@ class DQN_Agent:
 
         return rewards
 
-
 if __name__ == "__main__":
     # Initialize Environment
     env = Environment(variant = 0, data_dir = "drl-codinglab/data/")
@@ -355,9 +352,9 @@ if __name__ == "__main__":
                       epsilon_min = 0.05,
                       epsilon_decay = 0.9965,
                       learning_rate = 0.01,
-                      target_update_interval = 25,
+                      target_update_interval = 100,
                       eval_interval = 50,
                       mem_maxlen = 2000)
     # fmt: on
-    rewards = agent.run(no_episodes = 800, mode = "training")
+    rewards = agent.run(no_episodes = 800, mode = "training", render = True)
     ut.rewards_plotting(rewards)
