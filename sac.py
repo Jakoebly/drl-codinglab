@@ -101,8 +101,8 @@ class SAC_Agent:
             [
                 # Two hidden layers with a RELU act. fct. and 64 nodes each
                 layers.Input(shape=(input_size,)),
-                layers.Dense(128, activation="relu"),  # was: 64
-                layers.Dense(128, activation="relu"),  # was: 64
+                layers.Dense(32, activation="relu"),  # was: 64
+                layers.Dense(32, activation="relu"),  # was: 64
                 # Output layer with custom size and act. fct.
                 layers.Dense(output_size, activation=output_act_fct),
             ]
@@ -211,13 +211,14 @@ class SAC_Agent:
         # Create time-series line chart
         plt.figure(figsize=(10, 6))
         plt.plot(rewards, label="Episode Data", color="#0066BD")
+        plt.axhline(y=0, color="red", linestyle="--", label="0-Reward Line")
         plt.title("SAC Performance")
         plt.xlabel("Episode")
         plt.ylabel("Reward")
         plt.legend()
         plt.show()
 
-    def run_SAC(self, no_episodes: int, mode: str = "training", visualize_results: bool = True) -> List[float]:
+    def run_SAC(self, no_episodes: int, mode: str = "training", visualize_results: bool = True, render: bool = False) -> List[float]:
         """Runs the SAC algorithm for `no_episodes`episodes. `mode`must be `training`, `validation`, or `testing`."""
         rewards = np.empty(no_episodes)  # contains rewards per episode
         current_buffer_size = 0  # number of filled rows in replay buffer
@@ -256,6 +257,10 @@ class SAC_Agent:
 
                 episode_rew += rew  # increase total reward per episode
                 current_buffer_size += 1
+
+                # Visualize environment
+                if render and episode > 700:
+                    self.env.render()
 
                 # End episode if done
                 if d:
@@ -304,19 +309,19 @@ class SAC_Agent:
 
 if __name__ == "__main__":
     # Initialize environment
-    env = Environment(variant=0, data_dir="./data")
+    env = Environment(variant=0, data_dir="./data", render=False)
 
     # Initialize SAC agent with hyperparameters
     # fmt: off
     agent = SAC_Agent(env=env,
                       gamma=0.99,  # was: 0.99
-                      initial_alpha=0.1,  # was: 1; try 0.1 - 0.001
+                      initial_alpha=0.01,  # was: 1; try 0.1 - 0.001
                       alpha_decay=1,  # was: 0.995
-                      rho=0.01,  # was: 0.2
+                      rho=0.1,  # was: 0.2
                       mem_maxlen=int(1e5),  # was: int(1e7)
-                      batch_size=64,  # was: 20
-                      learning_rate=0.0001)  # was: 0.0005
+                      batch_size=128,  # was: 20
+                      learning_rate=0.0005)  # was: 0.0005
     # fmt: on
 
     # Perform episode runs
-    rewards = agent.run_SAC(no_episodes=800, mode="training", visualize_results=True)
+    rewards = agent.run_SAC(no_episodes=800, mode="training", visualize_results=True, render=False)
