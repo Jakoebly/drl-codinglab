@@ -95,6 +95,9 @@ class Environment(object):
             episode = random.choice(self.remaining_training_episodes)
             self.remaining_training_episodes.remove(episode)
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
+        
+        #For CNN:
+        self.past_items_vector = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)
 
         return self.get_obs_grid()
         # return self.get_cnn_obs()
@@ -152,6 +155,10 @@ class Environment(object):
         new_items = [i for i in new_items if i not in self.item_locs]  # not more than one item per cell
         self.item_locs += new_items
         self.item_times += [0] * len(new_items)
+
+        #FOR CNN
+        for loc in new_items:
+            self.past_items_vector[loc] += 1
 
         # get new observation
         next_obs = self.get_obs_grid()
@@ -363,6 +370,7 @@ class Environment(object):
             ]
         )
 
+    #CNN OBS!!!
     def get_cnn_obs(self) -> np.ndarray:
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
@@ -376,19 +384,29 @@ class Environment(object):
         for loc in self.item_locs:
             item_positions_channel[loc] = 1  # Mark item positions on the grid
 
-        # Channel 3: Remaining times of items (normalized)
+        # Channel 3: Remaining times of items
         remaining_times_channel = np.zeros(grid_shape)
         for loc, time in zip(self.item_locs, self.item_times):
-            remaining_times_channel[loc] = (self.max_response_time - time) / self.max_response_time
+            remaining_times_channel[loc] = (self.max_response_time - time)
 
         # Channel 4: Past items (spawn counts at each position)
-        past_items_vector = np.zeros((self.vertical_cell_count, self.horizontal_cell_count))
-        for loc in self.item_locs:
-            past_items_vector[loc] += 1
-        past_items_channel = np.copy(past_items_vector)
+        past_items_channel = np.copy(self.past_items_vector)  # Use the past_items_vector to track spawn counts
+
+        # Channel 5: Free capacity
+        free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
+
+        # Channel 6: Target location
+        target_channel = np.zeros(grid_shape)
+        target_channel[self.target_loc] = 1  # Mark the target position on the grid
 
         # Stack all channels into a 3D grid
-        state = np.stack([agent_channel, item_positions_channel, remaining_times_channel, past_items_channel], axis=-1)
+        state = np.stack(
+            [agent_channel,
+             item_positions_channel,
+             #remaining_times_channel,
+             past_items_channel, free_capacity_channel, target_channel],
+            axis=-1,
+        )
         return state
 
     def get_to_tgt(self, tgt):
