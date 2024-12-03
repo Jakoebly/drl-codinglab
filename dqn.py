@@ -257,15 +257,15 @@ if __name__ == "__main__":
     # Initialize DQN Agent with Hyperparameters
     # fmt: off
     agent = DQN_Agent(env = env,
-                      gamma = 0.98,
+                      gamma = 0.99,
                       epsilon = 1,
-                      batch_size = 512,
+                      batch_size = 128,
                       epsilon_min = 0.1,
-                      epsilon_decay = 0.997,
+                      epsilon_decay = 0.99,
                       learning_rate = 0.01,
                       target_update_interval = 200,
                       eval_interval = 50,
-                      mem_maxlen = 5000)
+                      mem_maxlen = 2000)
     # fmt: on
     rewards = agent.run(no_episodes = 800, mode = "training", render = False)
     ut.rewards_plotting(rewards)
