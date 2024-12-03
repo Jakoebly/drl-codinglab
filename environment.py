@@ -97,7 +97,7 @@ class Environment(object):
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
         return self.get_obs()
-        #return self.get_cnn_obs()
+        # return self.get_cnn_obs()
 
     # take one environment step based on the action act
     def step(self, act):
@@ -155,8 +155,7 @@ class Environment(object):
 
         # get new observation
         next_obs = self.get_obs()
-        #next_obs = self.get_cnn_obs()
-
+        # next_obs = self.get_cnn_obs()
 
         return rew, next_obs, done
 
@@ -182,7 +181,7 @@ class Environment(object):
     # TODO: Delte items where distance > remaining time
 
     # Updated old get obs which directly includes flattening
-    '''def get_obs2(self):
+    """def get_obs2(self):
         agent_pos = self.agent_loc
         free_capacity = self.agent_capacity - self.agent_load
         item_locs = list.copy(self.item_locs)
@@ -195,7 +194,7 @@ class Environment(object):
 
         obs = np.concatenate([np.array(agent_pos).flatten(), np.array([free_capacity]), np.array(item_locs).flatten(), np.array(item_times).flatten()])
 
-        return obs  # len(obs) == 75'''
+        return obs  # len(obs) == 75"""
 
     def get_obs(self) -> List[float]:
         """Returns the state of the environment as a 1-dimensional list of floats."""
@@ -244,11 +243,11 @@ class Environment(object):
             past_items_vector[loc] += 1
         past_items_vector_flat = past_items_vector.flatten()
 
-        '''# Remove items that are not reachable in time
+        """# Remove items that are not reachable in time
         for i in range(len(manhattan_distances)):
             if manhattan_distances[i] > items_remaining_time[i]:
                 manhattan_distances[i] = 0
-                items_remaining_time[i] = 0'''
+                items_remaining_time[i] = 0"""
 
         # Zero Padding for fixed NN input size => at most 24 items can exist at once
         while len(item_position) < 24:
@@ -264,23 +263,19 @@ class Environment(object):
                 np.array(item_position).flatten(),  # Absolute positions of items | Dim: 24*2 (x,y)
                 np.array(items_remaining_time),  # Remaining time for each items | Dim: 24
                 np.array(manhattan_distances),  # Manhattan distances to items | Dim: 24
-
-                np.array(relative_item_distance).flatten(), # Relative distance to items | Dim: 24*2 (x,y)
-                np.array(relative_item_target_distance).flatten(), # Relative distance from items to target | Dim: 24*2 (x,y)
-
+                np.array(relative_item_distance).flatten(),  # Relative distance to items | Dim: 24*2 (x,y)
+                np.array(relative_item_target_distance).flatten(),  # Relative distance from items to target | Dim: 24*2 (x,y)
                 [free_capacity],  # Free capacity of the agent | Dim: 1
                 [item_dropped],  # Whether items are on the grid | Dim: 1
-
                 [remaining_time_closest_item],  # Remaining time of closest item | Dim: 1
                 [distance_to_closest_item],  # Distance to closest item | Dim: 1
                 [distance_to_target],  # Distance to target | Dim: 1
                 [distance_closest_item_to_target],  # Distance from closest item to target | Dim: 1
-                distance_to_walls,   # Distances to walls | Dim: 4 (up, down, left, right)
-
-                past_items_vector_flat # Past items vector tracking item spawn counts | Dim: 25
+                distance_to_walls,  # Distances to walls | Dim: 4 (up, down, left, right)
+                past_items_vector_flat,  # Past items vector tracking item spawn counts | Dim: 25
             )
         )
-    
+
     def get_cnn_obs(self) -> np.ndarray:
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
@@ -309,11 +304,60 @@ class Environment(object):
         state = np.stack([agent_channel, item_positions_channel, remaining_times_channel, past_items_channel], axis=-1)
         return state
 
+    def get_to_tgt(self, tgt):
+        """Determines which action to take to get to tgt coordinates."""
+        if self.agent_loc[0] > tgt[0]:  # target is above agent
+            act = 1  # go up
+        elif self.agent_loc[0] < tgt[0]:  # target is below agent
+            act = 3  # go down
+        elif self.agent_loc[1] > tgt[1]:  # target is to the left of agent
+            act = 4  # go left
+        elif self.agent_loc[1] < tgt[1]:  # target is to the right of agent
+            act = 2  # go right
+        else:  # could not identify target position
+            act = 0  # do nothing
+
+        return act
+
+    def get_obs_greedy(self):
+        """Greedy get_obs. Only works with base variant!"""
+
+        # Case 1: Agent already carries an item
+        if self.agent_load == 1:
+            # Take direct route to drop-off
+            act = self.get_to_tgt([2, 0])  # drop-off is at (2,0)
+
+        # Case 2: Agent carries no item and no item has spawned on the grid => do nothing
+        elif self.agent_load == 0 and len(self.item_locs) == 0:
+            # Stay at current position
+            act = 0
+
+        # Case 3: Agent carries no item and item has spawned => Pick up closest item
+        else:
+            # Calculate distances to all items
+            item_dist = [manhatten_dist(self.agent_loc, item) for item in self.item_locs]
+
+            # Calculate time each item will still remain on the grid
+            remaining_times = [(self.max_response_time - i) for i in self.item_times]
+
+            # Make unreachable items unattractive
+            for i, _ in enumerate(item_dist):
+                if item_dist[i] > remaining_times[i]:  # if unreachable
+                    item_dist[i] = 1e5  # set distance to unreachable items very high
+
+            # Pick closest item
+            closest_item_idx = item_dist.index(min(item_dist))
+            closest_item = self.item_locs[closest_item_idx]
+
+            # Determine best route to closest item
+            act = self.get_to_tgt(closest_item)
+
+        return np.array([act])
 
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
         return 83
-    
+
     '''def get_state_len(self):
         """Dynamically calculate the length of one state."""
         obs = self.get_obs()
