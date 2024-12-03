@@ -96,7 +96,7 @@ class Environment(object):
             self.remaining_training_episodes.remove(episode)
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
-        return self.get_obs()
+        return self.get_obs_grid()
         # return self.get_cnn_obs()
 
     # take one environment step based on the action act
@@ -154,7 +154,7 @@ class Environment(object):
         self.item_times += [0] * len(new_items)
 
         # get new observation
-        next_obs = self.get_obs()
+        next_obs = self.get_obs_grid()
         # next_obs = self.get_cnn_obs()
 
         return rew, next_obs, done
@@ -196,24 +196,111 @@ class Environment(object):
 
         return obs  # len(obs) == 75"""
 
+    def get_obs_grid(self) -> List[float]:
+        grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
+
+        # Agent position
+        agent_position = np.zeros(grid_shape)
+        agent_position[self.agent_loc] = 1  # Mark the agent's position on the grid
+
+        # Item positions
+        item_positions = np.zeros(grid_shape)
+        for loc in self.item_locs:
+            item_positions[loc] = 1  # Mark item positions on the grid
+
+        # Remaining times of items (normalized)
+        remaining_times = np.zeros(grid_shape)
+        for loc, time in zip(self.item_locs, self.item_times):
+            remaining_times[loc] = (self.max_response_time - time) / self.max_response_time
+
+        # TODO: evtl. weg weil eigentlich nicht relevant für die entscheidung
+        '''# Past items (spawn counts at each position)
+        items = np.zeros(grid_shape)
+        for loc in self.item_locs:
+            items[loc] += 1
+        past_items = np.copy(items)'''
+
+        # Target location
+        target_location = np.zeros(grid_shape)
+        target_location[self.target_loc] = 1
+
+        # Free capacity
+        free_capacity = self.agent_capacity - self.agent_load
+
+        # Manhattan distances to items and distance to closest item
+        distance_to_closest_item = 1000
+        remaining_time_closest_item = 1000
+        distance_closest_item_to_target = 1000
+        manhattan_distance_items = np.zeros(grid_shape)
+        for loc in self.item_locs:
+            manhattan_distance_items[loc] = manhatten_dist(self.agent_loc, loc)
+
+            if manhattan_distance_items[loc] < distance_to_closest_item:
+                distance_to_closest_item = manhattan_distance_items[loc]
+                remaining_time_closest_item = remaining_times[loc]
+                distance_closest_item_to_target = manhatten_dist(loc, self.target_loc)
+
+        # TODO: weg lassen
+        # Manhatten distance to target
+        manhattan_distance_target = np.zeros(grid_shape)
+        manhattan_distance_target[self.target_loc] = manhatten_dist(self.agent_loc, self.target_loc)
+
+
+        # Distance to the closest wall
+        distance_to_walls = [
+            self.agent_loc[0],
+            self.vertical_cell_count - 1 - self.agent_loc[0],
+            self.agent_loc[1],
+            self.horizontal_cell_count - 1 - self.agent_loc[1]
+        ]
+
+        # Current number of items on the field
+        num_items = len(self.item_locs)
+
+        state = np.concatenate([
+            np.array(agent_position).flatten(), # Dim 25
+            np.array(item_positions).flatten(), # Dim 25
+            np.array(remaining_times).flatten(), # Dim 25
+            np.array(target_location).flatten(), # Dim 25
+            np.array(free_capacity).flatten(), # Dim 1
+            np.array(manhattan_distance_items).flatten(), # Dim 25
+            np.array(manhattan_distance_target).flatten(),  # Dim 25
+            np.array(distance_to_closest_item).flatten(),  # Dim 1
+            np.array(remaining_time_closest_item).flatten(),  # Dim 1
+            np.array(distance_closest_item_to_target).flatten(),  # Dim 1
+            np.array(distance_to_walls).flatten(), # Dim 4
+            np.array(num_items).flatten(), # Dim 1
+        ])
+
+        return state
+
+
     def get_obs(self) -> List[float]:
         """Returns the state of the environment as a 1-dimensional list of floats."""
         # Absolut Agent Position
         agent_position = self.agent_loc
+
         # Free Capacity
         free_capacity = self.agent_capacity - self.agent_load
+
         # Flag that shows if an item currently exists on the grid
         item_dropped = int(len(self.item_locs) > 0)
+
         # Absolute Item positions
         item_position = list.copy(self.item_locs)
+
         # Time until items disappear
         items_remaining_time = [(self.max_response_time - current) for current in self.item_times]
+
         # (Relative) Distance from Agent to Items
         relative_item_distance = [((item[0] - agent_position[0]), (item[1] - agent_position[1])) for item in self.item_locs]
+
         # (Relative) Distance from Items to Target Cell
         relative_item_target_distance = [(item[0] - self.target_loc[0], item[1] - self.target_loc[1]) for item in self.item_locs]
+
         # Compute Manhattan distances to all items
         manhattan_distances = [manhatten_dist(agent_position, item) for item in self.item_locs]
+
         # Determine the closest item
         if manhattan_distances:
             closest_idx = int(np.argmin(manhattan_distances))
@@ -258,7 +345,7 @@ class Environment(object):
             relative_item_target_distance.append((-1000, -1000))
 
         return np.concatenate(
-            (
+            [
                 np.array(agent_position),  # Agent position | Dim: 2 (x,y)
                 np.array(item_position).flatten(),  # Absolute positions of items | Dim: 24*2 (x,y)
                 np.array(items_remaining_time),  # Remaining time for each items | Dim: 24
@@ -273,7 +360,7 @@ class Environment(object):
                 [distance_closest_item_to_target],  # Distance from closest item to target | Dim: 1
                 distance_to_walls,  # Distances to walls | Dim: 4 (up, down, left, right)
                 past_items_vector_flat,  # Past items vector tracking item spawn counts | Dim: 25
-            )
+            ]
         )
 
     def get_cnn_obs(self) -> np.ndarray:
@@ -356,7 +443,7 @@ class Environment(object):
 
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 83
+        return 159
 
     '''def get_state_len(self):
         """Dynamically calculate the length of one state."""
