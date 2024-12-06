@@ -18,7 +18,7 @@ class DQN_Agent:
                  epsilon_min: float,
                  epsilon_decay: float,
                  learning_rate: float,
-                 actual_update_interval : int,
+                 #actual_update_interval : int,
                  target_update_interval : int,
                  eval_interval: int,
                  mem_maxlen: int):
@@ -42,7 +42,7 @@ class DQN_Agent:
         self.update_target_weights()
 
         # Other attributes
-        self.actual_update_interval = actual_update_interval
+        #self.actual_update_interval = actual_update_interval
         self.target_update_interval = target_update_interval
         self.eval_interval = eval_interval
 
@@ -67,16 +67,14 @@ class DQN_Agent:
     
     def update_target_weights(self):
         self.target_model.set_weights(self.actual_model.get_weights())
-        
+
     def select_random_action(self, state):
         """Select an action using epsilon-greedy policy."""
-        #if tf.random.uniform(()) < self.epsilon.numpy():
         if tf.random.uniform(()) < self.epsilon:
-            # Select a random action using TensorFlow
-            return random.randint(0, self.action_size - 1)
-            #return tf.random.uniform([], maxval=self.action_size, dtype=tf.int32)
+            act = random.randint(0, self.action_size - 1)
         else:
-            return self.select_greedy_action(state)
+            act = self.select_greedy_action(state)
+        return act
 
     def select_greedy_action(self, state):
         state = tf.expand_dims(tf.convert_to_tensor(state, dtype=tf.float32), axis=0)
@@ -97,19 +95,6 @@ class DQN_Agent:
             tf.convert_to_tensor(next_states, dtype=tf.float32),
             tf.convert_to_tensor(dones, dtype=tf.float32),
         )
-    
-    def _sample_observation(self) -> Tuple[tf.Tensor]:
-        """Randomly samples an observation from the replay buffer. Returns `(current_states, actions, rew, next_states, d)`, all of them being tensors."""
-        # Randomly Sample from Replay Buffer
-        batch = random.choices(self.replay_buffer, k = self.batch_size)
-        # Group Features and Convert Them to Tensors
-        current_states = tf.convert_to_tensor([batch[i][0] for i in range(len(batch))])
-        actions = tf.convert_to_tensor([batch[i][1] for i in range(len(batch))])
-        rew = tf.convert_to_tensor([batch[i][2] for i in range(len(batch))])
-        next_states = tf.convert_to_tensor([batch[i][3] for i in range(len(batch))])
-        d = tf.convert_to_tensor([batch[i][4] for i in range(len(batch))])
-
-        return (current_states, actions, rew, next_states, d)
 
     @tf.function
     def compute_q_targets(self, reward, done, max_q_next):
@@ -169,7 +154,7 @@ class DQN_Agent:
                 #self.update_actual_weights()
 
                 # Perform training step
-                if len(self.replay_buffer) >= self.batch_size and step % self.actual_update_interval == 0:
+                if len(self.replay_buffer) >= self.batch_size:
                     states, actions, rewards, next_states, dones = self.sample_batch()
                     self.train_step(states, actions, rewards, next_states, dones)
 
@@ -262,16 +247,15 @@ if __name__ == "__main__":
     # Initialize DQN Agent with Hyperparameters
     # fmt: off
     agent = DQN_Agent(env = env,
-                      gamma = 0.99,
+                      gamma = 1,
                       epsilon = 1,
                       batch_size = 64, #128
-                      epsilon_min = 0.15,
-                      epsilon_decay = 0.998,
-                      learning_rate = 0.01,
-                      actual_update_interval = 15,
-                      target_update_interval = 30, #15
+                      epsilon_min = 0.14,
+                      epsilon_decay = 0.995,
+                      learning_rate = 0.001,
+                      target_update_interval = 35, #15
                       eval_interval = 50,
                       mem_maxlen = 5000)
     # fmt: on
-    rewards = agent.run(no_episodes = 800, mode = "training", render = False)
+    rewards = agent.run(no_episodes = 800 , mode = "training", render = False)
     ut.rewards_plotting(rewards)

@@ -79,6 +79,7 @@ class Environment(object):
         self.item_locs = []
         self.item_times = []
 
+        self.past_items = []
         #self.item_distances = []
 
         if mode == "testing":
@@ -95,7 +96,7 @@ class Environment(object):
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
         
         #For CNN:
-        #self.past_items_vector = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)
+        self.past_items = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)
 
         return self.get_obs()
 
@@ -109,6 +110,9 @@ class Environment(object):
             done = 1
         else:
             done = 0
+
+        #MP
+        new_loc = self.agent_loc
 
         # agent movement
         if act != 0:
@@ -157,8 +161,8 @@ class Environment(object):
         self.item_times += [0] * len(new_items)
 
         #FOR CNN
-        #for loc in new_items:
-        #    self.past_items_vector[loc] += 1
+        for loc in new_items:
+            self.past_items[loc] += 1
 
         # get new observation
         next_obs = self.get_obs()
@@ -227,8 +231,8 @@ class Environment(object):
             remaining_item_times_2d.append(-1)
 
         # Frequency of Past Items
-        #past_items_vector = self.past_items_vector.flatten()
-        #frequency_past_items = past_items_vector / past_items_vector.sum() if past_items_vector.sum() > 0 else past_items_vector
+        past_items_vector = self.past_items.flatten()
+        frequency_past_items = past_items_vector / past_items_vector.sum() if past_items_vector.sum() > 0 else past_items_vector
 
         # Target Position (One-Hot Encoded)
         target_position = np.zeros(grid_size)
@@ -279,34 +283,32 @@ class Environment(object):
             self.horizontal_cell_count - 1 - self.agent_loc[1],  # Right
         ]
 
+        #ADD: Distances to all cells
         obs = np.concatenate([
             free_capacity,  # Scalar
-            agent_position,  # One-hot
-            #agent_position_2d,  # 2D Flattened e.g. [1 0]
-            item_positions,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
-            #item_positions_2d,  # 2D Flattened e.g. [ 0  1  3  3  0  2 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
-            remaining_item_times,  # Normalized times e.g. [-1.  -1.  -1.  -1.  -1.  -1.   0.6 -1.  -1.   0.4 -1.  -1.  -1.  -1.-1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
-            #remaining_item_times_2d,  # Times according to 2D Positions e.g. [ 0.3  0.4  0.9 -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
-            ##frequency_past_items,  # Past frequency
-            ##target_position,  # One-hot e.g. [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
+            #agent_position,  # One-hot
+            agent_position_2d,  # 2D Flattened e.g. [1 0]
+            #item_positions,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+            item_positions_2d,  # 2D Flattened e.g. [ 0  1  3  3  0  2 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
+            #remaining_item_times,  # Normalized times e.g. [-1.  -1.  -1.  -1.  -1.  -1.   0.6 -1.  -1.   0.4 -1.  -1.  -1.  -1.-1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
+            remaining_item_times_2d,  # Times according to 2D Positions e.g. [ 0.3  0.4  0.9 -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
+            #frequency_past_items,  # Past frequency
+            #target_position,  # One-hot e.g. [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
             #target_position_2d,  # 2D Flattened e.g. [2 0]
             #closest_item,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
             #closest_item_2d,  # 2D Flattened e.g. [4 2]
             #distance_closest_item,  # Scalar e.g. [2]
             #distance_closest_item_2d,  # 2D Flattened e.g. [0 2]
-            distances_all_items,  # Scalar e.g. [-1.  6. -1. -1.  3. -1. -1.  4. -1.  2. -1. -1. -1. -1. -1. -1. -1. -1.-1.  0. -1. -1. -1. -1. -1.]
-            #distances_all_items_2d,  # 2D Flattened e.g. [ 1  3  2  0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
+            #distances_all_items,  # Scalar e.g. [-1.  6. -1. -1.  3. -1. -1.  4. -1.  2. -1. -1. -1. -1. -1. -1. -1. -1.-1.  0. -1. -1. -1. -1. -1.]
+            distances_all_items_2d,  # 2D Flattened e.g. [ 1  3  2  0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
             distance_to_walls  # Scalar e.g. [1 3 2 2]
         ])
-        #print("New Step")
-        #print(obs)
 
         return obs
     
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 1
-
+        return 156
 
    # GRIDOBS
     def get_grid_obs(self) -> List[float]:
@@ -410,34 +412,47 @@ class Environment(object):
             remaining_times_channel[loc] = (self.max_response_time - time)/self.max_response_time
 
         # Channel 4: Past items (spawn counts at each position)
-        #past_items_channel = np.copy(self.past_items_vector)
+        past_items_channel = np.copy(self.past_items)
 
-        #total_spawns = past_items_channel.sum()
-        #if total_spawns > 0:
-            #past_items_channel = past_items_channel / total_spawns
-        #else:
-            #past_items_channel = np.zeros_like(past_items_channel)
+        total_spawns = past_items_channel.sum()
+        if total_spawns > 0:
+            past_items_channel = past_items_channel / total_spawns
+        else:
+            past_items_channel = np.zeros_like(past_items_channel)
 
 
         # Channel 5: Free capacity
         free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
 
-        # Channel 6: Target location
+        # Channel 6: Manhattan distances to all grid cells
+        distances_channel = np.zeros(grid_shape)
+        for i in range(self.vertical_cell_count):
+            for j in range(self.horizontal_cell_count):
+                distances_channel[i, j] = manhatten_dist(self.agent_loc, (i, j))
+
+        # Channel 7: Target location
         target_channel = np.zeros(grid_shape)
         target_channel[self.target_loc] = 1
+
     
         # Stack all channels into a 3D grid
         state = np.stack(
             [agent_channel,
              item_positions_channel,
+             distances_channel,
              remaining_times_channel,
-             #past_items_channel,
-             target_channel,
+             past_items_channel,
+             #target_channel,
              free_capacity_channel
             ],
             axis=-1,
         )
+
         return state
+    
+    def get_state_shape(self):
+        return (6, 5, 5)  # (Channels, Height, Width)
+
 
     def get_to_tgt(self, tgt):
         """Determines which action to take to get to tgt coordinates."""
