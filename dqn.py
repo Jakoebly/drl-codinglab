@@ -18,6 +18,7 @@ class DQN_Agent:
                  epsilon_min: float,
                  epsilon_decay: float,
                  learning_rate: float,
+                 actual_update_interval : int,
                  target_update_interval : int,
                  eval_interval: int,
                  mem_maxlen: int):
@@ -41,6 +42,7 @@ class DQN_Agent:
         self.update_target_weights()
 
         # Other attributes
+        self.actual_update_interval = actual_update_interval
         self.target_update_interval = target_update_interval
         self.eval_interval = eval_interval
 
@@ -53,9 +55,11 @@ class DQN_Agent:
         """Builds the Q-network."""
         model = tf.keras.Sequential([
             layers.Input(shape=(self.state_size,)),
-            layers.Dense(128, activation="relu"),
-            layers.Dense(128, activation="relu"),
-            layers.Dense(128, activation="relu"),
+            layers.Dense(256, activation="relu"),
+            layers.Dense(256, activation="relu"),
+            layers.Dense(256, activation="relu"),
+            layers.Dense(256, activation="relu"),
+            layers.Dense(256, activation="relu"),
             layers.Dense(self.action_size, activation="linear")
         ])
         #model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr), loss='mse')
@@ -144,6 +148,7 @@ class DQN_Agent:
     def train_DQN(self, no_episodes: int, render: bool = False):
         """Train the agent."""
         train_rewards = []
+        
         for episode in range(no_episodes):
             if (episode + 1) % 100 == 0:
                 inter_train_rew = np.mean(train_rewards[-100:])
@@ -164,7 +169,7 @@ class DQN_Agent:
                 #self.update_actual_weights()
 
                 # Perform training step
-                if len(self.replay_buffer) >= self.batch_size:
+                if len(self.replay_buffer) >= self.batch_size and step % self.actual_update_interval == 0:
                     states, actions, rewards, next_states, dones = self.sample_batch()
                     self.train_step(states, actions, rewards, next_states, dones)
 
@@ -252,20 +257,21 @@ class DQN_Agent:
 
 if __name__ == "__main__":
     # Initialize Environment
-    env = Environment(variant = 0, data_dir = "drl-codinglab/data/")
+    env = Environment(variant = 0, data_dir = "drl-codinglab/data/", render = False)
 
     # Initialize DQN Agent with Hyperparameters
     # fmt: off
     agent = DQN_Agent(env = env,
                       gamma = 0.99,
                       epsilon = 1,
-                      batch_size = 128,
-                      epsilon_min = 0.1,
-                      epsilon_decay = 0.99,
+                      batch_size = 64, #128
+                      epsilon_min = 0.15,
+                      epsilon_decay = 0.998,
                       learning_rate = 0.01,
-                      target_update_interval = 200,
+                      actual_update_interval = 15,
+                      target_update_interval = 30, #15
                       eval_interval = 50,
-                      mem_maxlen = 2000)
+                      mem_maxlen = 5000)
     # fmt: on
     rewards = agent.run(no_episodes = 800, mode = "training", render = False)
     ut.rewards_plotting(rewards)

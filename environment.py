@@ -21,7 +21,6 @@ from Renderer.renderer import Renderer
 def manhatten_dist(pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
     return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
 
-
 class Environment(object):
     def __init__(self, variant, data_dir, render=False):
         self.variant = variant
@@ -50,7 +49,6 @@ class Environment(object):
         else:
             self.agent_capacity = 3
 
-        # fmt: off
         if self.variant == 0 or self.variant == 1:
             self.eligible_cells = [(0,0), (0,1), (0,2), (0,3), (0,4),
                                    (1,0), (1,1), (1,2), (1,3), (1,4),
@@ -63,7 +61,6 @@ class Environment(object):
                                    (2,0),        (2,2),        (2,4),
                                    (3,0), (3,1), (3,2),        (3,4),
                                    (4,0), (4,1), (4,2),        (4,4)]
-        # fmt: on
 
         # RENDERING ONLY:
         if render:
@@ -81,7 +78,8 @@ class Environment(object):
         self.agent_load = 0  # number of items loaded (0 or 1, except for first extension, where it can be 0,1,2,3)
         self.item_locs = []
         self.item_times = []
-        self.item_distances = []
+
+        #self.item_distances = []
 
         if mode == "testing":
             episode = self.test_episodes[0]
@@ -97,15 +95,15 @@ class Environment(object):
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
         
         #For CNN:
-        self.past_items_vector = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)
+        #self.past_items_vector = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)
 
         return self.get_obs()
-        # return self.get_cnn_obs()
 
     # take one environment step based on the action act
     def step(self, act):
         self.step_count += 1
         rew = 0
+
         # done signal (1 if episode ends, 0 if not)
         if self.step_count == self.episode_steps:
             done = 1
@@ -138,8 +136,10 @@ class Environment(object):
         # item drop-off
         if self.agent_loc == self.target_loc:
             rew += self.agent_load * self.reward / 2
-            self.target_count += self.agent_load
             self.agent_load = 0
+
+            #FOR RENDER
+            self.target_count += self.agent_load
 
         # track how long ago items appeared
         self.item_times = [i + 1 for i in self.item_times]
@@ -157,12 +157,11 @@ class Environment(object):
         self.item_times += [0] * len(new_items)
 
         #FOR CNN
-        for loc in new_items:
-            self.past_items_vector[loc] += 1
+        #for loc in new_items:
+        #    self.past_items_vector[loc] += 1
 
         # get new observation
         next_obs = self.get_obs()
-        # next_obs = self.get_cnn_obs()
 
         return rew, next_obs, done
 
@@ -175,9 +174,6 @@ class Environment(object):
         else:
             print("Renderer not initialized.")
 
-    # DONE: implement function that gives the input features for the neural network(s)
-    #       based on the current state of the environment
-
     # TODO: PADDING
     # TODO: Item Position RELATIV not absolut
     # TODO: Manhatten distance to each item (new list)
@@ -187,33 +183,143 @@ class Environment(object):
     # TODO: Past Items Vector
     # TODO: Delte items where distance > remaining time
 
-    # Updated old get obs which directly includes flattening
-    """def get_obs2(self):
-        agent_pos = self.agent_loc
-        free_capacity = self.agent_capacity - self.agent_load
-        item_locs = list.copy(self.item_locs)
-        item_times = [(self.max_response_time - i) for i in list.copy(self.item_times)]
+    def get_action_len(self):
+        """Returns the number of actions available."""
+        return 5
 
-        # Zero Padding for fixed number of items (24)
-        while len(item_locs) < 24:
-            item_locs.append((-10000, -10000))
-            item_times.append(0)
+    def get_obs(self) -> np.ndarray:
+        """Returns the state of the environment as a flattened 1D array."""
+        grid_size = self.vertical_cell_count * self.horizontal_cell_count
 
-        obs = np.concatenate([np.array(agent_pos).flatten(), np.array([free_capacity]), np.array(item_locs).flatten(), np.array(item_times).flatten()])
+        # Free Capacity
+        free_capacity = [self.agent_capacity - self.agent_load]
 
-        return obs  # len(obs) == 75"""
+        # Agent Position (One-Hot Encoded)
+        agent_position = np.zeros(grid_size)
+        agent_index = self.agent_loc[0] * self.horizontal_cell_count + self.agent_loc[1]
+        agent_position[agent_index] = 1
 
-    def get_obs_grid(self) -> List[float]:
+        # Agent Position (2D Flattened)
+        agent_position_2d = [self.agent_loc[0], self.agent_loc[1]]
+
+        # Item Positions (One-Hot Encoded)
+        item_positions = np.zeros(grid_size)
+        item_positions_2d = []
+        for loc in self.item_locs:
+            item_index = loc[0] * self.horizontal_cell_count + loc[1]
+            item_positions[item_index] = 1
+            item_positions_2d.extend([loc[0], loc[1]])
+        # Pad item_positions_2d if fewer items than grid cells
+        while len(item_positions_2d) < grid_size * 2:
+            item_positions_2d.extend([-1, -1])
+
+        # Remaining Item Times
+        remaining_item_times = np.full(grid_size, -1.0)
+        # Remaining Item Times (Normalized, Ordered to Match item_positions_2d)
+        remaining_item_times_2d = []
+        for loc, time in zip(self.item_locs, self.item_times):
+            item_index = loc[0] * self.horizontal_cell_count + loc[1]
+            remaining_time = (self.max_response_time - time) / self.max_response_time
+            remaining_item_times[item_index] = remaining_time
+            remaining_item_times_2d.append(remaining_time)
+        # Pad remaining_item_times_2d
+        while len(remaining_item_times_2d) < grid_size:
+            remaining_item_times_2d.append(-1)
+
+        # Frequency of Past Items
+        #past_items_vector = self.past_items_vector.flatten()
+        #frequency_past_items = past_items_vector / past_items_vector.sum() if past_items_vector.sum() > 0 else past_items_vector
+
+        # Target Position (One-Hot Encoded)
+        target_position = np.zeros(grid_size)
+        target_index = self.target_loc[0] * self.horizontal_cell_count + self.target_loc[1]
+        target_position[target_index] = 1
+
+        # Target Position (2D Flattened)
+        target_position_2d = [self.target_loc[0], self.target_loc[1]]
+
+        # Closest Item (One-Hot Encoded)
+        closest_item = np.zeros(grid_size)
+        if self.item_locs:
+            distances = [manhatten_dist(self.agent_loc, item) for item in self.item_locs]
+            closest_idx = np.argmin(distances)
+            closest_item_index = self.item_locs[closest_idx][0] * self.horizontal_cell_count + self.item_locs[closest_idx][1]
+            closest_item[closest_item_index] = 1
+            closest_item_2d = [self.item_locs[closest_idx][0], self.item_locs[closest_idx][1]]
+            distance_closest_item = [distances[closest_idx]]
+            distance_closest_item_2d = [
+                abs(self.agent_loc[0] - self.item_locs[closest_idx][0]),
+                abs(self.agent_loc[1] - self.item_locs[closest_idx][1]),
+            ]
+        else:
+            closest_item_2d = [-1, -1]
+            distance_closest_item = [-1]
+            distance_closest_item_2d = [-1, -1]
+
+
+        distances_all_items = np.full(grid_size, -1, dtype=float)
+        distances_all_items_2d = []
+        for loc in self.item_locs:
+            item_index = loc[0] * self.horizontal_cell_count + loc[1]
+            distance = manhatten_dist(self.agent_loc, loc)
+            distances_all_items[item_index] = manhatten_dist(self.agent_loc, loc)
+            distances_all_items_2d.extend([
+                abs(self.agent_loc[0] - loc[0]),
+                abs(self.agent_loc[1] - loc[1]),
+            ])
+        # Pad distances_all_items_2d
+        while len(distances_all_items_2d) < grid_size * 2:
+            distances_all_items_2d.extend([-1, -1])
+
+        # Distance to Walls
+        distance_to_walls = [
+            self.agent_loc[0],  # Up
+            self.vertical_cell_count - 1 - self.agent_loc[0],  # Down
+            self.agent_loc[1],  # Left
+            self.horizontal_cell_count - 1 - self.agent_loc[1],  # Right
+        ]
+
+        obs = np.concatenate([
+            free_capacity,  # Scalar
+            agent_position,  # One-hot
+            #agent_position_2d,  # 2D Flattened e.g. [1 0]
+            item_positions,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+            #item_positions_2d,  # 2D Flattened e.g. [ 0  1  3  3  0  2 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
+            remaining_item_times,  # Normalized times e.g. [-1.  -1.  -1.  -1.  -1.  -1.   0.6 -1.  -1.   0.4 -1.  -1.  -1.  -1.-1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
+            #remaining_item_times_2d,  # Times according to 2D Positions e.g. [ 0.3  0.4  0.9 -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
+            ##frequency_past_items,  # Past frequency
+            ##target_position,  # One-hot e.g. [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
+            #target_position_2d,  # 2D Flattened e.g. [2 0]
+            #closest_item,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
+            #closest_item_2d,  # 2D Flattened e.g. [4 2]
+            #distance_closest_item,  # Scalar e.g. [2]
+            #distance_closest_item_2d,  # 2D Flattened e.g. [0 2]
+            distances_all_items,  # Scalar e.g. [-1.  6. -1. -1.  3. -1. -1.  4. -1.  2. -1. -1. -1. -1. -1. -1. -1. -1.-1.  0. -1. -1. -1. -1. -1.]
+            #distances_all_items_2d,  # 2D Flattened e.g. [ 1  3  2  0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
+            distance_to_walls  # Scalar e.g. [1 3 2 2]
+        ])
+        #print("New Step")
+        #print(obs)
+
+        return obs
+    
+    def get_state_len(self):
+        """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
+        return 1
+
+
+   # GRIDOBS
+    def get_grid_obs(self) -> List[float]:
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
 
         # Agent position
         agent_position = np.zeros(grid_shape)
-        agent_position[self.agent_loc] = 1  # Mark the agent's position on the grid
+        agent_position[self.agent_loc] = 1
 
         # Item positions
         item_positions = np.zeros(grid_shape)
         for loc in self.item_locs:
-            item_positions[loc] = 1  # Mark item positions on the grid
+            item_positions[loc] = 1
 
         # Remaining times of items (normalized)
         remaining_times = np.zeros(grid_shape)
@@ -221,11 +327,14 @@ class Environment(object):
             remaining_times[loc] = (self.max_response_time - time) / self.max_response_time
 
         # TODO: evtl. weg weil eigentlich nicht relevant für die entscheidung
-        '''# Past items (spawn counts at each position)
-        items = np.zeros(grid_shape)
-        for loc in self.item_locs:
-            items[loc] += 1
-        past_items = np.copy(items)'''
+        # Past items (spawn counts at each position)
+        past_items_vector = self.past_items_vector.flatten()
+
+        total_spawns = past_items_vector.sum()
+        if total_spawns > 0:
+            past_items_vector = past_items_vector / total_spawns
+        else:
+            past_items_vector = np.zeros_like(past_items_vector)
 
         # Target location
         target_location = np.zeros(grid_shape)
@@ -281,113 +390,72 @@ class Environment(object):
 
         return state
 
-
-    def get_obs(self) -> List[float]:
-        """Returns the state of the environment as a 1-dimensional list of floats."""
-        grid_size = self.vertical_cell_count * self.horizontal_cell_count
-
-        # Agent Position (One-Hot Encoded)
-        agent_position = np.zeros(grid_size)
-        agent_index = self.agent_loc[0] * self.horizontal_cell_count + self.agent_loc[1]
-        agent_position[agent_index] = 1
-
-        # Agent Position (2D Tuple)
-        agent_position_2d = tuple(self.agent_loc)
-
-        # Target Position (One-Hot Encoded)
-        target_position = np.zeros(grid_size)
-        target_index = self.target_loc[0] * self.horizontal_cell_count + self.target_loc[1]
-        target_position[target_index] = 1
-
-        # Target Position (2D Tuple)
-        target_position_2d = tuple(self.target_loc)
-
-        # Item Positions (One-Hot Encoded)
-        item_positions = np.zeros(grid_size)
-        for loc in self.item_locs:
-            item_index = loc[0] * self.horizontal_cell_count + loc[1]
-            item_positions[item_index] = 1
-
-        # Item Times (Flat Vector)
-        item_times = np.zeros(grid_size)
-        for loc, time in zip(self.item_locs, self.item_times):
-            item_index = loc[0] * self.horizontal_cell_count + loc[1]
-            item_times[item_index] = (self.max_response_time - time)
-
-        # Past Items Vector (Flat Vector)
-        past_items_vector = self.past_items_vector.flatten()  # Flatten the spawn count grid
-
-        # Free Capacity (Scalar)
-        free_capacity = self.agent_capacity - self.agent_load
-
-        return np.concatenate(
-            [
-                agent_position,         # Agent position (one-hot) | Dim: grid_size
-                #agent_position_2d,
-                target_position,        # Target position (one-hot) | Dim: grid_size
-                #target_position_2d,
-                item_positions,         # Item positions (one-hot) | Dim: grid_size
-                item_times,             # Remaining times of items | Dim: grid_size
-                past_items_vector,      # Past items spawn counts (flat vector) | Dim: grid_size
-                [free_capacity],        # Free capacity (scalar) | Dim: 1
-            ]
-        )
-
-    #CNN OBS!!!
+    #CNN OBS
     def get_cnn_obs(self) -> np.ndarray:
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
 
         # Channel 1: Agent position
         agent_channel = np.zeros(grid_shape)
-        agent_channel[self.agent_loc] = 1  # Mark the agent's position on the grid
+        agent_channel[self.agent_loc] = 1
 
         # Channel 2: Item positions
         item_positions_channel = np.zeros(grid_shape)
         for loc in self.item_locs:
-            item_positions_channel[loc] = 1  # Mark item positions on the grid
+            item_positions_channel[loc] = 1
 
         # Channel 3: Remaining times of items
         remaining_times_channel = np.zeros(grid_shape)
         for loc, time in zip(self.item_locs, self.item_times):
-            remaining_times_channel[loc] = (self.max_response_time - time)
+            remaining_times_channel[loc] = (self.max_response_time - time)/self.max_response_time
 
         # Channel 4: Past items (spawn counts at each position)
-        past_items_channel = np.copy(self.past_items_vector)  # Use the past_items_vector to track spawn counts
+        #past_items_channel = np.copy(self.past_items_vector)
+
+        #total_spawns = past_items_channel.sum()
+        #if total_spawns > 0:
+            #past_items_channel = past_items_channel / total_spawns
+        #else:
+            #past_items_channel = np.zeros_like(past_items_channel)
+
 
         # Channel 5: Free capacity
         free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
 
         # Channel 6: Target location
         target_channel = np.zeros(grid_shape)
-        target_channel[self.target_loc] = 1  # Mark the target position on the grid
-
+        target_channel[self.target_loc] = 1
+    
         # Stack all channels into a 3D grid
         state = np.stack(
             [agent_channel,
              item_positions_channel,
-             #remaining_times_channel,
-             past_items_channel, free_capacity_channel, target_channel],
+             remaining_times_channel,
+             #past_items_channel,
+             target_channel,
+             free_capacity_channel
+            ],
             axis=-1,
         )
         return state
 
     def get_to_tgt(self, tgt):
         """Determines which action to take to get to tgt coordinates."""
-        if self.agent_loc[0] > tgt[0]:  # target is above agent
-            act = 1  # go up
-        elif self.agent_loc[0] < tgt[0]:  # target is below agent
-            act = 3  # go down
-        elif self.agent_loc[1] > tgt[1]:  # target is to the left of agent
-            act = 4  # go left
-        elif self.agent_loc[1] < tgt[1]:  # target is to the right of agent
-            act = 2  # go right
-        else:  # could not identify target position
-            act = 0  # do nothing
+        if self.agent_loc[0] > tgt[0]:
+            act = 1
+        elif self.agent_loc[0] < tgt[0]:
+            act = 3
+        elif self.agent_loc[1] > tgt[1]:
+            act = 4
+        elif self.agent_loc[1] < tgt[1]:
+            act = 2
+        else:
+            act = 0
 
         return act
 
-    def get_obs_greedy(self):
+    #Greedy
+    def get_greedy_obs(self):
         """Greedy get_obs. Only works with base variant!"""
 
         # Case 1: Agent already carries an item
@@ -421,16 +489,3 @@ class Environment(object):
             act = self.get_to_tgt(closest_item)
 
         return np.array([act])
-
-    def get_state_len(self):
-        """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 126
-
-    '''def get_state_len(self):
-        """Dynamically calculate the length of one state."""
-        obs = self.get_obs()
-        return len(obs)'''
-
-    def get_action_len(self):
-        """Returns the number of actions available."""
-        return 5

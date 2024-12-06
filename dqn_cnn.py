@@ -18,6 +18,7 @@ class DQN_Agent:
                  epsilon_min: float,
                  epsilon_decay: float,
                  learning_rate: float,
+                 actual_update_interval : int,
                  target_update_interval : int,
                  eval_interval: int,
                  mem_maxlen: int):
@@ -41,6 +42,7 @@ class DQN_Agent:
         self.update_target_weights()
 
         # Other attributes
+        self.actual_update_interval = actual_update_interval
         self.target_update_interval = target_update_interval
         self.eval_interval = eval_interval
 
@@ -51,25 +53,28 @@ class DQN_Agent:
 
     def _build_model(self):
         """Builds a CNN-based Q-network."""
-        input_shape = (self.env.vertical_cell_count, self.env.horizontal_cell_count, 4)  # 4 channels
+        input_shape = (self.env.vertical_cell_count, self.env.horizontal_cell_count, 5)  # 4 channels
         model = tf.keras.Sequential([
-            layers.Input(shape=input_shape, name="grid_input"),  # Input layer for 3D grid
+            layers.Input(shape=input_shape, name="grid_input"),
 
             # Convolutional layers
-            layers.Conv2D(32, kernel_size=3, strides=1, activation="relu", padding="same"),
+            layers.Conv2D(256, kernel_size=3, strides=1, activation="relu", padding="same"),
             #layers.MaxPooling2D(pool_size=(2, 2)),
-            layers.Conv2D(64, kernel_size=3, strides=1, activation="relu", padding="same"),
+            layers.Conv2D(256, kernel_size=3, strides=1, activation="relu", padding="same"),
+            layers.Conv2D(256, kernel_size=3, strides=1, activation="relu", padding="same"),
             #layers.Conv2D(64, kernel_size=3, strides=1, activation="relu", padding="same"),
+            #layers.MaxPooling2D(pool_size=(2, 2)),
+
             #layers.GlobalAveragePooling2D(),
-            layers.MaxPooling2D(pool_size=(2, 2)),
             layers.Flatten(),
 
             # Fully connected layers
+            layers.Dense(256, activation="relu"),
             layers.Dense(128, activation="relu"),
-            layers.Dense(64, activation="relu"),
+            layers.Dense(128, activation="relu"),
 
             # Output layer: one Q-value per action
-            layers.Dense(self.action_size, activation="linear"),
+            layers.Dense(self.action_size, activation="softmax"),
         ])
         return model
 
@@ -177,7 +182,7 @@ class DQN_Agent:
                 #self.update_actual_weights()
 
                 # Perform training step
-                if len(self.replay_buffer) >= self.batch_size:
+                if len(self.replay_buffer) >= self.batch_size and step % self.actual_update_interval == 0:
                     states, actions, rewards, next_states, dones = self.sample_batch()
                     loss = self.train_step(states, actions, rewards, next_states, dones)
 
@@ -265,20 +270,21 @@ class DQN_Agent:
 
 if __name__ == "__main__":
     # Initialize Environment
-    env = Environment(variant = 0, data_dir = "drl-codinglab/data/")
+    env = Environment(variant = 0, data_dir = "drl-codinglab/data/", render = False)
 
     # Initialize DQN Agent with Hyperparameters
     # fmt: off
     agent = DQN_Agent(env = env,
-                      gamma = 0.98,
+                      gamma = 0.99,
                       epsilon = 1,
-                      batch_size = 512,
-                      epsilon_min = 0.1,
-                      epsilon_decay = 0.997,
-                      learning_rate = 0.01,
-                      target_update_interval = 200,
+                      batch_size = 128,
+                      epsilon_min = 0.15,
+                      epsilon_decay = 0.995,
+                      learning_rate = 0.005,
+                      actual_update_interval = 15,
+                      target_update_interval = 60,
                       eval_interval = 50,
-                      mem_maxlen = 5000)
+                      mem_maxlen = 2500)
     # fmt: on
     rewards = agent.run(no_episodes = 800, mode = "training", render = False)
     ut.rewards_plotting(rewards)
