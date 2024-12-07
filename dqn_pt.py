@@ -127,7 +127,7 @@ class DQNAgent:
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
 
-    def train(self, episodes=800):
+    def train(self, episodes=800, render = True):
         train_rewards = []
 
         for episode in range(episodes):
@@ -146,6 +146,8 @@ class DQNAgent:
                 self.train_step()
                 state = next_state
                 total_reward += reward
+                #if render:
+                    #self.env.render()  # Call the render method
 
             train_rewards.append(total_reward)
             self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
@@ -211,18 +213,18 @@ class DQNAgent:
         return rewards
 
 if __name__ == "__main__":
-    env = Environment(variant=0, data_dir="drl-codinglab/data/", render=False)
+    env = Environment(variant=0, data_dir="drl-codinglab/data/")
 
     agent = DQNAgent(env = env,
                     gamma = 0.99,
                     epsilon = 1.0,
                     epsilon_min = 0.08,
-                    epsilon_decay = 0.9965, #0.998
-                    learning_rate = 0.000025, #0.00005 #0.000025
-                    batch_size = 128,
-                    target_update_interval = 100, #150
-                    eval_interval = 2000,
-                    buffer_size = 60000) #80000 #60000
+                    epsilon_decay = 0.995, #0.998
+                    learning_rate = 0.00002, #0.00005 #0.000025
+                    batch_size = 64,
+                    target_update_interval = 125, #150
+                    eval_interval = 1000,
+                    buffer_size = 80000) #80000 #60000
     
     rewards = agent.run(episodes = 800, mode = "training")
     #ut.rewards_plotting(rewards)

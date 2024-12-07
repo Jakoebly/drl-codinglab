@@ -98,6 +98,11 @@ class Environment(object):
         #For CNN:
         self.past_items = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)
 
+        #For renderer:
+        self.target_count = 0
+        #if self.renderer:
+            #self.renderer.reset_episode()
+
         return self.get_obs()
 
     # take one environment step based on the action act
@@ -283,9 +288,35 @@ class Environment(object):
             self.horizontal_cell_count - 1 - self.agent_loc[1],  # Right
         ]
 
+        prioritization_ratios = np.zeros(grid_size)
+        for loc, time in zip(self.item_locs, self.item_times):
+            d_agent = manhatten_dist(self.agent_loc, loc)
+            d_target = manhatten_dist(loc, self.target_loc)
+            remaining_time_after_collection = self.max_response_time - time - d_agent
+            if remaining_time_after_collection > 0:
+                #ratio = (1 / (remaining_time_after_collection + 1)) + (1 / (d_target + 1))
+                #Own
+                ratio = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
+                prioritization_ratios[loc[0] * self.horizontal_cell_count + loc[1]] = ratio
+
+
+        # Other features remain unchanged
+        free_capacity = [self.agent_capacity - self.agent_load]
+        agent_position_2d = [self.agent_loc[0], self.agent_loc[1]]
+        item_positions_2d = [coord for loc in self.item_locs for coord in loc]
+        remaining_item_times_2d = [(self.max_response_time - time) / self.max_response_time
+                                for time in self.item_times]
+
+        # Pad features for consistency
+        while len(item_positions_2d) < grid_size * 2:
+            item_positions_2d.extend([-1, -1])
+        while len(remaining_item_times_2d) < grid_size:
+            remaining_item_times_2d.append(-1)
+
         #ADD: Distances to all cells
         obs = np.concatenate([
             free_capacity,  # Scalar
+            prioritization_ratios,
             #agent_position,  # One-hot
             agent_position_2d,  # 2D Flattened e.g. [1 0]
             #item_positions,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
@@ -308,7 +339,7 @@ class Environment(object):
     
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 156
+        return 157
 
    # GRIDOBS
     def get_grid_obs(self) -> List[float]:
@@ -409,7 +440,7 @@ class Environment(object):
         # Channel 3: Remaining times of items
         remaining_times_channel = np.zeros(grid_shape)
         for loc, time in zip(self.item_locs, self.item_times):
-            remaining_times_channel[loc] = (self.max_response_time - time)/self.max_response_time
+            remaining_times_channel[loc] = (self.max_response_time - time) / self.max_response_time
 
         # Channel 4: Past items (spawn counts at each position)
         past_items_channel = np.copy(self.past_items)
@@ -434,16 +465,30 @@ class Environment(object):
         target_channel = np.zeros(grid_shape)
         target_channel[self.target_loc] = 1
 
-    
+        # Channel 8: Prioritization ratios
+        prioritization_channel = np.zeros(grid_shape)
+        for loc, time in zip(self.item_locs, self.item_times):
+            d_agent = manhatten_dist(self.agent_loc, loc)
+            d_target = manhatten_dist(loc, self.target_loc)
+            remaining_time_after_collection = self.max_response_time - time - d_agent
+            if remaining_time_after_collection > 0:
+                #NEW
+                #prioritization_channel[loc] = (1 / (remaining_time_after_collection + 1)) + (1 / (d_target + 1))
+                #OLD
+                #prioritization_channel[loc] = ((remaining_time_after_collection / (d_target + 1)) + (1 / (d_agent + 1)))
+                #Own
+                prioritization_channel[loc] = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
+
         # Stack all channels into a 3D grid
         state = np.stack(
             [agent_channel,
-             item_positions_channel,
-             distances_channel,
-             remaining_times_channel,
-             past_items_channel,
-             #target_channel,
-             free_capacity_channel
+            prioritization_channel,
+            item_positions_channel,
+            #distances_channel,
+            remaining_times_channel,
+            past_items_channel,
+            #target_channel,
+            free_capacity_channel
             ],
             axis=-1,
         )

@@ -246,13 +246,14 @@ if __name__ == "__main__":
     agent = DQNAgent(env = env,
                     gamma = 0.99,
                     epsilon = 1.0,
-                    epsilon_min = 0.08,
-                    epsilon_decay = 0.997, #0.998
-                    learning_rate = 0.00005, #0.00005 #0.000025
+                    epsilon_min = 0.1,
+                    epsilon_decay = 0.9975, #0.998
+                    learning_rate = 0.000075, #0.00005 #0.000025
                     batch_size = 128,
-                    target_update_interval = 100, #150
+                    target_update_interval = 35, #150
                     eval_interval = 2000,
-                    buffer_size = 70000) #80000
+                    buffer_size = 80000) #80000
 
-    rewards = agent.run(episodes = 800, mode = "training")
+    rewards = agent.run(episodes = 800, mode = "training", render=False)
+    #Old: 0.998, item position yes, distances no
     #ut.rewards_plotting(rewards)
