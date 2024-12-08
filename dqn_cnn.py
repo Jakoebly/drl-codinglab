@@ -200,11 +200,16 @@ class DQNAgent:
 
         return train_rewards, self.q_network, self.target_network
     
-    def test(self, episodes, model, evaluation=False):
+    def test(self, episodes, model, evaluation = False):
         test_rewards = []
+        if evaluation:
+            mode = "Evalation"
+        else: mode = "Testing"
+
+        self.test_model = model
 
         for episode in range(episodes):
-            test_state = self.env.reset("validation")
+            test_state = self.env.reset("testing")
             test_episode_reward = 0
             done = False
 
@@ -215,6 +220,8 @@ class DQNAgent:
                 test_episode_reward += reward
 
             test_rewards.append(test_episode_reward)
+
+            print(f"{mode} Episode {episode + 1}/{episodes} | Episode Reward: {test_episode_reward}")
 
         return test_rewards
     
@@ -244,16 +251,25 @@ if __name__ == "__main__":
     env = Environment(variant=0, data_dir="drl-codinglab/data/", render=False)
 
     agent = DQNAgent(env = env,
-                    gamma = 0.99,
+                    gamma = 0.95, #0.95
                     epsilon = 1.0,
-                    epsilon_min = 0.01,
-                    epsilon_decay = 0.9875, #0.998
-                    learning_rate = 0.00003, #0.00001
-                    batch_size = 128, #64
-                    target_update_interval = 50, #150
+                    epsilon_min = 0.12, #0.1
+                    epsilon_decay = 0.99, #0.99
+                    learning_rate = 0.00001, #0.000025
+                    batch_size = 64, #64
+                    target_update_interval = 100, #200
                     eval_interval = 2000,
-                    buffer_size = 90000) #80000
+                    buffer_size = 80000) #80000
 
-    rewards = agent.run(episodes = 800, mode = "training", render=False)
+    #rewards = agent.run(episodes = 800, mode = "training", render=False)
     #Old: 0.998, item position yes, distances no
     #ut.rewards_plotting(rewards)
+
+    train_rewards, model,_ = agent.train(episodes=800)
+    print(f"Average Training Reward: {np.mean(train_rewards)}")
+    ut.rewards_plotting(train_rewards)
+    
+
+    test_rewards = agent.test(episodes=100, model = model)
+    print(f"Average Testing Reward: {np.mean(test_rewards)}")
+    ut.rewards_plotting(test_rewards)

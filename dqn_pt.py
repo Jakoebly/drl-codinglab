@@ -174,7 +174,7 @@ class DQNAgent:
         self.test_model = model
 
         for episode in range(episodes):
-            test_state = self.env.reset("training")
+            test_state = self.env.reset("testing")
             test_episode_reward = 0
             done = False
 
@@ -216,15 +216,22 @@ if __name__ == "__main__":
     env = Environment(variant=0, data_dir="drl-codinglab/data/")
 
     agent = DQNAgent(env = env,
-                    gamma = 0.99,
+                    gamma = 0.95,
                     epsilon = 1.0,
-                    epsilon_min = 0.12,
-                    epsilon_decay = 0.985, #0.998
+                    epsilon_min = 0.1,
+                    epsilon_decay = 0.99, #0.998
                     learning_rate = 0.00001, #0.00005 #0.000025
-                    batch_size = 128,
-                    target_update_interval = 200, #150
+                    batch_size = 64,
+                    target_update_interval = 150, #150
                     eval_interval = 1000,
                     buffer_size = 80000) #80000 #60000
     
-    rewards = agent.run(episodes = 800, mode = "training")
-    #ut.rewards_plotting(rewards)
+    #rewards = agent.run(episodes = 800, mode = "training")
+    train_rewards, model,_ = agent.train(episodes=1)
+    print(f"Average Training Reward: {np.mean(train_rewards)}")
+    ut.rewards_plotting(train_rewards)
+    
+
+    test_rewards = agent.test(episodes=100, model = model)
+    print(f"Average Testing Reward: {np.mean(test_rewards)}")
+    ut.rewards_plotting(test_rewards)

@@ -339,7 +339,7 @@ class Environment(object):
     
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 156
+        return 157
 
    # GRIDOBS
     def get_grid_obs(self) -> List[float]:
