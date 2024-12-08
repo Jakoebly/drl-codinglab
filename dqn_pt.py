@@ -227,7 +227,7 @@ if __name__ == "__main__":
                     buffer_size = 80000) #80000 #60000
     
     #rewards = agent.run(episodes = 800, mode = "training")
-    train_rewards, model,_ = agent.train(episodes=1)
+    train_rewards, model,_ = agent.train(episodes=800)
     print(f"Average Training Reward: {np.mean(train_rewards)}")
     ut.rewards_plotting(train_rewards)
     

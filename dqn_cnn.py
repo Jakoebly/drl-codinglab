@@ -248,16 +248,16 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    env = Environment(variant=0, data_dir="drl-codinglab/data/", render=False)
+    env = Environment(variant=1, data_dir="drl-codinglab/data/", render=False)
 
     agent = DQNAgent(env = env,
-                    gamma = 0.95, #0.95
+                    gamma = 0.925, #0.95
                     epsilon = 1.0,
-                    epsilon_min = 0.12, #0.1
+                    epsilon_min = 0.1, #0.1
                     epsilon_decay = 0.99, #0.99
-                    learning_rate = 0.00001, #0.000025
+                    learning_rate = 0.000025, #0.000025
                     batch_size = 64, #64
-                    target_update_interval = 100, #200
+                    target_update_interval = 200, #200
                     eval_interval = 2000,
                     buffer_size = 80000) #80000
 
@@ -267,9 +267,11 @@ if __name__ == "__main__":
 
     train_rewards, model,_ = agent.train(episodes=800)
     print(f"Average Training Reward: {np.mean(train_rewards)}")
+    print(train_rewards)
     ut.rewards_plotting(train_rewards)
     
 
     test_rewards = agent.test(episodes=100, model = model)
     print(f"Average Testing Reward: {np.mean(test_rewards)}")
+    print(test_rewards)
     ut.rewards_plotting(test_rewards)

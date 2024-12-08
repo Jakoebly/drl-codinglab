@@ -486,7 +486,7 @@ class Environment(object):
             item_positions_channel,
             #distances_channel,
             remaining_times_channel,
-            #past_items_channel,
+            past_items_channel,
             #target_channel,
             free_capacity_channel
             ],
@@ -496,8 +496,7 @@ class Environment(object):
         return state
     
     def get_state_shape(self):
-        return (5, 5, 5)  # (Channels, Height, Width)
-
+        return (6, 5, 5)  # (Channels, Height, Width)
 
     def get_to_tgt(self, tgt):
         """Determines which action to take to get to tgt coordinates."""
