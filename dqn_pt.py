@@ -218,11 +218,11 @@ if __name__ == "__main__":
     agent = DQNAgent(env = env,
                     gamma = 0.99,
                     epsilon = 1.0,
-                    epsilon_min = 0.08,
-                    epsilon_decay = 0.995, #0.998
-                    learning_rate = 0.00002, #0.00005 #0.000025
-                    batch_size = 64,
-                    target_update_interval = 125, #150
+                    epsilon_min = 0.12,
+                    epsilon_decay = 0.985, #0.998
+                    learning_rate = 0.00001, #0.00005 #0.000025
+                    batch_size = 128,
+                    target_update_interval = 200, #150
                     eval_interval = 1000,
                     buffer_size = 80000) #80000 #60000
     

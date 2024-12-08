@@ -196,7 +196,7 @@ class Environment(object):
         """Returns the number of actions available."""
         return 5
 
-    def get_obs(self) -> np.ndarray:
+    def get_new_obs(self) -> np.ndarray:
         """Returns the state of the environment as a flattened 1D array."""
         grid_size = self.vertical_cell_count * self.horizontal_cell_count
 
@@ -339,7 +339,7 @@ class Environment(object):
     
     def get_state_len(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 157
+        return 156
 
    # GRIDOBS
     def get_grid_obs(self) -> List[float]:
@@ -424,7 +424,7 @@ class Environment(object):
         return state
 
     #CNN OBS
-    def get_cnn_obs(self) -> np.ndarray:
+    def get_obs(self) -> np.ndarray:
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
 
@@ -486,7 +486,7 @@ class Environment(object):
             item_positions_channel,
             #distances_channel,
             remaining_times_channel,
-            past_items_channel,
+            #past_items_channel,
             #target_channel,
             free_capacity_channel
             ],
@@ -496,7 +496,7 @@ class Environment(object):
         return state
     
     def get_state_shape(self):
-        return (6, 5, 5)  # (Channels, Height, Width)
+        return (5, 5, 5)  # (Channels, Height, Width)
 
 
     def get_to_tgt(self, tgt):

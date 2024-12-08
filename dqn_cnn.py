@@ -18,11 +18,11 @@ class QNetwork(nn.Module):
         - action_size: Number of possible actions.
         """
         super(QNetwork, self).__init__()
-        self.conv1 = nn.Conv2d(state_shape[0], 64, kernel_size=3, stride=1, padding=1)  # (32, H, W)
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)              # (64, H, W)
-        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1)              # (64, H, W)
+        self.conv1 = nn.Conv2d(state_shape[0], 64, kernel_size=3, stride=1, padding=1)  
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1) 
+        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1) 
         
-        self.fc_input_size = 128 * state_shape[1] * state_shape[2]  # Flatten size after convolutions
+        self.fc_input_size = 128 * state_shape[1] * state_shape[2]
         self.fc1 = nn.Linear(self.fc_input_size, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, action_size)
@@ -246,13 +246,13 @@ if __name__ == "__main__":
     agent = DQNAgent(env = env,
                     gamma = 0.99,
                     epsilon = 1.0,
-                    epsilon_min = 0.1,
-                    epsilon_decay = 0.9975, #0.998
-                    learning_rate = 0.000075, #0.00005 #0.000025
-                    batch_size = 128,
-                    target_update_interval = 35, #150
+                    epsilon_min = 0.01,
+                    epsilon_decay = 0.9875, #0.998
+                    learning_rate = 0.00003, #0.00001
+                    batch_size = 128, #64
+                    target_update_interval = 50, #150
                     eval_interval = 2000,
-                    buffer_size = 80000) #80000
+                    buffer_size = 90000) #80000
 
     rewards = agent.run(episodes = 800, mode = "training", render=False)
     #Old: 0.998, item position yes, distances no
