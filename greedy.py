@@ -14,7 +14,8 @@ from environment import Environment
 
 variant = 2  # problem variant (0 for base variant, 1 for first extension, 2 for second extension)
 mode = 'testing'  # validation or testing
-data_dir = './data'  # relative path to data directory (e.g., './data', not './data/variant_0')
+#data_dir = './data'  # relative path to data directory (e.g., './data', not './data/variant_0')
+data_dir = 'drl-codinglab\data'
 
 # set parameters
 max_episode_steps = 200
@@ -195,18 +196,27 @@ def greedy_policy():
 ### greedy policy evaluation for validation/testing data (specified by mode)
 
 def evaluate_policy():
+    #MP
+    episode_reward = []
     reward = 0.
     for i in range(100):
+        ep_rew = 0
         env.reset(mode)
         for j in range(max_episode_steps):
             act = greedy_policy()
             rew, _, _ = env.step(act)
+            #MP
+            ep_rew += rew
             reward += rew
+        episode_reward.append(ep_rew)
     avg_reward = reward / 100
     print(avg_reward)
+
+    return episode_reward
 
 
 ### run greedy policy evaluation
 
 if __name__ == '__main__':
-    evaluate_policy()
+    ep_rew = evaluate_policy()
+    print(ep_rew)

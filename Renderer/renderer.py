@@ -15,7 +15,7 @@ class Renderer:
         self.eligible_cells = eligible_cells
         self.max_response_time = max_response_time
         self.previous_target_count = 0
-        self.image_dir = "drl-codinglab\\Renderer\\Images"
+        self.image_dir = "drl-codinglab/Renderer/Images"
 
         # Load images
         self.agent_img = mpimg.imread(os.path.join(self.image_dir, "agent.png"))
@@ -24,11 +24,11 @@ class Renderer:
         self.sparks_img = mpimg.imread(os.path.join(self.image_dir, "sparks.png"))
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
-        self.apples_one_img = mpimg.imread(os.path.join(self.image_dir, "apples_one.png"))
-        self.apples_two_img = mpimg.imread(os.path.join(self.image_dir, "apples_two.png"))
-        self.apples_three_img = mpimg.imread(os.path.join(self.image_dir, "apples_three.png"))
-        self.explosion_img = mpimg.imread(os.path.join(self.image_dir, "explosion.png"))
 
+        # Load target-based images
+        self.apples_one_img = mpimg.imread(os.path.join(self.image_dir, "apples_one.png"))
+        self.apples_few_img = mpimg.imread(os.path.join(self.image_dir, "apples_few.png"))
+        self.apples_lot_img = mpimg.imread(os.path.join(self.image_dir, "apples_lot.png"))
 
         self.fig, self.ax = plt.subplots(figsize=(5, 5))
         self._pre_render_grid()
@@ -46,79 +46,91 @@ class Renderer:
         self.ax.set_yticklabels([])
         self.ax.grid(False)
 
-        all_cells = [(r, c) for r in range(rows) for c in range(cols)]
-        for cell in all_cells:
-            x, y = cell
-            img = self.eligible_cell_img if cell in self.eligible_cells else self.ineligible_cell_img
-            self.ax.imshow(img, extent=(y - 0.5, y + 0.5,
-                                        rows - 1 - x - 0.5, rows - 1 - x + 0.5))
+        for r in range(rows):
+            for c in range(cols):
+                img = self.eligible_cell_img if (r, c) in self.eligible_cells else self.ineligible_cell_img
+                self.ax.imshow(img, extent=(c - 0.5, c + 0.5, rows - 1 - r - 0.5, rows - 1 - r + 0.5))
 
     def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count):
         """
         Render the environment dynamically (agent, target, items, sparks).
-        :param agent_loc: Tuple (row, col) for the agent's position.
-        :param target_loc: Tuple (row, col) for the target's position.
-        :param item_locs: List of tuples [(row, col), ...] for item positions.
-        :param item_times: List of integers representing the response time of each item.
-        :param agent_load: Integer indicating the number of items the agent is carrying.
-        :param target_count: Integer indicating the number of items dropped at the target.
         """
         self.ax.clear()
         self._pre_render_grid()
 
         rows, cols = self.grid_size
 
-        # Draw the agent
+        # Draw agent
         agent_x, agent_y = agent_loc
-        self.ax.imshow(self.agent_img, extent=(agent_y - 0.5, agent_y + 0.5,
-                                            rows - 1 - agent_x - 0.5, rows - 1 - agent_x + 0.5))
+        self.ax.imshow(
+            self.agent_img,
+            extent=(agent_y - 0.5, agent_y + 0.5, rows - 1 - agent_x - 0.5, rows - 1 - agent_x + 0.5),
+        )
         
-        # Render agent load as an image
-        if agent_load == 1:
-            agent_load_img = self.apples_one_img
-        elif agent_load == 2:
-            agent_load_img = self.apples_two_img
-        elif agent_load == 3:
-            agent_load_img = self.apples_three_img
-        else:
-            agent_load_img = None
-        
-        if agent_load_img is not None:
-            size_scale = 0.7  # Scale for the agent load image
-            self.ax.imshow(agent_load_img, extent=(agent_y - 0.5 * size_scale, agent_y + 0.5 * size_scale,
-                                                rows - 1 - agent_x - 0.5 * size_scale, rows - 1 - agent_x))
+        # If the agent is carrying an item, display it in its left hand
+        if agent_load > 0:
+            item_size = 0.2  # Adjust the size of the item
+            self.ax.imshow(
+                self.apples_one_img,
+                extent=(agent_y - 0.4, agent_y - 0.4 + item_size,  # Positioned slightly left of the agent
+                        rows - 1 - agent_x + 0, rows - 1 - agent_x + 0 + item_size),  # Positioned slightly above the agent
+            )
 
-        # Draw the target
+        self.ax.text(
+            agent_y, rows - 1 - agent_x + 0.3, f"Load: {agent_load}",
+            fontsize=10, ha="center", color="white", bbox=dict(facecolor="black", alpha=0.5),
+        )
+
+        # Select the appropriate target image based on the target count
+        overlay_img = None
+        if target_count == 1:
+            overlay_img = self.apples_one_img
+        elif 3 <= target_count <= 6:
+            overlay_img = self.apples_few_img
+        elif target_count > 6:
+            overlay_img = self.apples_lot_img
+
+        # Draw the target cell background
         target_x, target_y = target_loc
-        self.ax.imshow(self.target_img, extent=(target_y - 0.5, target_y + 0.5,
-                                                rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5))
+        self.ax.imshow(
+            self.target_img,
+            extent=(target_y - 0.5, target_y + 0.5, rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5),
+        )
 
-        self.ax.text(target_y, rows - 1 - target_x, f"{target_count}",
-                    color="red", fontsize=12, ha="center", va="center",
-                    bbox=dict(facecolor="white", edgecolor="black"))
+        # Draw the overlay image anchored at the bottom of the cell if applicable
+        if overlay_img is not None:
+            image_size = 0.3  # Adjust image size
+            self.ax.imshow(
+                overlay_img,
+                extent=(target_y - 0.5 * image_size, target_y + 0.5 * image_size,  # Horizontal scaling
+                        rows - 1 - target_x - 0.5, rows - 1 - target_x - 0.5 + image_size),  # Anchor at bottom
+            )
 
-        if target_count > self.previous_target_count:
-            self.ax.imshow(self.sparks_img, extent=(target_y - 0.5, target_y + 0.5,
-                                                    rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5))
+        # Draw the target count, centered in the cell
+        self.ax.text(
+            target_y, rows - 1 - target_x + 0.1, f"{target_count}",
+            fontsize=12, ha="center", color="red", bbox=dict(facecolor="white", alpha=0.7),
+        )
 
-        # Track items that have despawned
-        despawned_items = []
-
+        # Draw items
         for (item_x, item_y), response_time in zip(item_locs, item_times):
-            if response_time > self.max_response_time:
-                despawned_items.append((item_x, item_y))
-            else:
-                # Draw item with scaling based on lifetime
-                lifetime = (self.max_response_time - response_time) / self.max_response_time
-                size_factor = 0.3 + 0.7 * lifetime
-                self.ax.imshow(self.item_img, extent=(item_y - 0.5 * size_factor, item_y + 0.5 * size_factor,
-                                                    rows - 1 - item_x - 0.5 * size_factor, rows - 1 - item_x + 0.5 * size_factor))
+            lifetime = (self.max_response_time - response_time) / self.max_response_time
+            size_factor = 0.3 + 0.7 * lifetime
+            self.ax.imshow(
+                self.item_img,
+                extent=(item_y - size_factor / 2, item_y + size_factor / 2,
+                        rows - 1 - item_x - size_factor / 2, rows - 1 - item_x + size_factor / 2),
+            )
 
-        # Render explosion for despawned items
-        for item_x, item_y in despawned_items:
-            self.ax.imshow(self.explosion_img, extent=(item_y - 0.5, item_y + 0.5,
-                                                    rows - 1 - item_x - 0.5, rows - 1 - item_x + 0.5))
+        # Show sparks if the target count increased
+        if target_count > self.previous_target_count:
+            self.ax.imshow(
+                self.sparks_img,
+                extent=(target_y - 0.5, target_y + 0.5, rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5),
+            )
 
+        # Update the previous target count
         self.previous_target_count = target_count
 
-        plt.pause(0.0005)
+        plt.pause(0.0001)
+

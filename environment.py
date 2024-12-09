@@ -63,9 +63,12 @@ class Environment(object):
                                    (4,0), (4,1), (4,2),        (4,4)]
 
         # RENDERING ONLY:
-        if render:
+        self.render_enabled = render
+
+        if self.render_enabled:
             self.renderer = Renderer(grid_size=(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
-        self.target_count = 0  # Counts number of items dropped off at target cell
+        
+        self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
     # initialize a new episode (specify if training, validation, or testing via the mode argument)
     def reset(self, mode):
@@ -99,9 +102,9 @@ class Environment(object):
         self.past_items = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)
 
         #For renderer:
-        self.target_count = 0
-        #if self.renderer:
-            #self.renderer.reset_episode()
+        self.current_episode_target_count = 0
+        self.update_render()
+        #self.target_count = 0
 
         return self.get_obs()
 
@@ -145,10 +148,10 @@ class Environment(object):
         # item drop-off
         if self.agent_loc == self.target_loc:
             rew += self.agent_load * self.reward / 2
-            self.agent_load = 0
-
             #FOR RENDER
-            self.target_count += self.agent_load
+            #self.target_count += self.agent_load
+            self.current_episode_target_count += self.agent_load
+            self.agent_load = 0
 
         # track how long ago items appeared
         self.item_times = [i + 1 for i in self.item_times]
@@ -172,16 +175,23 @@ class Environment(object):
         # get new observation
         next_obs = self.get_obs()
 
+        #For Render:
+        self.update_render()
+
         return rew, next_obs, done
 
-    def render(self):
-        """
-        Call the renderer to visualize the environment.
-        """
-        if self.renderer:
-            self.renderer.render(agent_loc=self.agent_loc, target_loc=self.target_loc, item_locs=self.item_locs, item_times=self.item_times, agent_load=self.agent_load, target_count=self.target_count)
-        else:
-            print("Renderer not initialized.")
+    def update_render(self):
+        """Update the render only if enabled."""
+        if self.render_enabled:
+            self.renderer.render(
+                agent_loc=self.agent_loc,
+                target_loc=self.target_loc,
+                item_locs=self.item_locs,
+                item_times=self.item_times,
+                agent_load=self.agent_load,
+                target_count=self.current_episode_target_count
+            )
+    
 
     # TODO: PADDING
     # TODO: Item Position RELATIV not absolut
