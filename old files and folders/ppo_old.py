@@ -98,6 +98,9 @@ class PPOAgent:
         self.lam = agent_hyperparameters["lam"]
         self.clip_ratio = agent_hyperparameters["clip_ratio"]
         self.entropy_bonus = agent_hyperparameters["entropy_bonus"]
+        self.entropy_bonus_min = agent_hyperparameters["entropy_bonus_min"]
+        self.entropy_bonus_decay = agent_hyperparameters["entropy_bonus_decay"]
+
 
         self.state_size = agent_hyperparameters["state_size"]
         self.num_actions = agent_hyperparameters["num_actions"]
@@ -112,6 +115,7 @@ class PPOAgent:
         self.actor_optimizer = self.actor.optimizer
         self.critic_optimizer = self.critic.optimizer
 
+
     def make_actor(self, input_size, output_size):
 
         # Input layer
@@ -125,7 +129,7 @@ class PPOAgent:
         # Output layer
         outputs = layers.Dense(output_size, activation='softmax')(prev_layer)
 
-        model = tf.keras.Model(inputs=inputs, outputs=outputs)
+        model = tf.keras.Model(inputs=inputs, outputs=outputs, name='actor')
         model.compile(optimizer=optimizers.Adam(learning_rate=self.learning_rate))
 
         return model
@@ -143,19 +147,33 @@ class PPOAgent:
         # Output layer
         outputs = layers.Dense(output_size, activation='linear')(prev_layer)
 
-        model = tf.keras.Model(inputs=inputs, outputs=outputs)
+        model = tf.keras.Model(inputs=inputs, outputs=outputs, name='critic')
         model.compile(optimizer=optimizers.Adam(learning_rate=self.learning_rate))
 
         return model
 
+    def save_weights(self):
+        actorpath = "./checkpoints/PPO/ppo_actor.weights.h5"
+        criticpath = "./checkpoints/PPO/ppo_critic.weights.h5"
+        self.actor.save_weights(actorpath)
+        self.critic.save_weights(criticpath)
+        print("saved")
+
+    def load_weights(self):
+        actorpath = "./checkpoints/PPO/ppo_actor.weights.h5"
+        criticpath = "./checkpoints/PPO/ppo_critic.weights.h5"
+        self.actor.load_weights(actorpath)
+        self.critic.load_weights(criticpath)
+        print("saved")
+
     # TODO: überarbeiten
     def get_action(self, state):
         probs = self.actor.predict(state.reshape(1, -1))
-        print(probs)
+        print(f"Probability Output: {probs}")
         log_probs = tf.math.log(probs + 1e-8)
         # action = np.random.choice(self.num_actions, p=probs[0])
         action = np.argmax(probs)
-        print(action)
+        print(f"Selected Action: {action}")
         return action, log_probs[0, action]
 
     # TODO: überarbeiten
@@ -180,6 +198,13 @@ class PPOAgent:
 
             advantages[t] = advantage
             returns[t] = advantage + values[t]
+
+        # Normalize advantages to have zero mean and unit variance
+        print(f"Adv: {advantages}")
+        advantage_mean = np.mean(advantages)
+        advantage_std = np.std(advantages) + 1e-8
+        advantages = (advantages - advantage_mean) / advantage_std
+        print(f"Norm. Adv.: {advantages}")
 
         return advantages, returns
 
@@ -226,11 +251,12 @@ class PPOAgent:
 
 class GymEnvironment:
     def __init__(self, variant, data_dir, agent_hyperparameters, mode):
-        self.env = Environment(variant, data_dir)
+        self.env = Environment(variant, data_dir, render=False)
         self.mode = mode
 
         self.num_episodes = agent_hyperparameters["num_episodes"]
         self.num_trajectories = agent_hyperparameters["num_trajectories"]
+        self.num_updates = agent_hyperparameters["num_updates"]
         self.num_steps_trajectory = agent_hyperparameters["num_steps_trajectory"]
         self.batch_size = self.num_trajectories * self.num_steps_trajectory
 
@@ -251,7 +277,11 @@ class GymEnvironment:
 
     def runPPO(self, agent, training=True):
 
+        # agent.load_weights()
+
         rew_episode = []
+        best = -1000
+        update = 1
 
         for step in range(1, self.num_episodes + 1):
 
@@ -261,7 +291,7 @@ class GymEnvironment:
 
             rew_trajectory = 0
 
-            state = self.env.flatten_obs(self.env.reset(self.mode))
+            state = self.env.reset(self.mode)
 
             for t in range(self.num_steps_trajectory):
 
@@ -269,7 +299,6 @@ class GymEnvironment:
 
                 action, log_prob = agent.get_action(state)
                 reward, next_state, done = self.env.step(action)
-                next_state = self.env.flatten_obs(next_state)
                 value = agent.get_value(state)
                 next_value = agent.get_value(next_state)
                 rew_trajectory += reward
@@ -279,9 +308,19 @@ class GymEnvironment:
 
                 state = next_state
 
+                # self.env.render()
+
             if training and step % self.num_trajectories == 0:
 
                 print("starting update")
+
+                # Learning Rate Annealing
+                #frac = 1.0 - (update - 1.0) / self.num_updates
+                #lr_new = frac * agent.learning_rate
+                #agent.learning_rate = lr_new
+                #agent.actor.optimizer.learning_rate = lr_new
+                #agent.critic.optimizer.learning_rate = lr_new
+                #update += 1
 
                 advantages, returns = agent.calc_advantage(agent.memory.values, agent.memory.nextvalues, agent.memory.rewards, agent.memory.dones)
                 agent.memory.advantages.extend(advantages)
@@ -292,13 +331,20 @@ class GymEnvironment:
                 agent.update_actor(dataset_actor)
                 agent.update_critic(dataset_critic)
 
+                # Update entropy bonus
+                # agent.entropy_bonus = max(agent.entropy_bonus_min, agent.entropy_bonus * agent.entropy_bonus_decay)
+
                 agent.memory.clear()
+
+            if rew_trajectory > best:
+                print("start saving")
+                agent.save_weights()
+                best = rew_trajectory
 
             rew_episode.append(rew_trajectory)
             print(rew_episode[-20:])
 
         return rew_episode
-
 
 
 
@@ -308,21 +354,23 @@ if __name__ == "__main__":
     np.random.seed(seed)
     tf.random.set_seed(seed)
 
-    nn_architecture = [128, 128, 128, 128]
-    learning_rate = 0.0001
+    num_episodes = 800
+    num_trajectories = 5
+    num_steps_trajectory = 200
+    num_minibatches = 60
+    num_epochs = 20
+    num_updates = num_episodes // num_trajectories
+
+    nn_architecture = [128, 128, 128]
+    state_size = 159
+    num_actions = 5
+    learning_rate = 0.00015
     gamma = 0.99
     lam = 0.95
-    clip_ratio = 0.2
+    clip_ratio = 0.1
     entropy_bonus = 0.5
-    state_size = 75
-    num_actions = 5
-
-    num_episodes = 800
-    num_trajectories = 3
-    num_steps_trajectory = 200
-    num_minibatches = 40
-    num_epochs = 10
-
+    entropy_bonus_min = 0.0001
+    entropy_bonus_decay = (entropy_bonus - entropy_bonus_min) ** (1 / num_updates)
 
     agent_hyperparameters = {
         "nn_architecture": nn_architecture,
@@ -331,6 +379,8 @@ if __name__ == "__main__":
         "lam": lam,
         "clip_ratio": clip_ratio,
         "entropy_bonus": entropy_bonus,
+        "entropy_bonus_min": entropy_bonus_min,
+        "entropy_bonus_decay": entropy_bonus_decay,
         "state_size": state_size,
         "num_actions": num_actions,
         "num_episodes": num_episodes,
@@ -338,10 +388,10 @@ if __name__ == "__main__":
         "num_steps_trajectory": num_steps_trajectory,
         "num_minibatches": num_minibatches,
         "num_epochs": num_epochs,
-
+        "num_updates": num_updates
     }
 
-    data_dir = "./data"
+    data_dir = "../data"
 
     GymEnvironment = GymEnvironment(variant=0, data_dir=data_dir, agent_hyperparameters=agent_hyperparameters, mode="training")
 
@@ -357,7 +407,7 @@ if __name__ == "__main__":
     df = pd.DataFrame(np.array(rewards), columns=["Rewards"])
     plt.figure(figsize=(10, 6))
     plt.plot(df["Rewards"], label="Episode Data", color="#0066BD")
-    plt.title("SAC Performance")
+    plt.title("PPO Performance")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.legend()

@@ -1,12 +1,11 @@
 import tensorflow as tf
-from tensorflow import keras
 from keras import layers
 import numpy as np
 import random
 from environment import Environment
 from collections import deque
 
-from typing import List, Tuple
+from typing import List
 
 from Utils import utils as ut
 

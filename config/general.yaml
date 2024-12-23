@@ -1,0 +1,4 @@
+test: 0.001
+size: 64
+factor: 0.99
+ep: 500

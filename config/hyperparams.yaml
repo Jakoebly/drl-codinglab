@@ -1,0 +1,17 @@
+DQN:
+  learning_rate: 0.001
+  batch_size: 64
+  discount_factor: 0.99
+  episodes: 500
+
+PPO:
+  learning_rate: 0.0003
+  clip_epsilon: 0.2
+  epochs: 10
+  episodes: 500
+
+SAC:
+  learning_rate: 0.0003
+  alpha: 0.2
+  batch_size: 64
+  episodes: 500

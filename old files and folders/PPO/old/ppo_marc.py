@@ -5,7 +5,7 @@ from keras import layers, optimizers
 from dataclasses import dataclass
 from typing import List
 from environment import Environment
-import Utils.utils as ut
+
 
 @dataclass
 class Transition:
@@ -15,27 +15,13 @@ class Transition:
     next_state: np.array
     is_done: bool
     logits: np.array
-    value: float
+    value: flot
 
 class GymEnvironment:
     def __init__(self, variant, data_dir):
         self.env = Environment(variant, data_dir)
         self.max_timesteps = self.env.episode_steps
         self.state_visit_count = np.zeros((self.env.vertical_cell_count, self.env.horizontal_cell_count))
-
-    def flatten_state(self, state):
-        agent_pos, free_capacity, item_locs, item_times = state
-        flattened = [
-            agent_pos[0], agent_pos[1], free_capacity, *sum(item_locs, ()), *item_times
-        ]
-        return np.array(flattened)
-
-    def reset(self):
-        return self.flatten_state(self.env.reset("training"))
-
-    def step(self, action):
-        reward, next_state, done = self.env.step(action)
-        return self.flatten_state(next_state), reward, done
 
     def trainPPO(self, agent, no_episodes, render):
         return self.runPPO(agent, no_episodes, render, training=True)
@@ -48,7 +34,7 @@ class GymEnvironment:
             print(f"------ EPISODE: {episode} -----")
             rew_episode = []
 
-            next_state = self.reset()
+            next_state = self.env.reset('training')
             rew_agent = 0
             trajectory: List[Transition] = []
 
@@ -58,12 +44,8 @@ class GymEnvironment:
 
                 state = next_state
                 logit, action = agent.select_action(state)
-                next_state, reward, done = self.step(action)
+                reward, next_state, done = self.env.step(action)
                 rew_agent += reward
-
-                # Tracking state visits for heatmap
-                agent_pos = state[:2]  # Extract agent position
-                self.state_visit_count[tuple(agent_pos)] += 1
 
                 # Collect transitions if training
                 if training:
@@ -101,8 +83,7 @@ class GymEnvironment:
                         log_probs = [policy_probabilities(logits_array[i], actions_array[i]) for i in range(len(actions_array))]
                         agent.memory.store_many(states_array, actions_array, rewards_array, log_probs, values_array, next_states_array, advantage_est, targets)
                     break
-                if render:
-                    self.env.render()
+
 
             rew_total.append(rew_episode)
             print(f"Reward Total: {rew_total}")
@@ -148,9 +129,11 @@ class GymEnvironment:
         return rew_total
 
 def policy_probabilities(logit, action):
+    print(action.shape)
     probabilities = tf.nn.softmax(logit)
     log_probs = tf.math.log(probabilities + 1e-8)
-    return log_probs[action]
+    print(log_probs.shape)
+    return log_probs[0, action[0]]
 
 def discounted_cumulative_sums(x, discount):
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
@@ -180,9 +163,16 @@ class PPO_Agent:
         self.critic_optimizer = self.critic.optimizer
 
     def select_action(self, state):
-        logits = self.actor.predict(state.reshape(1, -1)).flatten()
-        action = np.random.choice(5, p=tf.nn.softmax(logits).numpy())
-        # action = np.argmax(tf.nn.softmax(logits).numpy())
+        # Reshape state
+        state = tf.reshape(state, (1, -1))
+
+        # Get action probabilities using the actor model
+        logits = self.actor(state, training=False)
+        probs = tf.nn.softmax(logits)
+
+        # Sample an action based on probabilities
+        action = tf.random.categorical(probs, 1)
+        action = tf.squeeze(action, axis=-1)
         return logits, action
 
     def calc_advantage(self, state, rewards, values, done, t):
@@ -286,7 +276,7 @@ if __name__ == "__main__":
     tf.random.set_seed(seed)
 
     variant = 0
-    data_dir = "/data"
+    data_dir = "../../../data"
     no_of_actions = 5
 
     gamma = 0.99

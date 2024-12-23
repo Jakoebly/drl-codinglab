@@ -105,6 +105,9 @@ class PPO_Agent:
         self.lam = agent_hyperparameters["lam"]
         self.clip_ratio = agent_hyperparameters["clip_ratio"]
         self.entropy_bonus = agent_hyperparameters["entropy_bonus"]
+        self.epsilon = tf.Variable(initial_value=agent_hyperparameters["epsilon"], dtype = tf.float32, trainable = False)
+        self.epsilon_min = agent_hyperparameters["epsilon_min"]
+        self.epsilon_decay = agent_hyperparameters["epsilon_decay"]
 
         # Training Hyperparameters
         self.num_episodes = training_hyperparameters["num_episodes"]
@@ -160,6 +163,24 @@ class PPO_Agent:
         model.compile(optimizer=optimizers.Adam(learning_rate=self.learning_rate))
 
         return model
+
+    def get_action_epsgreedy(self, state):
+        state = tf.reshape(state, (1, -1))
+
+        # Get action probabilities using the actor model
+        probs = self.actor(state, training=False)
+
+        # Convert probabilities to log probabilities
+        log_probs = tf.math.log(probs + 1e-8)
+
+        # Sample an action
+        if tf.random.uniform(()) < self.epsilon:
+            action = random.randint(0, self.num_actions - 1)
+        else:
+            action = tf.argmax(probs, axis=1)
+
+        return action, tf.gather(log_probs[0], action)
+
 
     def get_action(self, state):
         # Reshape state
@@ -240,9 +261,9 @@ class PPO_Agent:
         returns = returns.stack()
 
         # Normalize advantages to have zero mean and unit variance
-        advantage_mean = tf.reduce_mean(advantages)
-        advantage_std = tf.math.reduce_std(advantages) + 1e-8  # Add epsilon for numerical stability
-        advantages = (advantages - advantage_mean) / advantage_std
+        # advantage_mean = tf.reduce_mean(advantages)
+        # advantage_std = tf.math.reduce_std(advantages) + 1e-8  # Add epsilon for numerical stability
+        # advantages = (advantages - advantage_mean) / advantage_std
 
         return advantages, returns
 
@@ -297,6 +318,11 @@ class PPO_Agent:
 
         # tf.print("Updated Critic")
 
+    @tf.function
+    def update_epsilon(self):
+        # self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        self.epsilon.assign(tf.maximum(self.epsilon_min, self.epsilon * self.epsilon_decay))
+
     def run(self, mode, visualize_results, render):
 
         # Reward per episode
@@ -309,7 +335,7 @@ class PPO_Agent:
             rew_trajectory = 0
 
             # Reset environment
-            state = self.env.flatten_obs((self.env.reset(mode)))
+            state = self.env.reset(mode)
 
             # Iterate over the maximum number of time steps per trajectory
             for t in range(self.num_steps_trajectory):
@@ -319,7 +345,6 @@ class PPO_Agent:
                 # Execute transition and update reward
                 action, log_prob = self.get_action(state)
                 reward, next_state, done = self.env.step(action)
-                next_state = self.env.flatten_obs(next_state)
                 value = self.get_value(state)
                 next_value = self.get_value(next_state)
                 rew_trajectory += reward
@@ -350,6 +375,9 @@ class PPO_Agent:
                 self.update_actor(dataset_actor)
                 self.update_critic(dataset_critic)
 
+                # Update epsilon
+                self.update_epsilon()
+
                 # Clear memory
                 self.memory.clear()
 
@@ -370,21 +398,26 @@ if __name__ == "__main__":
     tf.random.set_seed(seed)
 
     # Set data directory and variant
-    data_dir = "./data"  # DONE: specify relative path to data directory (e.g., './data', not './data/variant_0')
+    data_dir = "../data"  # DONE: specify relative path to data directory (e.g., './data', not './data/variant_0')
     variant = 0  # DONE: specify problem variant (0 for base variant, 1 for first extension, 2 for second extension)
 
+    render = False
+
     # Initialize environment
-    env = Environment(variant, data_dir)
+    env = Environment(variant, data_dir, render)
 
     # Set hyperparameters
     nn_architecture = [128, 128, 128]
-    state_size = env.get_state_len()
+    state_size = 159 # env.get_state_len()
     num_actions = env.get_action_len()
     learning_rate = 0.0001
     gamma = 0.99
     lam = 0.95
     clip_ratio = 0.2
     entropy_bonus = 0.5
+    epsilon = 1
+    epsilon_min = 0.1
+    epsilon_decay = 0.997
 
     num_episodes = 800
     num_trajectories = 3
@@ -402,6 +435,9 @@ if __name__ == "__main__":
         "lam": lam,
         "clip_ratio": clip_ratio,
         "entropy_bonus": entropy_bonus,
+        "epsilon": epsilon,
+        "epsilon_decay": epsilon_decay,
+        "epsilon_min": epsilon_min
     }
 
     # Create dictionary for training hyperparameters
@@ -417,7 +453,7 @@ if __name__ == "__main__":
     agent = PPO_Agent(env, agent_hyperparameters, training_hyperparameters)
 
     # Execute training
-    rewards = agent.run("training", False, render=False)
+    rewards = agent.run("training", False, render)
 
 
     print(f"Average episode reward: {np.average(rewards)}")

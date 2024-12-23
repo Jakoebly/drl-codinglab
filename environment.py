@@ -17,7 +17,7 @@ import numpy as np
 
 from Renderer.renderer import Renderer
 
-
+# TODO: delete / move
 def manhatten_dist(pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
     return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
 
@@ -246,8 +246,8 @@ class Environment(object):
             remaining_item_times_2d.append(-1)
 
         # Frequency of Past Items
-        past_items_vector = self.past_items.flatten()
-        frequency_past_items = past_items_vector / past_items_vector.sum() if past_items_vector.sum() > 0 else past_items_vector
+        # past_items_vector = self.past_items.flatten()
+        # frequency_past_items = past_items_vector / past_items_vector.sum() if past_items_vector.sum() > 0 else past_items_vector
 
         # Target Position (One-Hot Encoded)
         target_position = np.zeros(grid_size)
@@ -309,7 +309,6 @@ class Environment(object):
                 ratio = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
                 prioritization_ratios[loc[0] * self.horizontal_cell_count + loc[1]] = ratio
 
-
         # Other features remain unchanged
         free_capacity = [self.agent_capacity - self.agent_load]
         agent_position_2d = [self.agent_loc[0], self.agent_loc[1]]
@@ -337,9 +336,9 @@ class Environment(object):
             #target_position,  # One-hot e.g. [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
             #target_position_2d,  # 2D Flattened e.g. [2 0]
             #closest_item,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
-            #closest_item_2d,  # 2D Flattened e.g. [4 2]
+            closest_item_2d,  # 2D Flattened e.g. [4 2]
             #distance_closest_item,  # Scalar e.g. [2]
-            #distance_closest_item_2d,  # 2D Flattened e.g. [0 2]
+            distance_closest_item_2d,  # 2D Flattened e.g. [0 2]
             #distances_all_items,  # Scalar e.g. [-1.  6. -1. -1.  3. -1. -1.  4. -1.  2. -1. -1. -1. -1. -1. -1. -1. -1.-1.  0. -1. -1. -1. -1. -1.]
             distances_all_items_2d,  # 2D Flattened e.g. [ 1  3  2  0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
             distance_to_walls  # Scalar e.g. [1 3 2 2]
@@ -369,7 +368,7 @@ class Environment(object):
         for loc, time in zip(self.item_locs, self.item_times):
             remaining_times[loc] = (self.max_response_time - time) / self.max_response_time
 
-        # TODO: evtl. weg weil eigentlich nicht relevant für die entscheidung
+        '''# TODO: evtl. weg weil eigentlich nicht relevant für die entscheidung
         # Past items (spawn counts at each position)
         past_items_vector = self.past_items_vector.flatten()
 
@@ -377,7 +376,7 @@ class Environment(object):
         if total_spawns > 0:
             past_items_vector = past_items_vector / total_spawns
         else:
-            past_items_vector = np.zeros_like(past_items_vector)
+            past_items_vector = np.zeros_like(past_items_vector)'''
 
         # Target location
         target_location = np.zeros(grid_shape)

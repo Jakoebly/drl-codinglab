@@ -1,14 +1,28 @@
-import matplotlib.pyplot as plt
+import yaml
 
-def rewards_plotting(rew):
-    x = range(len(rew))
-    plt.figure(figsize=(12, 8))
-    plt.plot(x, rew, linestyle='-', color='blue', alpha=0.7, linewidth=1)
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("Rewards")
-    
-    plt.xticks(range(0, len(rew), 100), fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.tight_layout()
-    plt.show()
+# Config
+def load_config(config_dir, algorithm):
+    if config_dir == "../config":
+        with open(f"{config_dir}/general.yaml", "r") as file:
+            general = yaml.safe_load(file)
+
+        with open(f"{config_dir}/hyperparams.yaml", "r") as file:
+            hyperparams = yaml.safe_load(file).get(algorithm, {})
+
+        config = general | hyperparams
+
+    else:
+        with open(f"{config_dir}/run_info.yaml", "r") as file:
+            config = yaml.safe_load(file)
+
+    return config
+
+# Update run_info.yaml after a run
+def save_run_info(run_info_path, run_info, rew_train, rew_val, rew_test):
+
+    run_info["Train Reward"] = rew_train
+    run_info["Validation Reward"] = rew_val
+    run_info["Test Reward"] = rew_test
+
+    with open(run_info_path, 'w') as file:
+        yaml.dump(run_info, file, default_flow_style=False)
