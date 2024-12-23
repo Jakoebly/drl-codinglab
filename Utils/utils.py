@@ -2,11 +2,13 @@ import yaml
 import environment as env
 
 
-# Config
+# Load new or existing config depending on training or validation/test run
 def load_config(config_dir, algorithm):
 
+    # Load config for training run
     if config_dir == "../config":
 
+        # Open general config and load parameters
         with open(f"{config_dir}/general.yaml", "r") as file:
             general = yaml.safe_load(file)
 
@@ -16,12 +18,17 @@ def load_config(config_dir, algorithm):
         general["num_episodes"] = env.get_num_episodes()
         general["num_steps_trajectory"] = env.get_trajectory_length()
 
+        # Open algorithm-specific config and load parameters
         with open(f"{config_dir}/hyperparams.yaml", "r") as file:
             hyperparams = yaml.safe_load(file).get(algorithm, {})
 
+        # Concatenate general and algorithm-specific parameters to final config
         config = general | hyperparams
 
+    # Load existing config for validation/test run
     else:
+
+        # Open existing run_info config and load parameters
         with open(f"{config_dir}/run_info.yaml", "r") as file:
             config = yaml.safe_load(file)
 
