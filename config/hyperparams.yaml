@@ -1,17 +1,37 @@
 DQN:
-  learning_rate: 0.001
-  batch_size: 64
-  discount_factor: 0.99
-  episodes: 500
+  gamma: 000
+  epsilon: 000
+  epsilon_min: 000
+  epsilon_decay: 000
+  learning_rate: 000
+  batch_size: 000
+  target_update_interval: 000
+  eval_interval: 000
+  buffer_size: 000
+  evaluation_treshold: 000
+  evaluation_episodes: 000
+
 
 PPO:
-  learning_rate: 0.0003
-  clip_epsilon: 0.2
-  epochs: 10
-  episodes: 500
+  nn_architecture: 000
+  learning_rate: 000
+  gamma: 000
+  lam: 000
+  clip_ratio: 000
+  entropy_bonus: 000
+  entropy_bonus_min: 000
+  entropy_bonus_decay: 000
+
+  num_trajectories: 000
+  num_updates: 000
+  num_epochs: 000
+
 
 SAC:
-  learning_rate: 0.0003
-  alpha: 0.2
-  batch_size: 64
-  episodes: 500
+  gamma: 000
+  initial_alpha: 000
+  alpha_decay: 000
+  rho: 000
+  mem_maxlen: 000
+  batch_size: 000
+  learning_rate: 000

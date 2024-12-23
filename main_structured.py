@@ -9,7 +9,13 @@ from environment import Environment
 from Utils import utils as ut
 from dqn_pt_test import DQN_Agent
 
-# TODO: save_weights, load_weights, specify config parameters and integrate into algorithms, log wandb, integrate renderer into wandb
+# TODO:
+#  save_weights / load_weights
+#  specify config parameters and integrate into algorithms
+#  log wandb
+#  integrate renderer into wandb
+#  keep track of best models
+#  outsource memory class / replay buffer
 
 
 def parse_args():
@@ -91,7 +97,7 @@ if __name__ == "__main__":
     data_dir = "../data"
     config_dir = "../config"
     if mode in ["validate", "test"]:
-        model_dir = f"../logs/Variant{variant}/{algorithm}/{model_name}"
+        model_dir = f"../logs/Variant_{variant}/{algorithm}/{model_name}"
         config_dir = model_dir
 
     # Load config
@@ -143,7 +149,7 @@ if __name__ == "__main__":
     # If training: create new subfolder and save weights
     if mode == "train":
         # Create new subfolder for the run
-        model_dir = f"../logs/Variant{variant}/{algorithm}/{run_name}/"
+        model_dir = f"../logs/Variant_{variant}/{algorithm}/{run_name}/"
         os.makedirs(model_dir, exist_ok=True)
 
         # Save weights into the subfolder
