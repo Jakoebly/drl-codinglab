@@ -6,16 +6,20 @@ from collections import deque
 import random
 
 from environment import Environment
-from Utils import utils as ut
+from utils import utils as ut
+
+
+
+# TODO: was soll das _ immer vor den Funktionen?
 
 class QNetwork(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=256):
+    def __init__(self, state_size, num_actions, hidden_size=256):
         super(QNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, hidden_size)
         self.fc4 = nn.Linear(hidden_size, hidden_size)
-        self.fc5 = nn.Linear(hidden_size, action_size)
+        self.fc5 = nn.Linear(hidden_size, num_actions)
     
     def forward(self, x):
         x = torch.relu(self.fc1(x))
@@ -26,35 +30,26 @@ class QNetwork(nn.Module):
         return x
 
 class DQN_Agent:
-    def __init__(self,
-                 env: Environment,
-                 gamma,
-                 epsilon,
-                 epsilon_min,
-                 epsilon_decay,
-                 learning_rate,
-                 batch_size,
-                 target_update_interval,
-                 eval_interval,
-                 buffer_size):
-        
-        self.env = env
-        self.state_size = env.get_state_len()
-        self.action_size = env.get_action_len()
+    def __init__(self, wandb_run, env, config):
 
-        self.evaluation_treshold = 190
-        self.evaluation_episodes = 50
+        self.wandb_run = wandb_run
+        self.env = env
+        self.state_size = config["state_size"]
+        self.num_actions = config["num_actions"]
+
+        self.evaluation_treshold = config["evaluation_treshold"]
+        self.evaluation_episodes = config["evaluation_episodes"]
 
         # Hyperparams
-        self.gamma = gamma
-        self.epsilon = epsilon
-        self.epsilon_min = epsilon_min
-        self.epsilon_decay = epsilon_decay
-        self.learning_rate = learning_rate
-        self.batch_size = batch_size
-        self.target_update_interval = target_update_interval
-        self.eval_interval = eval_interval
-        self.buffer = deque(maxlen=buffer_size)
+        self.gamma = config["gamma"]
+        self.epsilon = config["epsilon"]
+        self.epsilon_min = config["epsilon_min"]
+        self.epsilon_decay = config["epsilon_decay"]
+        self.learning_rate = config["learning_rate"]
+        self.batch_size = config["batch_size"]
+        self.target_update_interval = config["target_update_interval"]
+        self.eval_interval = config["eval_interval"]
+        self.buffer = deque(maxlen=config["buffer_size"])
 
         # Initialize networks
         self.q_network = self._build_model()
@@ -68,7 +63,14 @@ class DQN_Agent:
 
     def _build_model(self):
         """Builds the Q-network."""
-        return QNetwork(self.state_size, self.action_size)
+        return QNetwork(self.state_size, self.num_actions)
+
+    def load_weights(self, path):
+        self.q_network.load_state_dict(torch.load(path))
+        self.q_network.eval()
+
+    def save_weights(self, path):
+        torch.save(self.q_network.state_dict(), path)
 
     def update_target_weights(self):
         """Sync target network weights with Q-network weights."""
@@ -79,7 +81,7 @@ class DQN_Agent:
         """Select an action using epsilon-greedy policy."""
 
         if training and np.random.rand() < self.epsilon:
-            action = np.random.randint(self.action_size)
+            action = np.random.randint(self.num_actions)
         else:
             state = torch.FloatTensor(state).unsqueeze(0)
             with torch.no_grad():
@@ -87,7 +89,6 @@ class DQN_Agent:
             action = torch.argmax(q_values).item()
 
         return action
-
 
     def record(self, state, action, reward, next_state, done):
         """Store transition in replay buffer."""
@@ -125,118 +126,29 @@ class DQN_Agent:
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
 
-    def train(self, episodes=800, render = True):
-        train_rewards = []
+    def train(self, num_episodes_train, num_episodes_validate, validate_during_training):
 
-        for episode in range(episodes):
-            if (episode + 1) % 100 == 0:
-                inter_train_rew = np.mean(train_rewards[-100:])
-                print(f"--- Episode:  {str(episode + 1)} / {str(episodes)} --- Avg. Reward Last 100 Episodes: {inter_train_rew} --- Epsilon: {self.epsilon} ---" )
-            
-            state = self.env.reset(mode="training")
-            total_reward = 0
-            done = False
-
-            while not done:
-                action = self.select_action(state)
-                reward, next_state, done = self.env.step(action)
-                self.record(state, action, reward, next_state, done)
-                self.train_step()
-                state = next_state
-                total_reward += reward
-                #if render:
-                    #self.env.render()  # Call the render method
-
-            train_rewards.append(total_reward)
-            self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
-            print(f"Episode {episode + 1}/{episodes}, Total Reward: {total_reward}")
-
-            if (episode + 1) % self.eval_interval == 0:
-                eval_reward = self.test(episodes = self.evaluation_episodes, model = self.q_network, eval = True)
-                average_eval_reward = np.mean(eval_reward)
-                print(f"Average Evaluation Reward: {average_eval_reward:.2f}")
-
-                if average_eval_reward >= self.evaluation_treshold:
-                    print(f"Training terminated after {episode + 1} episodes as the target average reward was achieved.")
-                    train_rewards = train_rewards[:episode + 1]
-                    break
-
-        return train_rewards, self.q_network, self.target_network
-    
-    def test(self, episodes, model, evaluation = False):
-        test_rewards = []
-        if evaluation:
-            mode = "Evalation"
-        else: mode = "Testing"
-
-        self.test_model = model
-
-        for episode in range(episodes):
-            test_state = self.env.reset("testing")
-            test_episode_reward = 0
-            done = False
-
-            while not done:
-                action = self.select_greedy_action(test_state)
-                reward, next_state, done = self.env.step(action)
-                test_state = next_state
-                test_episode_reward += reward
-
-            test_rewards.append(test_episode_reward)
-
-            print(f"{mode} Episode {episode + 1}/{episodes} | Episode Reward: {test_episode_reward}")
-
-        return test_rewards
-
-
-    def run_old(self, episodes, mode = "training", model = None, render = False):
-        print(f"Starting {mode}...")
-
-        if mode == "training":
-            rewards, q_model, target_model = self.train(episodes)
-            average_reward = np.mean(rewards)
-            print(f"Average Training Reward: {average_reward}")
-            ut.rewards_plotting(rewards)
-            testing_rewards = self.test(100, q_model)
-            average_reward = np.mean(testing_rewards)
-            print(f"Average Testing Reward: {average_reward}")
-            ut.rewards_plotting(testing_rewards)
-            
-        else:
-            rewards = self.test(episodes, model)
-            average_reward = np.mean(rewards)
-
-        #print(f"Average {mode} reward: {average_reward} ")
-
-        return rewards
-
-    def train(self, agent, no_episodes, validate_during_training):
-
-        rew_train = self.run(agent, no_episodes, training=True, validation=False, testing=False)
+        rew_train = self.run(num_episodes_train, training=True, validation=False, testing=False)
 
         rew_val = None
         if validate_during_training:
-            rew_val = self.val(agent, no_episodes)
+            rew_val = self.val(num_episodes_validate)
 
         return rew_train, rew_val
 
-    def val(self,agent, no_episodes):
-        rew = self.run(agent, no_episodes, training=False, validation=True, testing=False)
-        return rew
+    def val(self, num_episodes_validate):
+        rew_val = self.run(num_episodes_validate, training=False, validation=True, testing=False)
+        return rew_val
 
-    def test(self, agent, no_episodes):
-        rew = self.run(agent, no_episodes, training=False, validation=False, testing=True)
-        return rew
+    def test(self, num_episodes_test):
+        rew_test = self.run(num_episodes_test, training=False, validation=False, testing=True)
+        return rew_test
 
-    def run(self, episodes=800, training=True, validation=False, testing=False):
+    def run(self, num_episodes, training=True, validation=False, testing=False):
 
         rewards = []
 
-        for episode in range(episodes):
-            if (episode + 1) % 100 == 0:
-                inter_train_rew = np.mean(rewards[-100:])
-                print(
-                    f"--- Episode:  {str(episode + 1)} / {str(episodes)} --- Avg. Reward Last 100 Episodes: {inter_train_rew} --- Epsilon: {self.epsilon} ---")
+        for episode in range(num_episodes):
 
             if training:
                 state = self.env.reset("training")
@@ -245,9 +157,10 @@ class DQN_Agent:
             if testing:
                 state = self.env.reset("testing")
 
-            total_reward = 0
+            reward_episode = 0
             done = False
 
+            # TODO: evtl. mit num_steps_trajectory
             while not done:
                 action = self.select_action(state, training)
                 reward, next_state, done = self.env.step(action)
@@ -257,20 +170,21 @@ class DQN_Agent:
                     self.train_step()
 
                 state = next_state
-                total_reward += reward
+                reward_episode += reward
 
                 # if render:
                 # self.env.render()  # Call the render method
 
-            rewards.append(total_reward)
+            rewards.append(reward_episode)
 
             if training:
                 self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
 
-            print(f"Episode {episode + 1}/{episodes}, Total Reward: {total_reward}")
+            self.wandb_run.log({"Reward per Episode": reward_episode})
+            print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {reward_episode}")
 
-            '''
-            if (episode + 1) % self.eval_interval == 0:
+            # TODO: Raus hätt ich gesagt
+            '''if (episode + 1) % self.eval_interval == 0:
                 eval_reward = self.test(episodes=self.evaluation_episodes, model=self.q_network, eval=True)
                 average_eval_reward = np.mean(eval_reward)
                 print(f"Average Evaluation Reward: {average_eval_reward:.2f}")
@@ -280,14 +194,19 @@ class DQN_Agent:
                         f"Training terminated after {episode + 1} episodes as the target average reward was achieved.")
                     rewards = rewards[:episode + 1]
                     break
-            '''
+                '''
 
         return rewards
 
-if __name__ == "__main__":
+
+
+
+
+
+'''if __name__ == "__main__":
     env = Environment(variant=0, data_dir="drl-codinglab/data/")
 
-    agent = DQNAgent(env = env,
+    agent = DQN_Agent(env = env,
                     gamma = 0.95,
                     epsilon = 1.0,
                     epsilon_min = 0.1,
@@ -306,4 +225,4 @@ if __name__ == "__main__":
 
     test_rewards = agent.test(episodes=100, model = model)
     print(f"Average Testing Reward: {np.mean(test_rewards)}")
-    ut.rewards_plotting(test_rewards)
+    ut.rewards_plotting(test_rewards)'''

@@ -1,6 +1,7 @@
 General:
-  # see utils load_config for extraction
-  state_size: 000 # extract from env
-  num_actions: 000 # extract from env
-  num_episodes: 000 # dynamically with len csv file
-  num_steps_trajectory: 000 # extract from env
+  state_size: 000
+  num_actions: 5
+  num_episodes_train: 000
+  num_episodes_validate: 000
+  num_episodes_test: 000
+  num_steps_trajectory: 000

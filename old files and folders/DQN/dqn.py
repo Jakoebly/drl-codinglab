@@ -6,7 +6,8 @@ from collections import deque
 import random
 
 from environment import Environment
-from Utils import utils as ut
+from utils import utils as ut
+
 
 class QNetwork(nn.Module):
     def __init__(self, state_size, action_size, hidden_size=256):

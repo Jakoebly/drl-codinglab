@@ -106,7 +106,7 @@ class Environment(object):
         self.update_render()
         #self.target_count = 0
 
-        return self.get_obs()
+        return self.get_new_obs()
 
     # take one environment step based on the action act
     def step(self, act):
@@ -173,7 +173,7 @@ class Environment(object):
             self.past_items[loc] += 1
 
         # get new observation
-        next_obs = self.get_obs()
+        next_obs = self.get_new_obs()
 
         #For Render:
         self.update_render()
@@ -202,9 +202,7 @@ class Environment(object):
     # TODO: Past Items Vector
     # TODO: Delte items where distance > remaining time
 
-    def get_action_len(self):
-        """Returns the number of actions available."""
-        return 5
+
 
     def get_new_obs(self) -> np.ndarray:
         """Returns the state of the environment as a flattened 1D array."""
@@ -346,9 +344,14 @@ class Environment(object):
 
         return obs
     
-    def get_state_len(self):
+    def get_state_size(self):
         """Returns the length of one state i.e., the flattened array returned by the get_obs() method."""
-        return 157
+        size = self.reset("training").shape[0]
+        return size
+
+    def get_num_actions(self):
+        """Returns the number of actions available."""
+        return 5
 
    # GRIDOBS
     def get_grid_obs(self) -> List[float]:

@@ -5,7 +5,8 @@ import torch.optim as optim
 from collections import deque
 import random
 
-from Utils import utils as ut
+from utils import utils as ut
+
 
 # Define the CNN-based Q-Network
 class CNNQNetwork(nn.Module):

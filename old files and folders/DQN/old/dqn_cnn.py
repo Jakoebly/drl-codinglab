@@ -7,7 +7,8 @@ from collections import deque
 
 from typing import List, Tuple
 
-from Utils import utils as ut
+from utils import utils as ut
+
 
 class DQN_Agent:
     def __init__(self, env: Environment,

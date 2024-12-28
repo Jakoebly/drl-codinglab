@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers
 import numpy as np
 import random
 from collections import deque
@@ -145,7 +145,8 @@ def train_cnn_dqn(env, episodes=800):
 # Usage
 if __name__ == "__main__":
     from environment import Environment  # Assuming the provided environment script is named environment.py
-    from Utils import utils as ut
+    from utils import utils as ut
+
     env = Environment(variant=0, data_dir="drl-codinglab/data/", render=False)
     train_rewards = train_cnn_dqn(env)
     ut.rewards_plotting(train_rewards)

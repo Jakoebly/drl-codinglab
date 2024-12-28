@@ -6,7 +6,8 @@ from collections import deque
 import random
 
 from environment import Environment
-from Utils import utils as ut
+from utils import utils as ut
+
 
 class QNetwork(nn.Module):
     def __init__(self, state_size, action_size, hidden_size=256):
@@ -39,8 +40,8 @@ class DQNAgent:
                  buffer_size):
         
         self.env = env
-        self.state_size = env.get_state_len()
-        self.action_size = env.get_action_len()
+        self.state_size = 161
+        self.action_size = 5
 
         self.evaluation_treshold = 190
         self.evaluation_episodes = 50
@@ -213,7 +214,7 @@ class DQNAgent:
         return rewards
 
 if __name__ == "__main__":
-    env = Environment(variant=0, data_dir="drl-codinglab/data/")
+    env = Environment(variant=0, data_dir="../data")
 
     agent = DQNAgent(env = env,
                     gamma = 0.95,

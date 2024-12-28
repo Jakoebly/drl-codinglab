@@ -16,3 +16,11 @@ Store the following after each test run:
 
 - TensorBoard!!!
 - requirements.txt
+
+
+
+---------------
+
+
+- mode in run übergeben
+- get state size abh. von cnn oder normal

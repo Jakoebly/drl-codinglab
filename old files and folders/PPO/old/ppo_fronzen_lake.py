@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.signal
 import tensorflow as tf
-import Utils.utils as ut
+from utils import utils as ut
 
 from datetime import datetime
 from keras import layers, optimizers

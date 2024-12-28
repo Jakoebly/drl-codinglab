@@ -1,15 +1,16 @@
 DQN:
-  gamma: 000
-  epsilon: 000
-  epsilon_min: 000
-  epsilon_decay: 000
-  learning_rate: 000
-  batch_size: 000
-  target_update_interval: 000
-  eval_interval: 000
-  buffer_size: 000
-  evaluation_treshold: 000
-  evaluation_episodes: 000
+  extension: "extension"
+  gamma: 0.95
+  epsilon: 1.0
+  epsilon_min: 0.1
+  epsilon_decay: 0.99
+  learning_rate: 0.00001
+  batch_size: 64
+  target_update_interval: 150
+  eval_interval: 1000
+  buffer_size: 80000
+  evaluation_treshold: 190
+  evaluation_episodes: 50
 
 
 PPO:
@@ -21,7 +22,6 @@ PPO:
   entropy_bonus: 000
   entropy_bonus_min: 000
   entropy_bonus_decay: 000
-
   num_trajectories: 000
   num_updates: 000
   num_epochs: 000

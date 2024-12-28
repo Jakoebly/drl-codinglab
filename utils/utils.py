@@ -1,22 +1,21 @@
 import yaml
-import environment as env
 
 
 # Load new or existing config depending on training or validation/test run
-def load_config(config_dir, algorithm):
+def load_config(env, config_dir, algorithm):
 
     # Load config for training run
-    if config_dir == "../config":
+    if config_dir == "./config":
 
         # Open general config and load parameters
         with open(f"{config_dir}/general.yaml", "r") as file:
-            general = yaml.safe_load(file)
+            general = yaml.safe_load(file).get("General", {})
 
-        #TODO: specify funtions in environment
         general["state_size"] = env.get_state_size()
-        general["num_actions"] = env.get_num_actions()
-        general["num_episodes"] = env.get_num_episodes()
-        general["num_steps_trajectory"] = env.get_trajectory_length()
+        general["num_episodes_train"] = len(env.training_episodes)
+        general["num_episodes_validate"] = len(env.validation_episodes)
+        general["num_episodes_test"] = len(env.test_episodes)
+        general["num_steps_trajectory"] = env.episode_steps
 
         # Open algorithm-specific config and load parameters
         with open(f"{config_dir}/hyperparams.yaml", "r") as file:
