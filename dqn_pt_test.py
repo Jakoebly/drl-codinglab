@@ -148,7 +148,7 @@ class DQN_Agent:
 
         rewards = []
 
-        for episode in range(num_episodes):
+        for episode in range(10):
 
             if training:
                 state = self.env.reset("training")

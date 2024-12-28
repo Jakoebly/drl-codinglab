@@ -1,7 +1,7 @@
 import yaml
 
 
-# Load new or existing config depending on training or validation/test run
+# Load new or existing config depending on training or validation/testing
 def load_config(env, config_dir, algorithm):
 
     # Load config for training run
@@ -34,12 +34,20 @@ def load_config(env, config_dir, algorithm):
     return config
 
 
+
 # Update run_info.yaml after a run
-def save_run_info(run_info_path, run_info, rew_train, rew_val, rew_test):
+def save_run_info(run_info_path, run_info, mode, rew_train, rew_val, rew_test):
 
-    run_info["Train Reward"] = rew_train
-    run_info["Validation Reward"] = rew_val
-    run_info["Test Reward"] = rew_test
+    # Update relevant key/value pairs depending on the mode
+    if mode == "train":
+        run_info["Train Reward"] = rew_train
+        run_info["Validation Reward"] = rew_val
+        run_info["Test Reward"] = rew_test
+    elif mode == "validate":
+        run_info["Validation Reward"] = rew_val
+    elif mode == "test":
+        run_info["Test Reward"] = rew_test
 
+    # Write run info into the corresponding .yaml file
     with open(run_info_path, 'w') as file:
-        yaml.dump(run_info, file, default_flow_style=False)
+        yaml.dump(run_info, file, default_flow_style=False, sort_keys=False)
