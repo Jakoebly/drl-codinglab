@@ -28,9 +28,9 @@ def load_config(env, config_dir, algorithm):
         config = general | hyperparams
 
         # Create key/value pairs for reward tracking
-        config["Avg. Train Reward"] = None
-        config["Avg. Validation Reward"] = None
-        config["Avg. Test Reward"] = None
+        config["avg_train_reward"] = None
+        config["avg_validation_reward"] = None
+        config["avg_test_reward"] = None
 
         # Adjust nn_architecture
         config["nn_architecture"][0][0] = config["state_size"]
@@ -45,7 +45,6 @@ def load_config(env, config_dir, algorithm):
             config = yaml.safe_load(file)
 
     return config
-
 
 
 # Update run_info.yaml after a run
@@ -66,20 +65,19 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
 
     eps_dir = [None, None, None]
 
+
     # Update relevant key/value pairs and create/reference .csv files for reward tracking
     if rew_train is not None:
-        config["Avg. Train Reward"] = float(np.mean(rew_train))
+        config["avg_train_reward"] = float(np.mean(rew_train))
         eps_dir[0] = f"{model_dir}/train_eps.csv"
 
     if rew_val is not None:
-        config["Avg. Validation Reward"] = float(np.mean(rew_val))
+        config["avg_validation_reward"] = float(np.mean(rew_val))
         eps_dir[1] = f"{model_dir}/val_eps.csv"
 
     if rew_test is not None:
-        config["Avg. Test Reward"] = float(np.mean(rew_test))
+        config["avg_test_reward"] = float(np.mean(rew_test))
         eps_dir[2] = f"{model_dir}/test_eps.csv"
-
-    print(f"eps_dir: {eps_dir}")
 
 
     # Write run info into the corresponding .yaml file
@@ -90,10 +88,46 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
     # Write episode data into the corresponding .csv file
     for mode, dir in enumerate(eps_dir):
         if dir is not None:
-            print(f"Mode: {mode}, Dir: {dir}")
             with open(dir, 'w', newline="") as file:
                 writer = csv.writer(file)
                 writer.writerow(["Episode", "Reward"])
                 for eps, reward in enumerate(rewards[mode], start=1):
-                    print(f"Eps: {eps}, Reward: {reward}")
                     writer.writerow([eps, reward])
+
+
+def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
+
+    # Extract validation rewards
+    rew_val = rewards[1]
+
+    # Check if validation rewards exist
+    if rew_val is not None:
+
+        # Check if the run was an integrated train/validation run and adjust naming
+        if model_name is None:
+            model_name = run_name
+
+        # Open best.yaml file
+        with open(best_dir, 'r') as file:
+            content = yaml.safe_load(file)
+
+        # Extract relevant section from the content of the best.yaml file
+        best = content[f"Variant_{variant}"].get(algorithm, {})
+
+        # Adjust relevant parameters if current model is better than the current best model
+        if best["avg_validation_reward"] < float(np.mean(rew_val)):
+            best["model_name"] = model_name
+            best["avg_validation_reward"] = float(np.mean(rew_val))
+
+        # Update the best.yaml content with new data
+        content[f"Variant_{variant}"][algorithm] = best
+
+        # Update the best.yaml file
+        with open(best_dir, 'w') as file:
+            yaml.safe_dump(content, file, default_flow_style=False, sort_keys=False)
+
+
+
+
+
+

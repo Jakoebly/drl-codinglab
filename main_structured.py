@@ -13,9 +13,7 @@ from algorithms.dqn import DQN_Agent
 # - get state size abh. von cnn oder normal
 # - bash for execute
 # - implement renderer
-# - NN architecture as hyperparameter for DQN
-# - Extensions as hyperparameter for DQN
-# - keep track of best models
+# - implement load_best function / argument
 # - outsource memory class / replay buffer
 # - integrate PPO (i.e., translate to Pytorch and bring to new structure
 
@@ -108,6 +106,9 @@ if __name__ == "__main__":
     # Set data path
     data_dir = "./data"
 
+    # Set best path
+    best_dir = "./algorithms/best.yaml"
+
 
     # Make environment
     env = Environment(variant, data_dir)
@@ -127,7 +128,6 @@ if __name__ == "__main__":
 
     # Initialize wandb run
     if args.track:
-
         wandb_run = wandb.init(
             entity=args.wandb_entity,
             project=args.wandb_project_name,
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         agent = DQN_Agent(wandb_run, env, config)
     elif algorithm == "PPO":
         agent = PPO_Agent(env, config)
-    elif algorithm == "PPO":
+    elif algorithm == "SAC":
         agent = SAC_Agent(env, config)
 
 
@@ -155,11 +155,14 @@ if __name__ == "__main__":
 
 
     # Perform training, validation or testing
-    rewards = agent.run(mode, validate_after_training)
+    rewards = agent.run(mode, validate_after_training)#
+
+    # Update best model
+    ut.update_best(algorithm, variant, rewards, model_name, run_name, best_dir)
 
     # Log the run
     if args.save:
-        ut.save_run_info(rewards, config, config_dir, agent, algorithm, variant, mode, run_name )
+        ut.save_run_info(rewards, config, config_dir, agent, algorithm, variant, mode, run_name)
 
     # Finish wandb run
     wandb_run.finish()

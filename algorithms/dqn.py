@@ -10,8 +10,6 @@ from utils import utils as ut
 
 
 
-# TODO: was soll das _ immer vor den Funktionen?
-
 class QNetwork(nn.Module):
     def __init__(self, nn_architecture):
         super().__init__()
@@ -46,12 +44,15 @@ class QNetwork(nn.Module):
         else:
             raise ValueError(f"Unsupported activation function: {last_activation}")
 
-        print(f"Layers: {layers}")
-
         self.model = nn.Sequential(*layers)
     
     def forward(self, x):
         return self.model(x)
+
+# TODO:
+# - validate extension string and implement extensions based on this parameter
+# - evtl. unterschiedliche nn_architectures für q and target network
+# - evtl. training loop als for loop mit num_steps_trajectory anstatt mit while loop
 
 class DQN_Agent:
     def __init__(self, wandb_run, env, config):
@@ -64,13 +65,13 @@ class DQN_Agent:
         self.num_episodes_validate = config["num_episodes_validate"]
         self.num_episodes_test = config["num_episodes_test"]
 
-        self.extension = config["Extension"]
+        self.extension = config["extension"]
 
         self.evaluation_treshold = config["evaluation_treshold"]
         self.evaluation_episodes = config["evaluation_episodes"]
 
         # Hyperparams
-        # TODO: evtl. unterschiedliche nn_architectures für q and target network
+
         self.nn_architecture = config["nn_architecture"]
         self.gamma = config["gamma"]
         self.epsilon = config["epsilon"]
@@ -188,7 +189,6 @@ class DQN_Agent:
             reward_episode = 0
             done = False
 
-            # TODO: evtl. mit num_steps_trajectory
             while not done:
                 action = self.select_action(state, training)
                 reward, next_state, done = self.env.step(action)
@@ -211,7 +211,7 @@ class DQN_Agent:
             self.wandb_run.log({"Reward per Episode": reward_episode})
             print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {reward_episode}")
 
-            # TODO: Raus hätt ich gesagt
+            # TODO: Raus?
             '''if (episode + 1) % self.eval_interval == 0:
                 eval_reward = self.test(episodes=self.evaluation_episodes, model=self.q_network, eval=True)
                 average_eval_reward = np.mean(eval_reward)

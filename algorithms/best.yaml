@@ -1,0 +1,30 @@
+Variant_0:
+  DQN:
+    model_name: null
+    avg_validation_reward: -10000
+  PPO:
+    model_name: null
+    avg_validation_reward: -10000
+  SAC:
+    model_name: null
+    avg_validation_reward: -10000
+Variant_1:
+  DQN:
+    model_name: null
+    avg_validation_reward: -10000
+  PPO:
+    model_name: null
+    avg_validation_reward: -10000
+  SAC:
+    model_name: null
+    avg_validation_reward: -10000
+Variant_2:
+  DQN:
+    model_name: null
+    avg_validation_reward: -10000
+  PPO:
+    model_name: null
+    avg_validation_reward: -10000
+  SAC:
+    model_name: null
+    avg_validation_reward: -10000
