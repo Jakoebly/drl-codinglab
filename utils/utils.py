@@ -32,6 +32,10 @@ def load_config(env, config_dir, algorithm):
         config["Avg. Validation Reward"] = None
         config["Avg. Test Reward"] = None
 
+        # Adjust nn_architecture
+        config["nn_architecture"][0][0] = config["state_size"]
+        config["nn_architecture"][-1][0] = config["num_actions"]
+
 
     # Load existing config for validation/test run
     else:

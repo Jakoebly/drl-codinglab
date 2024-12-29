@@ -12,8 +12,6 @@ from algorithms.dqn import DQN_Agent
 # TODO:
 # - get state size abh. von cnn oder normal
 # - bash for execute
-# - naming of runs to see if validate_after_run has been done instantly
-# - evtl. save rewards separately as csv and only safe avg. reward in run_info
 # - implement renderer
 # - NN architecture as hyperparameter for DQN
 # - Extensions as hyperparameter for DQN
@@ -129,6 +127,7 @@ if __name__ == "__main__":
 
     # Initialize wandb run
     if args.track:
+
         wandb_run = wandb.init(
             entity=args.wandb_entity,
             project=args.wandb_project_name,
@@ -137,7 +136,7 @@ if __name__ == "__main__":
             save_code=True,
             group=algorithm,
             tags=[f"Var_{variant}"],
-            job_type=mode
+            job_type=f"{mode}/validate" if validate_after_training else mode
         )
 
 

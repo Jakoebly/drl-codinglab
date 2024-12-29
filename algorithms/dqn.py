@@ -13,21 +13,45 @@ from utils import utils as ut
 # TODO: was soll das _ immer vor den Funktionen?
 
 class QNetwork(nn.Module):
-    def __init__(self, state_size, num_actions, hidden_size=256):
-        super(QNetwork, self).__init__()
-        self.fc1 = nn.Linear(state_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, hidden_size)
-        self.fc4 = nn.Linear(hidden_size, hidden_size)
-        self.fc5 = nn.Linear(hidden_size, num_actions)
+    def __init__(self, nn_architecture):
+        super().__init__()
+
+        layers = []
+
+        for i in range(len(nn_architecture) - 1):
+            in_size, activation = nn_architecture[i]
+            out_size, _ = nn_architecture[i + 1]
+
+            layers.append(nn.Linear(in_size, out_size))
+
+            if activation.lower() == "relu":
+                layers.append(nn.ReLU())
+            elif activation.lower() == "sigmoid":
+                layers.append(nn.Sigmoid())
+            elif activation.lower() == "tanh":
+                layers.append(nn.Tanh())
+            else:
+                raise ValueError(f"Unsupported activation function: {activation}")
+
+
+        last_in_size, last_activation = nn_architecture[-1]
+        layers.append(nn.Linear(last_in_size, last_in_size))
+
+        if last_activation.lower() == "softmax":
+            layers.append(nn.Softmax(dim=1))
+        elif last_activation.lower() == "sigmoid":
+            layers.append(nn.Sigmoid())
+        elif last_activation.lower() == "linear" or last_activation.lower() is None:
+            pass
+        else:
+            raise ValueError(f"Unsupported activation function: {last_activation}")
+
+        print(f"Layers: {layers}")
+
+        self.model = nn.Sequential(*layers)
     
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = torch.relu(self.fc3(x))
-        x = torch.relu(self.fc4(x))
-        x = self.fc5(x)
-        return x
+        return self.model(x)
 
 class DQN_Agent:
     def __init__(self, wandb_run, env, config):
@@ -46,6 +70,8 @@ class DQN_Agent:
         self.evaluation_episodes = config["evaluation_episodes"]
 
         # Hyperparams
+        # TODO: evtl. unterschiedliche nn_architectures für q and target network
+        self.nn_architecture = config["nn_architecture"]
         self.gamma = config["gamma"]
         self.epsilon = config["epsilon"]
         self.epsilon_min = config["epsilon_min"]
@@ -57,18 +83,14 @@ class DQN_Agent:
         self.buffer = deque(maxlen=config["buffer_size"])
 
         # Initialize networks
-        self.q_network = self._build_model()
-        self.target_network = self._build_model()
+        self.q_network = QNetwork(self.nn_architecture)
+        self.target_network = QNetwork(self.nn_architecture)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=self.learning_rate)
         self.loss_fn = nn.MSELoss()
         
         # Sync target network
         self.update_target_weights()
         self.step_count = 0
-
-    def _build_model(self):
-        """Builds the Q-network."""
-        return QNetwork(self.state_size, self.num_actions)
 
     def load_weights(self, path):
         self.q_network.load_state_dict(torch.load(path))
