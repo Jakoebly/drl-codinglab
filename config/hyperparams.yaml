@@ -1,5 +1,5 @@
 DQN:
-  extension: "extension"
+  Extension: "Vanilla"
   gamma: 0.95
   epsilon: 1.0
   epsilon_min: 0.1

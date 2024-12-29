@@ -19,9 +19,7 @@ from algorithms.dqn import DQN_Agent
 # - Extensions as hyperparameter for DQN
 # - keep track of best models
 # - outsource memory class / replay buffer
-# - tags for wandb
 # - integrate PPO (i.e., translate to Pytorch and bring to new structure
-# - adjust code s.t. algorithms can be moved to folder 'algorithms'
 
 
 
@@ -137,7 +135,9 @@ if __name__ == "__main__":
             config=config,
             name=run_name,
             save_code=True,
-            # tags=[algorithm, variant, mode]
+            group=algorithm,
+            tags=[f"Var_{variant}"],
+            job_type=mode
         )
 
 
@@ -156,24 +156,11 @@ if __name__ == "__main__":
 
 
     # Perform training, validation or testing
-    rew_train, rew_val, rew_test = agent.run(mode, validate_after_training)
-
+    rewards = agent.run(mode, validate_after_training)
 
     # Log the run
     if args.save:
-
-        # If training: create new subfolder and save weights
-        if mode == "train":
-
-            model_dir = f"./logs/Variant_{variant}/{algorithm}/{run_name}"
-            os.makedirs(model_dir, exist_ok=True)
-
-            agent.save_weights(f"{model_dir}/model.pt")
-
-        run_info_dir = f"{model_dir}/run_info.yaml"
-
-        # Update run_info file with relevant data
-        ut.save_run_info(run_info_dir, config, mode, rew_train, rew_val, rew_test)
+        ut.save_run_info(rewards, config, config_dir, agent, algorithm, variant, mode, run_name )
 
     # Finish wandb run
     wandb_run.finish()

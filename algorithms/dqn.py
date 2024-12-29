@@ -40,7 +40,7 @@ class DQN_Agent:
         self.num_episodes_validate = config["num_episodes_validate"]
         self.num_episodes_test = config["num_episodes_test"]
 
-        self.extension = config["extension"]
+        self.extension = config["Extension"]
 
         self.evaluation_treshold = config["evaluation_treshold"]
         self.evaluation_episodes = config["evaluation_episodes"]
@@ -154,7 +154,7 @@ class DQN_Agent:
 
         rewards = []
 
-        for episode in range(10):
+        for episode in range(5):
 
             if training:
                 state = self.env.reset("training")
