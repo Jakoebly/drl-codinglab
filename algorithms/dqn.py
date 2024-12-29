@@ -36,6 +36,11 @@ class DQN_Agent:
         self.env = env
         self.state_size = config["state_size"]
         self.num_actions = config["num_actions"]
+        self.num_episodes_train = config["num_episodes_train"]
+        self.num_episodes_validate = config["num_episodes_validate"]
+        self.num_episodes_test = config["num_episodes_test"]
+
+        self.extension = config["extension"]
 
         self.evaluation_treshold = config["evaluation_treshold"]
         self.evaluation_episodes = config["evaluation_episodes"]
@@ -126,25 +131,26 @@ class DQN_Agent:
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
 
-    def train(self, num_episodes_train, num_episodes_validate, validate_during_training):
 
-        rew_train = self.run(num_episodes_train, training=True, validation=False, testing=False)
+    def run(self, mode, validate_after_training):
 
+        rew_train = None
         rew_val = None
-        if validate_during_training:
-            rew_val = self.val(num_episodes_validate)
+        rew_test = None
 
-        return rew_train, rew_val
+        if mode == "train":
+            rew_train = self.simulate_environment(self.num_episodes_train, training=True, validation=False, testing=False)
+            if validate_after_training:
+                rew_val = self.simulate_environment(self.num_episodes_validate, training=False, validation=True, testing=False)
+        elif mode == "validate":
+            rew_val = self.simulate_environment(self.num_episodes_validate, training=False, validation=True, testing=False)
+        elif mode == "test":
+            rew_test = self.simulate_environment(self.num_episodes_test, training=False, validation=False, testing=False)
 
-    def val(self, num_episodes_validate):
-        rew_val = self.run(num_episodes_validate, training=False, validation=True, testing=False)
-        return rew_val
+        return rew_train, rew_val, rew_test
 
-    def test(self, num_episodes_test):
-        rew_test = self.run(num_episodes_test, training=False, validation=False, testing=True)
-        return rew_test
 
-    def run(self, num_episodes, training=True, validation=False, testing=False):
+    def simulate_environment(self, num_episodes, training=True, validation=False, testing=False):
 
         rewards = []
 
@@ -197,32 +203,3 @@ class DQN_Agent:
                 '''
 
         return rewards
-
-
-
-
-
-
-'''if __name__ == "__main__":
-    env = Environment(variant=0, data_dir="drl-codinglab/data/")
-
-    agent = DQN_Agent(env = env,
-                    gamma = 0.95,
-                    epsilon = 1.0,
-                    epsilon_min = 0.1,
-                    epsilon_decay = 0.99, #0.998
-                    learning_rate = 0.00001, #0.00005 #0.000025
-                    batch_size = 64,
-                    target_update_interval = 150, #150
-                    eval_interval = 1000,
-                    buffer_size = 80000) #80000 #60000
-    
-    #rewards = agent.run(episodes = 800, mode = "training")
-    train_rewards, model,_ = agent.train(episodes=800)
-    print(f"Average Training Reward: {np.mean(train_rewards)}")
-    ut.rewards_plotting(train_rewards)
-    
-
-    test_rewards = agent.test(episodes=100, model = model)
-    print(f"Average Testing Reward: {np.mean(test_rewards)}")
-    ut.rewards_plotting(test_rewards)'''

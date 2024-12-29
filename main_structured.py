@@ -7,12 +7,11 @@ import torch
 import wandb
 from environment import Environment
 from utils import utils as ut
-from dqn_pt_test import DQN_Agent
+from algorithms.dqn import DQN_Agent
 
 # TODO:
 # - get state size abh. von cnn oder normal
 # - bash for execute
-# - adjust name format for runs (i.e., without the mode)
 # - naming of runs to see if validate_after_run has been done instantly
 # - evtl. save rewards separately as csv and only safe avg. reward in run_info
 # - implement renderer
@@ -22,6 +21,7 @@ from dqn_pt_test import DQN_Agent
 # - outsource memory class / replay buffer
 # - tags for wandb
 # - integrate PPO (i.e., translate to Pytorch and bring to new structure
+# - adjust code s.t. algorithms can be moved to folder 'algorithms'
 
 
 
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
 
     # Set seeds
-    seed = 43
+    seed = 42
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -156,16 +156,7 @@ if __name__ == "__main__":
 
 
     # Perform training, validation or testing
-    rew_train = None
-    rew_val = None
-    rew_test = None
-
-    if mode == "train":
-        rew_train, rew_val = agent.train(config["num_episodes_train"], config["num_episodes_validate"], validate_after_training)
-    elif mode == "validate":
-        rew_val = agent.val(config["num_episodes_validate"])
-    elif mode == "test":
-        rew_test = agent.test(config["num_episodes_test"])
+    rew_train, rew_val, rew_test = agent.run(mode, validate_after_training)
 
 
     # Log the run
