@@ -95,6 +95,11 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
                     writer.writerow([eps, reward])
 
 
+def load_best(best_dir, variant, algorithm):
+    with open(best_dir, 'r') as file:
+        model_name = yaml.safe_load(file).get(f"Variant_{variant}", {}).get(algorithm, {}).get("model_name", {})
+    return model_name
+
 def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
 
     # Extract validation rewards
