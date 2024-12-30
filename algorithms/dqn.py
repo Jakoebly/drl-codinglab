@@ -155,36 +155,36 @@ class DQN_Agent:
             self.update_target_weights()
 
 
-    def run(self, mode, validate_after_training):
+    def run(self, mode):
 
         rew_train = None
         rew_val = None
         rew_test = None
 
         if mode == "train":
-            rew_train = self.simulate_environment(self.num_episodes_train, training=True, validation=False, testing=False)
-            if validate_after_training:
-                rew_val = self.simulate_environment(self.num_episodes_validate, training=False, validation=True, testing=False)
-        elif mode == "validate":
-            rew_val = self.simulate_environment(self.num_episodes_validate, training=False, validation=True, testing=False)
+            rew_train = self.simulate_environment(self.num_episodes_train, "training")
+            rew_val = self.simulate_environment(self.num_episodes_validate, "validation")
+        if mode == "validate":
+            rew_val = self.simulate_environment(self.num_episodes_validate, "validation")
         elif mode == "test":
-            rew_test = self.simulate_environment(self.num_episodes_test, training=False, validation=False, testing=False)
+            rew_test = self.simulate_environment(self.num_episodes_test, "testing")
 
         return rew_train, rew_val, rew_test
 
 
-    def simulate_environment(self, num_episodes, training=True, validation=False, testing=False):
+    def simulate_environment(self, num_episodes, mode):
 
         rewards = []
 
+        if mode == "training":
+            training = True
+        else:
+            training = False
+
         for episode in range(5):
 
-            if training:
-                state = self.env.reset("training")
-            if validation:
-                state = self.env.reset("validation")
-            if testing:
-                state = self.env.reset("testing")
+            state = self.env.reset(mode)
+
 
             reward_episode = 0
             done = False

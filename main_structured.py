@@ -52,7 +52,6 @@ if __name__ == "__main__":
     variant = args.variant
     mode = args.mode.lower()
     best = args.best
-    validate_after_training = args.validate_after_training
     model_name = args.model_name
     if best:
         model_name = ut.load_best(best_dir, variant, algorithm)
@@ -84,7 +83,7 @@ if __name__ == "__main__":
             save_code=True,
             group=algorithm,
             tags=[f"Var_{variant}"],
-            job_type=f"{mode}/validate" if validate_after_training else mode
+            job_type=f"{mode}/validate" if mode == "train" else mode
         )
 
 
@@ -103,7 +102,7 @@ if __name__ == "__main__":
 
 
     # Perform training, validation or testing
-    rewards = agent.run(mode, validate_after_training)
+    rewards = agent.run(mode)
 
     # Update best model
     ut.update_best(algorithm, variant, rewards, model_name, run_name, best_dir)
