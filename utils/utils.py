@@ -1,7 +1,21 @@
-import yaml
 import os
+import random
 import csv
+import torch
+import yaml
 import numpy as np
+
+
+# Set seeds
+def set_seeds(seed, torch_deterministic):
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = torch_deterministic
+
+
 
 
 # Load new or existing config depending on training or validation/testing
@@ -45,6 +59,7 @@ def load_config(env, config_dir, algorithm):
             config = yaml.safe_load(file)
 
     return config
+
 
 
 # Update run_info.yaml after a run
@@ -95,10 +110,14 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
                     writer.writerow([eps, reward])
 
 
+
+
+
 def load_best(best_dir, variant, algorithm):
     with open(best_dir, 'r') as file:
         model_name = yaml.safe_load(file).get(f"Variant_{variant}", {}).get(algorithm, {}).get("model_name", {})
     return model_name
+
 
 def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
 

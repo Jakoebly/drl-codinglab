@@ -15,14 +15,14 @@ def parse_args():
 
 
     # Cuda related args
-    parser.add_argument("--torch-deterministic", type=bool, default=True, nargs="?", const=True, help="If toggled, `torch.backends.cudnn.deterministic` will be set to 'False'")
+    parser.add_argument("--torch_deterministic", type=bool, default=True, nargs="?", const=True, help="If toggled, `torch.backends.cudnn.deterministic` will be set to 'False'")
     parser.add_argument("--cuda", type=bool, default=True, nargs="?", const=True, help="If toggled, cuda will be enabled by default")
 
 
     # WandB args
     parser.add_argument("--track", type=bool, default=False, nargs="?", const=True, help="If toggled, the run will be tracked with WandB")
-    parser.add_argument("--wandb-project-name", type=str, default="Coding_Lab", help="WandB's project name")
-    parser.add_argument("--wandb-entity", type=str, default="gowiththetensorflow", help="Entity (team) of WandB's project")
+    parser.add_argument("--wandb_projectname", type=str, default="Coding_Lab", help="WandB's project name")
+    parser.add_argument("--wandb_entity", type=str, default="gowiththetensorflow", help="Entity (team) of WandB's project")
     # TODO: check if this works with the renderer
     parser.add_argument("--capture-video", type=bool, default=False, nargs="?", const=True, help="If toggled, a video of the agent's performance will be captured")
 

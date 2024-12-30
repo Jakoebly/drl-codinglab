@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import wandb
 from environment import Environment
-from utils import utils as ut, args
+from utils import utils as ut, args, settings
 from algorithms.dqn import DQN_Agent
 from algorithms.ppo import PPO_Agent
 # from algorithms.sac import SAC_Agent
@@ -16,6 +16,8 @@ from algorithms.ppo import PPO_Agent
 # - outsource memory class / replay buffer
 # - integrate PPO (i.e., translate to Pytorch and bring to new structure)
 # - integrate device handling into DQN
+# - discuss functions in utils
+# - discuss where to store args, utils, settings, renderer and how to name the folders
 
 
 if __name__ == "__main__":
@@ -25,27 +27,19 @@ if __name__ == "__main__":
 
     # Set seeds
     seed = 42
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = args.torch_deterministic
-
+    ut.set_seeds(seed, args.to)
 
     # Set device variable for CUDA usage
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
-
     # Set run_name
     run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{args.experiment_name}"
 
-    # Set data path
-    data_dir = "./data"
+    # Set data dir
+    data_dir = settings.data_dir
 
-    # Set best path
-    best_dir = "./algorithms/best.yaml"
-
+    # Set best dir
+    best_dir = settings.best_dir
 
     # Set run-specific variables from args
     algorithm = args.algorithm.upper()
