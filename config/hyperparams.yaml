@@ -26,16 +26,15 @@ PPO:
   entropy_bonus: 000
   entropy_bonus_min: 000
   entropy_bonus_decay: 000
-  num_trajectories: 000
-  num_updates: 000
+  num_trajectories: 5
   num_epochs: 000
-  num_minibatches: 000
+  num_minibatches: 10
   nn_architecture:
     - [ 000, "relu" ]
     - [ 256, "relu" ]
     - [ 256, "relu" ]
     - [ 256, "relu" ]
-    - [ 000, "linear" ]
+    - [ 000, "softmax" ]
 
 
 SAC:

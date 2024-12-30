@@ -6,7 +6,7 @@ import wandb
 from environment import Environment
 from utils import utils as ut, args
 from algorithms.dqn import DQN_Agent
-# from algorithms.ppo import PPO_Agent
+from algorithms.ppo import PPO_Agent
 # from algorithms.sac import SAC_Agent
 
 # TODO:
@@ -74,6 +74,7 @@ if __name__ == "__main__":
 
 
     # Initialize wandb run
+    wandb_run = None
     if args.track:
         wandb_run = wandb.init(
             entity=args.wandb_entity,
@@ -89,9 +90,9 @@ if __name__ == "__main__":
 
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":
-        agent = DQN_Agent(wandb_run, env, config).to(device)
+        agent = DQN_Agent(wandb_run, env, config, device)
     elif algorithm == "PPO":
-        agent = PPO_Agent(env, config).to(device)
+        agent = PPO_Agent(wandb_run, env, config, device)
     elif algorithm == "SAC":
         agent = SAC_Agent(env, config).to(device)
 

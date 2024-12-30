@@ -20,59 +20,46 @@ import matplotlib.pyplot as plt
 # - inform what is meant with .to(device) and eventually adjust in code
 # - different nn_architecture for Actor and Critic
 # - different learning_rate for Actor and Critic
+# - adjust validate last act. function
+# - if too slow, try to call memory.store only once after each trajectory and insert tensors
 
 class PPOMemory:
-    def __init__(self, batch_size, num_trajectories, num_steps_trajectory, state_size, num_actions, device):
-        # Maybe switch shapes to (num_trajectories, num_steps_trajectory)
-        self.states = torch.zeros((num_steps_trajectory, num_trajectories) + (state_size,)).to(device)
-        self.actions = torch.zeros((num_steps_trajectory, num_trajectories) + (num_actions,)).to(device)
-        self.logprobs = torch.zeros((num_steps_trajectory, num_trajectories)).to(device)
-        self.rewards = torch.zeros((num_steps_trajectory, num_trajectories)).to(device)
-        self.dones = torch.zeros((num_steps_trajectory, num_trajectories)).to(device)
-        self.values = torch.zeros((num_steps_trajectory, num_trajectories)).to(device)
+    def __init__(self, batch_size, num_trajectories, num_steps_trajectory, state_size, device):
 
-        self.next_states = []
+        self.states = torch.zeros((num_trajectories, num_steps_trajectory) + (state_size,)).to(device)
+        self.actions = torch.zeros((num_trajectories, num_steps_trajectory)).to(device)
+        self.logprobs = torch.zeros((num_trajectories, num_steps_trajectory)).to(device)
+        self.values = torch.zeros((num_trajectories, num_steps_trajectory)).to(device)
+        self.rewards = torch.zeros((num_trajectories, num_steps_trajectory)).to(device)
+        self.next_states = torch.zeros((num_trajectories, num_steps_trajectory) + (state_size,)).to(device)
+        self.dones = torch.zeros((num_trajectories, num_steps_trajectory)).to(device)
+
         self.nextvalues = []
         self.advantages = []
         self.returns = []
 
         self.batch_size = batch_size
 
-    def store(self, state, action, reward, next_state, done, value, next_value, log_probs):
-        self.states.append(state)
-        self.actions.append(action)
-        self.rewards.append(reward)
-        self.next_states.append(next_state)
-        self.dones.append(done)
-        self.values.append(value)
-        self.nextvalues.append(next_value)
-        self.log_probs.append(log_probs)
 
-    def clear(self):
-        self.states.clear()
-        self.actions.clear()
-        self.rewards.clear()
-        self.next_states.clear()
-        self.dones.clear()
-        self.values.clear()
-        self.nextvalues.clear()
-        self.log_probs.clear()
-        self.advantages.clear()
-        self.returns.clear()
+    def store(self, state, action, log_prob, value, reward, next_state, done, trajectory, step):
+        self.states[trajectory][step] = state
+        self.actions[trajectory][step] = action
+        self.logprobs[trajectory][step] = log_prob
+        self.values[trajectory][step] = value
+        self.rewards[trajectory][step] = reward
+        self.next_states[trajectory][step] = next_state
+        self.dones[trajectory][step] = done
 
-    def to_tensor(self):
-        return {
-            'states': tf.convert_to_tensor(self.states, dtype=tf.float32),
-            'actions': tf.convert_to_tensor(self.actions, dtype=tf.int32),
-            'rewards': tf.convert_to_tensor(self.rewards, dtype=tf.float32),
-            'next_states': tf.convert_to_tensor(self.next_states, dtype=tf.float32),
-            'dones': tf.convert_to_tensor(self.dones, dtype=tf.float32),
-            'values': tf.convert_to_tensor(self.values, dtype=tf.float32),
-            'next_values': tf.convert_to_tensor(self.nextvalues, dtype=tf.float32),
-            'log_probs': tf.convert_to_tensor(self.log_probs, dtype=tf.float32),
-            'advantages': tf.convert_to_tensor(self.advantages, dtype=tf.float32),
-            'returns': tf.convert_to_tensor(self.returns, dtype=tf.float32)
-        }
+
+    def clear(self, num_trajectories, num_steps_trajectory, state_size):
+        self.states = torch.zeros((num_trajectories, num_steps_trajectory) + (state_size,))
+        self.actions = torch.zeros((num_trajectories, num_steps_trajectory))
+        self.logprobs = torch.zeros((num_trajectories, num_steps_trajectory))
+        self.values = torch.zeros((num_trajectories, num_steps_trajectory))
+        self.rewards = torch.zeros((num_trajectories, num_steps_trajectory))
+        self.next_states = torch.zeros((num_trajectories, num_steps_trajectory) + (state_size,))
+        self.dones = torch.zeros((num_trajectories, num_steps_trajectory))
+
 
     def generate_batches(self, batch_size, minibatch_size, num_epochs):
 
@@ -97,6 +84,8 @@ class PPOMemory:
         dataset_critic_shuffled_batched = dataset_critic_shuffled.batch(minibatch_size).repeat(num_epochs)
 
         return dataset_actor_shuffled_batched, dataset_critic_shuffled_batched
+
+
 
 class ActorNetwork(nn.Module):
     def __init__(self, nn_architecture, learning_rate, device):
@@ -187,16 +176,16 @@ class CriticNetwork(nn.Module):
 
         # Add last layer data separately since the for loop does not allow for this
         last_in_size, last_activation = nn_architecture[-1]
-        layers.append(nn.Linear(last_in_size, last_in_size))
+        layers.append(nn.Linear(last_in_size, 1))
 
-        if last_activation.lower() == "softmax":
-            layers.append(nn.Softmax(dim=-1))
-        elif last_activation.lower() == "sigmoid":
-            layers.append(nn.Sigmoid())
-        elif last_activation.lower() == "linear" or last_activation.lower() is None:
-            pass
-        else:
-            raise ValueError(f"Unsupported activation function: {last_activation}")
+        # if last_activation.lower() == "softmax":
+        #     layers.append(nn.Softmax(dim=-1))
+        # elif last_activation.lower() == "sigmoid":
+        #     layers.append(nn.Sigmoid())
+        # elif last_activation.lower() == "linear" or last_activation.lower() is None:
+        #     pass
+        # else:
+        #     raise ValueError(f"Unsupported activation function: {last_activation}")
 
         # Create network using the layer info
         self.critic = nn.Sequential(*layers)
@@ -245,7 +234,7 @@ class PPO_Agent():
         self.entropy_bonus_decay = config["entropy_bonus_decay"]
 
         # Memory Initialization
-        self.memory = PPOMemory(self.batch_size, self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
+        self.memory = PPOMemory(self.batch_size, self.num_trajectories, self.num_steps_trajectory, self.state_size, self.num_actions, self.device)
 
         # Network Initialization
         self.actor = ActorNetwork(self.nn_architecture, self.learning_rate, self.device)
@@ -260,68 +249,79 @@ class PPO_Agent():
 
     def get_action(self, state):
 
-        probs = self.actor.predict(state.reshape(1, -1))
-        print(f"Probability Output: {probs}")
-        log_probs = tf.math.log(probs + 1e-8)
-        # action = np.random.choice(self.num_actions, p=probs[0])
-        action = np.argmax(probs)
-        print(f"Selected Action: {action}")
-        return action, log_probs[0, action]
+        dist = self.actor(state)
 
-    # TODO: überarbeiten
+        action = dist.sample()
+        log_prob = dist.log_prob(action)
+
+        return action, log_prob
+
+
     def get_value(self, state):
-        value = self.critic.predict(state.reshape(1, -1))
-        return value[0][0]
+
+        value = self.critic(state)
+
+        return value
 
 
-    def run(self, mode, validate_after_training):
+    def run(self, mode):
 
         rew_train = None
         rew_val = None
         rew_test = None
 
         if mode == "train":
-            rew_train = self.simulate_environment(self.num_episodes_train, training=True, validation=False, testing=False)
-            if validate_after_training:
-                rew_val = self.simulate_environment(self.num_episodes_validate, training=False, validation=True, testing=False)
-        elif mode == "validate":
-            rew_val = self.simulate_environment(self.num_episodes_validate, training=False, validation=True, testing=False)
+            rew_train = self.simulate_environment(self.num_episodes_train, "training")
+            rew_val = self.simulate_environment(self.num_episodes_validate, "validation")
+        if mode == "validate":
+            rew_val = self.simulate_environment(self.num_episodes_validate, "validation")
         elif mode == "test":
-            rew_test = self.simulate_environment(self.num_episodes_test, training=False, validation=False, testing=False)
+            rew_test = self.simulate_environment(self.num_episodes_test, "testing")
 
         return rew_train, rew_val, rew_test
 
-
-    def simulate_environment(self, num_episodes, training=True, validation=False, testing=False):
+    def simulate_environment(self, num_episodes, mode):
 
         rewards = []
 
-        for episode in range(5):
+        if mode == "training":
+            training = True
+        else:
+            training = False
 
-            if training:
-                state = self.env.reset("training")
-            if validation:
-                state = self.env.reset("validation")
-            if testing:
-                state = self.env.reset("testing")
+        # for episode in range(num_episodes):
+        for episode in range(1):
 
+            # Initialize reward to zero
             reward_episode = 0
-            done = False
 
-            while not done:
-                action = self.select_action(state, training)
+            # Keep track of the number of trajectories per policy rollout
+            trajectory = episode % (self.num_trajectories + 1)
+
+            state = torch.tensor(self.env.reset(mode), dtype=torch.float32).to(self.device)
+
+            # for step in range(self.num_steps_trajectory):
+            for step in range(1):
+
+                # Perform one environment step
+                with torch.no_grad():
+                    action, log_prob = self.get_action(state)
+                    value = self.get_value(state).squeeze()
                 reward, next_state, done = self.env.step(action)
-
-                if training:
-                    self.record(state, action, reward, next_state, done)
-                    self.train_step()
-
-                state = next_state
                 reward_episode += reward
 
-                # if render:
-                # self.env.render()  # Call the render method
+                # Transform to tensors
+                reward = torch.tensor([reward]).to(self.device)
+                next_state = torch.tensor(next_state, dtype=torch.float32).to(self.device)
+                done = torch.tensor([done]).to(self.device)
 
+                if training:
+                    self.memory.store(state, action, log_prob, value, reward, next_state, done, trajectory, step)
+                    #self.train_step()
+
+                state = next_state
+
+                """    
             rewards.append(reward_episode)
 
             if training:
@@ -342,16 +342,15 @@ class PPO_Agent():
                     rewards = rewards[:episode + 1]
                     break
                 '''
-
+"""
         return rewards
 
 
-    num_updates = self.num_episodes_train // self.num_trajectories
+    # num_updates = self.num_episodes_train // self.num_trajectories
 
 
 
 
-    state = torch.Tensor(self.env.reset(self.mode))
 
 
 
