@@ -8,8 +8,6 @@ import random
 from environment import Environment
 from utils import utils as ut
 
-
-
 class QNetwork(nn.Module):
     def __init__(self, nn_architecture):
         super().__init__()
@@ -67,11 +65,7 @@ class DQN_Agent:
 
         self.extension = config["extension"]
 
-        self.evaluation_treshold = config["evaluation_treshold"]
-        self.evaluation_episodes = config["evaluation_episodes"]
-
         # Hyperparams
-
         self.nn_architecture = config["nn_architecture"]
         self.gamma = config["gamma"]
         self.epsilon = config["epsilon"]
@@ -80,8 +74,12 @@ class DQN_Agent:
         self.learning_rate = config["learning_rate"]
         self.batch_size = config["batch_size"]
         self.target_update_interval = config["target_update_interval"]
-        self.eval_interval = config["eval_interval"]
         self.buffer = deque(maxlen=config["buffer_size"])
+
+        # Eval settings
+        self.eval_interval = 100
+        self.evaluation_treshold = 190
+        self.evaluation_episodes = 100
 
         # Initialize networks
         self.q_network = QNetwork(self.nn_architecture)
@@ -122,6 +120,9 @@ class DQN_Agent:
         """Store transition in replay buffer."""
         self.buffer.append((state, action, reward, next_state, done))
 
+    def update_epsilon(self):
+        self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
+
     def sample_batch(self):
         """Sample a batch from the replay buffer."""
         batch = random.sample(self.buffer, self.batch_size)
@@ -147,7 +148,6 @@ class DQN_Agent:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        #self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
 
         # Update target network if applicable
         self.step_count += 1
@@ -156,10 +156,11 @@ class DQN_Agent:
 
 
     def run(self, mode):
-
         rew_train = None
         rew_val = None
         rew_test = None
+
+        rew = None
 
         if mode == "train":
             rew_train = self.simulate_environment(self.num_episodes_train, "training")
@@ -173,19 +174,14 @@ class DQN_Agent:
 
 
     def simulate_environment(self, num_episodes, mode):
-
         rewards = []
-
         if mode == "training":
             training = True
         else:
             training = False
 
-        for episode in range(5):
-
+        for episode in range(num_episodes):
             state = self.env.reset(mode)
-
-
             reward_episode = 0
             done = False
 
@@ -200,20 +196,16 @@ class DQN_Agent:
                 state = next_state
                 reward_episode += reward
 
-                # if render:
-                # self.env.render()  # Call the render method
-
             rewards.append(reward_episode)
 
             if training:
-                self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
+                self.update_epsilon()
 
             self.wandb_run.log({"Reward per Episode": reward_episode})
             print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {reward_episode}")
 
-            # TODO: Raus?
-            '''if (episode + 1) % self.eval_interval == 0:
-                eval_reward = self.test(episodes=self.evaluation_episodes, model=self.q_network, eval=True)
+            if (episode + 1) % self.eval_interval == 0:
+                eval_reward = self.simulate_environment(num_episodes=num_episodes, mode = "validation")
                 average_eval_reward = np.mean(eval_reward)
                 print(f"Average Evaluation Reward: {average_eval_reward:.2f}")
 
@@ -222,6 +214,5 @@ class DQN_Agent:
                         f"Training terminated after {episode + 1} episodes as the target average reward was achieved.")
                     rewards = rewards[:episode + 1]
                     break
-                '''
 
         return rewards
