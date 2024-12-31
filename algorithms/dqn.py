@@ -7,6 +7,7 @@ import random
 
 from environment import Environment
 from utils import utils as ut
+from config import dqn_extensions
 
 class QNetwork(nn.Module):
     def __init__(self, nn_architecture):
@@ -54,41 +55,66 @@ class QNetwork(nn.Module):
 
 # Base Extension
 class BaseExtension:
-    def select_action(self, q_network, state, num_actions, epsilon, training=True):
-        if training and np.random.rand() < epsilon:
-            return np.random.randint(num_actions)
+    def __init__(self, agent):
+        """Initialize with a reference to the agent."""
+        self.agent = agent
+
+    def select_action(self, state, training=True):
+        """Default epsilon-greedy action selection."""
+        if training and np.random.rand() < self.agent.epsilon:
+            return np.random.randint(self.agent.num_actions)
         state = torch.FloatTensor(state).unsqueeze(0)
         with torch.no_grad():
-            q_values = q_network(state)
+            q_values = self.agent.q_network(state)
         return torch.argmax(q_values).item()
 
-    def compute_targets(self, rewards, next_states, dones, gamma, q_network, target_network):
-        q_targets_next = torch.max(target_network(next_states), dim=1)[0]
-        return rewards + (1 - dones) * gamma * q_targets_next
+    def compute_targets(self, rewards, next_states, dones):
+        """Default Q-value target computation."""
+        q_targets_next = torch.max(self.agent.target_network(next_states), dim=1)[0]
+        return rewards + (1 - dones) * self.agent.gamma * q_targets_next
+
+    def record(self, state, action, reward, next_state, done):
+        """Default replay buffer logic."""
+        self.agent.buffer.append((state, action, reward, next_state, done))
+
+    def sample_batch(self):
+        """Default sample logic."""
+        batch = random.sample(self.agent.buffer, self.agent.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+        return (
+            torch.FloatTensor(states),
+            torch.LongTensor(actions),
+            torch.FloatTensor(rewards),
+            torch.FloatTensor(next_states),
+            torch.FloatTensor(dones),
+        )
 
 # Double DQN Extension
 class DoubleDQNExtension(BaseExtension):
-    def compute_targets(self, rewards, next_states, dones, gamma, q_network, target_network):
-        next_actions = torch.argmax(q_network(next_states), dim=1)
-        q_targets_next = target_network(next_states).gather(1, next_actions.unsqueeze(1)).squeeze()
-        return rewards + (1 - dones) * gamma * q_targets_next
+    def compute_targets(self, rewards, next_states, dones):
+        """Double DQN target computation."""
+        next_actions = torch.argmax(self.agent.q_network(next_states), dim=1)
+        q_targets_next = self.agent.target_network(next_states).gather(1, next_actions.unsqueeze(1)).squeeze()
+        return rewards + (1 - dones) * self.agent.gamma * q_targets_next
 
 # Prioritized Replay Extension
 class PrioritizedReplayExtension(BaseExtension):
-    def __init__(self, buffer_size):
-        self.buffer = PrioritizedReplayBuffer(buffer_size)
+    def __init__(self, agent):
+        super().__init__(agent)
+        self.prioritized_buffer = PrioritizedReplayBuffer(agent.buffer.maxlen)
 
-    def record(self, state, action, reward, next_state, done, q_network, gamma):
-        td_error = abs(reward + gamma * torch.max(q_network(torch.FloatTensor(next_state))).item() - 
-                       q_network(torch.FloatTensor(state))[action].item())
-        self.buffer.add((state, action, reward, next_state, done), td_error)
+    def record(self, state, action, reward, next_state, done):
+        """Add transition with priority."""
+        td_error = abs(reward + self.agent.gamma * torch.max(self.agent.q_network(torch.FloatTensor(next_state))).item() -
+                       self.agent.q_network(torch.FloatTensor(state))[action].item())
+        self.prioritized_buffer.add((state, action, reward, next_state, done), td_error)
 
-    def sample_batch(self, batch_size):
-        return self.buffer.sample(batch_size)
+    def sample_batch(self):
+        """Sample from prioritized buffer."""
+        return self.prioritized_buffer.sample(self.agent.batch_size)
 
 # Extension Registry
 EXTENSION_REGISTRY = {
-    "default": BaseExtension,
     "double": DoubleDQNExtension,
     "priority": PrioritizedReplayExtension,
 }
@@ -102,16 +128,6 @@ class DQN_Agent:
         self.num_episodes_train = config["num_episodes_train"]
         self.num_episodes_validate = config["num_episodes_validate"]
         self.num_episodes_test = config["num_episodes_test"]
-
-        # Extensions
-        self.extension_name = config.get("extension", "default")
-
-        # Load the selected extension
-        ExtensionClass = EXTENSION_REGISTRY[self.extension_name]
-        if self.extension_name == "priority":
-            self.extension = ExtensionClass(config["buffer_size"])
-        else:
-            self.extension = ExtensionClass()
 
         # Hyperparams
         self.nn_architecture = config["nn_architecture"]
@@ -134,9 +150,15 @@ class DQN_Agent:
         self.target_network = QNetwork(self.nn_architecture)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=self.learning_rate)
         self.loss_fn = nn.MSELoss()
-        
-        # Sync target network
         self.update_target_weights()
+
+        # Initialize extensions
+        self.extensions = []
+        for ext_name in config.get("extensions", []):
+            ExtensionClass = EXTENSION_REGISTRY[ext_name]
+            self.extensions.append(ExtensionClass(self))
+
+
         self.step_count = 0
 
     def load_weights(self, path):
@@ -187,7 +209,7 @@ class DQN_Agent:
         """Perform one training step."""
         if len(self.buffer) < self.batch_size:
             return
-        
+
         states, actions, rewards, next_states, dones = self.sample_batch()
         q_targets = rewards + (1 - dones) * self.gamma * torch.max(self.target_network(next_states), dim=1)[0]
         q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()

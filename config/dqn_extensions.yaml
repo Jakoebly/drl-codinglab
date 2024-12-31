@@ -1,0 +1,8 @@
+EXTENSION_REGISTRY:
+    "default": BaseExtension,
+    "double": DoubleDQNExtension
+    "priority": PrioritizedReplayExtension
+    "dueling": DuelingDQNExtension
+    "noisy": NoisyDQNExtension
+    "distributional": DistributionalDQNExtension
+    "multi-step": MultiStepExtension
