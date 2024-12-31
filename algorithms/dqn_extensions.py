@@ -12,9 +12,7 @@ from config import dqn_extensions
 class QNetwork(nn.Module):
     def __init__(self, nn_architecture):
         super().__init__()
-
         layers = []
-
         for i in range(len(nn_architecture) - 1):
             in_size, activation = nn_architecture[i]
             out_size, _ = nn_architecture[i + 1]
@@ -29,7 +27,6 @@ class QNetwork(nn.Module):
                 layers.append(nn.Tanh())
             else:
                 raise ValueError(f"Unsupported activation function: {activation}")
-
 
         last_in_size, last_activation = nn_architecture[-1]
         layers.append(nn.Linear(last_in_size, last_in_size))
@@ -49,10 +46,10 @@ class QNetwork(nn.Module):
         return self.model(x)
     
 class PrioritizedReplayBuffer:
-    def __init__(self, capacity, alpha=0.6):
+    def __init__(self, capacity, alpha=0.75):
         """Initialize the buffer."""
         self.capacity = capacity
-        self.alpha = alpha  # Controls how much prioritization to use (0 = uniform sampling).
+        self.alpha = alpha
         self.buffer = []
         self.priorities = deque(maxlen=capacity)
         self.pos = 0
@@ -237,8 +234,6 @@ class NoisyQNetwork(nn.Module):
             if isinstance(module, NoisyLinear):
                 module.reset_noise()
 
-
-
 # TODO:
 # - validate extension string and implement extensions based on this parameter
 # - evtl. unterschiedliche nn_architectures für q and target network
@@ -416,8 +411,6 @@ class NoisyDQNExtension(BaseImplementation):
         self.agent.q_network.reset_noise()
         self.agent.target_network.reset_noise()
 
-
-# Extension Registry
 EXTENSION_REGISTRY = {
     "double": DoubleDQNExtension,
     "priority": PrioritizedReplayExtension,
@@ -465,7 +458,6 @@ class DQN_Agent:
         for ext_name in config.get("extensions", []):
             ExtensionClass = EXTENSION_REGISTRY[ext_name]
             self.extensions.append(ExtensionClass(self))
-
 
         self.step_count = 0
 
