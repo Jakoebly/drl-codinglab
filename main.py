@@ -21,25 +21,17 @@ from algorithms.ppo import PPO_Agent
 
 
 if __name__ == "__main__":
-
     # Get args
     args = args.parse_args()
 
     # Set seeds
-    seed = 42
-    ut.set_seeds(seed, args.to)
+    ut.set_seeds(settings.SEED, args.to)
 
     # Set device variable for CUDA usage
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # Set run_name
     run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{args.experiment_name}"
-
-    # Set data dir
-    data_dir = settings.data_dir
-
-    # Set best dir
-    best_dir = settings.best_dir
 
     # Set run-specific variables from args
     algorithm = args.algorithm.upper()
@@ -48,24 +40,21 @@ if __name__ == "__main__":
     best = args.best
     model_name = args.model_name
     if best:
-        model_name = ut.load_best(best_dir, variant, algorithm)
+        model_name = ut.load_best(settings.BEST_DIR, variant, algorithm)
 
-
-    # Make environment
-    env = Environment(variant, data_dir)
-
+    # Create environment
+    env = Environment(variant, settings.DATA_DIR)
 
     # Set config directory to the general config folder in case of training
-    config_dir = "./config"
+    CONFIG_DIR = settings.CONFIG_DIR
+
     # Set config directory to the folder associated with the model's training run in case of validating/testing
     if mode in ["validate", "test"]:
-        model_dir = f"./logs/Variant_{variant}/{algorithm}/{model_name}"
-        config_dir = model_dir
-
+        MODEL_DIR = f"./logs/Variant_{variant}/{algorithm}/{model_name}"
+        CONFIG_DIR = MODEL_DIR
 
     # Load config
-    config = ut.load_config(env, config_dir, algorithm)
-
+    config = ut.load_config(env, CONFIG_DIR, algorithm)
 
     # Initialize wandb run
     wandb_run = None
@@ -81,7 +70,6 @@ if __name__ == "__main__":
             job_type=f"{mode}/validate" if mode == "train" else mode
         )
 
-
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":
         agent = DQN_Agent(wandb_run, env, config, device)
@@ -90,26 +78,19 @@ if __name__ == "__main__":
     elif algorithm == "SAC":
         agent = SAC_Agent(env, config).to(device)
 
-
     # Load weights if validating/testing
     if mode in ["validate", "test"]:
-        agent.load_weights(f"{model_dir}/model.pt")
-
+        agent.load_weights(f"{MODEL_DIR}/model.pt")
 
     # Perform training, validation or testing
     rewards = agent.run(mode)
 
     # Update best model
-    ut.update_best(algorithm, variant, rewards, model_name, run_name, best_dir)
+    ut.update_best(algorithm, variant, rewards, model_name, run_name, settings.BEST_DIR)
 
     # Log the run
     if args.save:
-        ut.save_run_info(rewards, config, config_dir, agent, algorithm, variant, mode, run_name)
+        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name)
 
     # Finish wandb run
     wandb_run.finish()
-
-
-
-
-

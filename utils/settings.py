@@ -1,5 +1,11 @@
 # Set data path
-data_dir = "./data"
+DATA_DIR = "./data"
 
 # Set best path
-best_dir = "./algorithms/best.yaml"
+BEST_DIR = "./algorithms/best.yaml"
+
+# Set config path
+CONFIG_DIR = "./config"
+
+# Base Seed
+SEED = 42

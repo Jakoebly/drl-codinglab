@@ -5,7 +5,6 @@ import torch
 import yaml
 import numpy as np
 
-
 # Set seeds
 def set_seeds(seed, torch_deterministic):
     os.environ["PYTHONHASHSEED"] = str(seed)
@@ -14,9 +13,6 @@ def set_seeds(seed, torch_deterministic):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
-
-
-
 
 # Load new or existing config depending on training or validation/testing
 def load_config(env, config_dir, algorithm):
