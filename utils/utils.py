@@ -14,7 +14,13 @@ def set_seeds(seed, torch_deterministic):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
 
+def compile_architecture(num_neurons, num_layers, activation):
+    architecture = []
 
+    for i in range(num_layers):
+        architecture.append((num_neurons, activation))
+
+    return architecture
 
 # Load new or existing config depending on training or validation/testing
 def load_config(env, config_dir, algorithm):
@@ -45,11 +51,11 @@ def load_config(env, config_dir, algorithm):
         config["avg_test_reward"] = None
 
         # Adjust nn_architecture
-        config["nn_architecture_actor"][0][0] = config["state_size"]
-        config["nn_architecture_actor"][-1][0] = config["num_actions"]
-        config["nn_architecture_critic"][0][0] = config["state_size"]
-        config["nn_architecture_critic"][-1][0] = 1
-
+        if algorithm == "DQN":
+            pass
+        if algorithm == "PPO":
+            config["nn_architecture_actor"] = compile_architecture(config["num_neurons_actor"], config["num_layers_actor"], config["activation_actor"])
+            config["nn_architecture_critic"] = compile_architecture(config["num_neurons_critic"], config["num_layers_critic"], config["activation_critic"])
 
     # Load existing config for validation/test run
     else:

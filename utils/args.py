@@ -21,6 +21,8 @@ def parse_args():
 
     # WandB args
     parser.add_argument("--track", type=bool, default=False, nargs="?", const=True, help="If toggled, the run will be tracked with WandB")
+    # TODO: validate arg
+    parser.add_argument("--sweep", type=bool, default=False, nargs="?", const=True, help="If toggled, a sweep will be initilized")
     parser.add_argument("--wandb_projectname", type=str, default="Coding_Lab", help="WandB's project name")
     parser.add_argument("--wandb_entity", type=str, default="gowiththetensorflow", help="Entity (team) of WandB's project")
     # TODO: check if this works with the renderer

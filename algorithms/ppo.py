@@ -5,38 +5,24 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
-
-
-from typing import List, Tuple
-import pandas as pd
-import tensorflow as tf
-from tensorflow import keras
-import tensorflow_probability as tfp
-from keras import layers, optimizers
-from environment import Environment
-import matplotlib.pyplot as plt
+import wandb
 
 # TODO:
-# - inform what is meant with .to(device) and eventually adjust in code
-# - different nn_architecture for Actor and Critic and only one Network class
-# - different learning_rate for Actor and Critic
-# - adjust validate last act. function
-# - if too slow, try to call memory.store only once after each trajectory and insert tensors
 # - see how performance differs if actor and critic loss are separated
 # - try out value loss clipping: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/ point 9
 # - vectorize implementation (i.e., collect data from multiple envs during rollout)
-# - adjust hyperparams
-# - set up all relevant parameters for wandb tracking
-# - train step as separate function
 
 # EXTENSIONS / ADJUSTMENTS
 # - one total loss function (implemented)
 # - advantage normalization (implemented)
 # - value loss clipping (not implemented)
 # - learning rate annealing (not implemented)
-# - entropy coeffcient annealint (not implemented)
+# - entropy coeffcient annealing (not implemented)
 # - global gradient clipping (implemented)
 # - early stopping (not implemented)
+
+# DEBUG IDEAS
+# -
 
 
 class PPOMemory:
@@ -96,6 +82,60 @@ class PPOMemory:
         batches = [indices[i:i + minibatch_size] for i in batch_start_ind]
 
         return batches
+
+class BuildNetwork(nn.Module):
+    def __init__(self, nn_architecture, input_size, output_size, learning_rate, device):
+        super().__init__()
+
+        # Initialize an empty list to fill with layer info
+        layers = []
+
+        # Add input layer using nn.Linear
+        in_size = input_size
+        out_size, _ = nn_architecture[0]
+        layers.append(nn.Linear(in_size, out_size))
+
+        # Iteratively add hidden layers with layer info from the nn_architecture parameter
+        for i in range(len(nn_architecture) - 1):
+
+            # Load layer size and activation function
+            in_size, activation = nn_architecture[i]
+            out_size, _ = nn_architecture[i + 1]
+
+            # Add layer to list layers using nn.Linear
+            layers.append(nn.Linear(in_size, out_size))
+
+            # Add activation function to list layers
+            if activation.lower() == "relu":
+                layers.append(nn.ReLU())
+            elif activation.lower() == "sigmoid":
+                layers.append(nn.Sigmoid())
+            elif activation.lower() == "tanh":
+                layers.append(nn.Tanh())
+            elif activation.lower() == "linear":
+                pass
+            else:
+                raise ValueError(f"Unsupported activation function: {activation}")
+
+        # Add output layer using nn.Linear
+        last_in_size, last_activation = nn_architecture[-1]
+        layers.append(nn.Linear(last_in_size, output_size))
+
+        # Create network using the layer info
+        self.model = nn.Sequential(*layers)
+
+        # Set optimizer
+        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+
+        # Move model to device
+        self.to(device)
+
+    def forward(self, state):
+
+        # Output unactivated outputs given a state
+        output = self.model(state)
+
+        return output
 
 class ActorNetwork(nn.Module):
     def __init__(self, nn_architecture, learning_rate, device):
@@ -209,13 +249,12 @@ class CriticNetwork(nn.Module):
 
 
 class PPO_Agent():
-    def __init__(self, wandb_run, env, config, device):
+    def __init__(self, env, config, device):
 
         self.device = device
-        self.wandb_run = wandb_run
         self.env = env
 
-        # General hyperparams
+        # General
         self.state_size = config["state_size"]
         self.num_actions = config["num_actions"]
         self.num_episodes_train = config["num_episodes_train"]
@@ -231,7 +270,8 @@ class PPO_Agent():
         # Hyperparameters
         self.nn_architecture_actor = config["nn_architecture_actor"]
         self.nn_architecture_critic = config["nn_architecture_critic"]
-        self.learning_rate = config["learning_rate"]
+        self.learning_rate_actor = config["learning_rate_actor"]
+        self.learning_rate_critic = config["learning_rate_critic"]
         self.gamma = config["gamma"]
         self.lam = config["lam"]
         self.clip_ratio = config["clip_ratio"]
@@ -241,14 +281,12 @@ class PPO_Agent():
         self.entropy_coef_decay = config["entropy_coef_decay"]
         self.max_grad_norm = config["max_grad_norm"]
 
-
-
         # Memory Initialization
         self.memory = PPOMemory(self.batch_size, self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
 
         # Network Initialization
-        self.actor = ActorNetwork(self.nn_architecture_actor, self.learning_rate, self.device)
-        self.critic = CriticNetwork(self.nn_architecture_critic, self.learning_rate, self.device)
+        self.actor = BuildNetwork(self.nn_architecture_actor, self.state_size, self.num_actions, self.learning_rate_actor, self.device)
+        self.critic = BuildNetwork(self.nn_architecture_critic, self.state_size, 1, self.learning_rate_critic, self.device)
 
     def load_weights(self, path):
         self.actor.load_state_dict(torch.load(path))
@@ -258,24 +296,34 @@ class PPO_Agent():
         torch.save(self.actor.state_dict(), path)
 
     def get_action(self, state):
-        dist = self.actor(state)
+
+        # Output logits given a state
+        logits = self.actor(state)
+
+        # Create a Categorical distribution from the output
+        dist = Categorical(logits=logits)
+
         action = dist.sample()
         log_prob = dist.log_prob(action)
+
         return action, log_prob
 
     def get_value(self, state):
+
+        # Output value give a state
         value = self.critic(state)
+
         return value
 
     def calc_advantage(self, values, next_states, rewards, dones, device):
         with torch.no_grad():
+
             # Initialize advantages and returns
             advantages = torch.zeros_like(values).to(device)
             returns = torch.zeros_like(values).to(device)
 
             # Last advantage accumulator
             advantage = torch.zeros(self.num_trajectories).to(device)
-
 
             # Iterate in reverse over time steps
             for t in reversed(range(self.num_steps_trajectory)):
@@ -299,6 +347,74 @@ class PPO_Agent():
 
         return advantages, returns
 
+    def compute_loss(self, states_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb):
+
+        # Compute prob_ratio
+        logits = self.actor(states_mb)
+
+        dist = Categorical(logits=logits)
+
+        new_logprobs_mb = dist.log_prob(actions_mb)
+        prob_ratio = (new_logprobs_mb - old_logprobs_mb).exp()
+        clipped_prob_ratio = torch.clamp(prob_ratio, 1 - self.clip_ratio, 1 + self.clip_ratio)
+
+        # Compute entropy loss
+        entropy = dist.entropy()
+        entropy_loss = entropy.mean()
+
+        # Compute PPO objective function
+        actor_loss = -(torch.min(advantages_norm_mb * prob_ratio, advantages_norm_mb * clipped_prob_ratio).mean())
+
+        # Compute value loss
+        critic_values = self.critic(states_mb)
+        critic_loss = ((critic_values - returns_mb) ** 2).mean()
+
+        # Compute total loss
+        total_loss = actor_loss + self.value_coef * critic_loss - self.entropy_coef * entropy_loss
+
+        return total_loss, actor_loss, critic_loss, entropy_loss
+
+
+    def update_networks(self):
+
+        # Compute advantages and returns
+        advantages, returns = self.calc_advantage(self.memory.values, self.memory.next_states, self.memory.rewards, self.memory.dones, self.device)
+        self.memory.advantages = advantages
+        self.memory.returns = returns
+
+        # Flatten memory
+        states, actions, old_logprobs, advantages, returns, values, = self.memory.flatten(self.state_size)
+
+        for epoch in range(self.num_epochs):
+
+            # Generate batches
+            batches = self.memory.generate_batches(self.batch_size, self.minibatch_size)
+
+            for minibatch in batches:
+                # States, logprobs, action, returns for the current minibatch
+                states_mb = states[minibatch]
+                old_logprobs_mb = old_logprobs[minibatch]
+                actions_mb = actions[minibatch]
+                returns_mb = returns[minibatch]
+                values_mb = values[minibatch]
+
+                # Advantage normalization for the current minibatch
+                advantages_mb = advantages[minibatch]
+                advantages_norm_mb = (advantages_mb - advantages_mb.mean()) / (advantages_mb.std() + 1e-8)
+
+                total_loss, actor_loss, critic_loss, entropy_loss = self.compute_loss(states_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb)
+
+                # Perform updates
+                self.actor.optimizer.zero_grad()
+                self.critic.optimizer.zero_grad()
+                total_loss.backward()
+                nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+                nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
+                self.actor.optimizer.step()
+                self.critic.optimizer.step()
+
+                return total_loss, actor_loss, critic_loss, entropy_loss
+
     def run(self, mode, num_episodes):
 
         rewards = []
@@ -321,8 +437,10 @@ class PPO_Agent():
             # Keep track of the number of trajectories per policy rollout
             trajectory = episode % self.num_trajectories
 
+            # Reset environment
             state = torch.tensor(self.env.reset(mode), dtype=torch.float32).to(self.device)
 
+            # Perform one trajectory
             for step in range(self.num_steps_trajectory):
 
                 # Perform one environment step
@@ -332,98 +450,40 @@ class PPO_Agent():
                     reward, next_state, done = self.env.step(action)
                 reward_episode += reward
 
-
                 # Transform to tensors
                 reward = torch.tensor([reward]).to(self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32).to(self.device)
                 done = torch.tensor([done]).to(self.device)
 
+                # Keep track of rollout data in case of training
                 if training:
                     self.memory.store(state, action, log_prob, value, reward, next_state, done, trajectory, step)
 
+                # Update state for next step
                 state = next_state
 
-                self.env.update_render()
+                # Update render
+                # self.env.update_render()
 
+            # Append episodic reward
             rewards.append(reward_episode)
 
+            average_reward = np.mean(rewards)
+
+            # Perform update step with rollout data and clear memory afterwards for new rollout phase
             if training and trajectory == self.num_trajectories - 1:
 
-                # Compute advantages and returns
-                advantages, returns = self.calc_advantage(self.memory.values, self.memory.next_states, self.memory.rewards, self.memory.dones, self.device)
-                self.memory.advantages = advantages
-                self.memory.returns = returns
-
-                # Flatten memory
-                states, actions, old_logprobs, advantages, returns, values, = self.memory.flatten(self.state_size)
-
-                for epoch in range(self.num_epochs):
-
-                    # Generate batches
-                    batches = self.memory.generate_batches(self.batch_size, self.minibatch_size)
-
-                    for minibatch in batches:
-
-                        # States, logprobs, action, returns for the current minibatch
-                        states_mb = states[minibatch]
-                        old_logprobs_mb = old_logprobs[minibatch]
-                        actions_mb = actions[minibatch]
-                        returns_mb = returns[minibatch]
-                        values_mb = values[minibatch]
-
-                        # Advantage normalization for the current minibatch
-                        advantages_mb = advantages[minibatch]
-                        advantages_norm_mb = (advantages_mb - advantages_mb.mean()) / (advantages_mb.std() + 1e-8)
-
-
-                        # Compute prob_ratio
-                        dist = self.actor(states_mb)
-                        new_logprobs_mb = dist.log_prob(actions_mb)
-                        prob_ratio = (new_logprobs_mb - old_logprobs_mb).exp()
-                        clipped_prob_ratio = torch.clamp(prob_ratio, 1 - self.clip_ratio, 1 + self.clip_ratio)
-
-                        # Compute entropy loss
-                        entropy = dist.entropy()
-                        entropy_loss = entropy.mean()
-
-                        # Compute PPO objective function
-                        actor_loss = torch.max(-advantages_norm_mb * prob_ratio, -advantages_norm_mb * clipped_prob_ratio).mean()
-
-                        # Compute value loss
-                        critic_values = self.critic(states_mb)
-                        critic_loss = ((critic_values - returns_mb) ** 2).mean()
-
-                        # Compute total loss
-                        total_loss = actor_loss + self.value_coef * critic_loss - self.entropy_coef * entropy_loss
-
-                        # Perform updates
-                        self.actor.optimizer.zero_grad()
-                        self.critic.optimizer.zero_grad()
-                        total_loss.backward()
-                        nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
-                        nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
-                        self.actor.optimizer.step()
-                        self.critic.optimizer.step()
-
-                y_pred, y_true = values.cpu().numpy(), returns.cpu().numpy()
-                var_y = np.var(y_true)
-                explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-
-                self.wandb_run.log({"Losses/Explained Var": explained_var}, episode)
+                total_loss, actor_loss, critic_loss, entropy_loss = self.update_networks()
 
                 self.memory.clear(self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
 
-
-
-            if self.wandb_run is not None:
-                self.wandb_run.log({"Charts/Reward per Episode": reward_episode}, episode)
-
-                self.wandb_run.log({"Losses/Total Loss": total_loss}, episode)
-                self.wandb_run.log({"Losses/Actor Loss": actor_loss}, episode)
-                self.wandb_run.log({"Losses/Critic Loss": critic_loss}, episode)
-                self.wandb_run.log({"Losses/Entropy": entropy_loss}, episode)
-
-
+            # Log relevant data
+            wandb.log({"Charts/Average Reward": average_reward}, episode)
+            wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
+            wandb.log({"Losses/Total Loss": total_loss}, episode)
+            wandb.log({"Losses/Actor Loss": actor_loss}, episode)
+            wandb.log({"Losses/Critic Loss": critic_loss}, episode)
+            wandb.log({"Losses/Entropy": entropy_loss}, episode)
 
             print(f"EPISODE: {episode + 1} / {num_episodes}, Total Reward: {reward_episode}")
 

@@ -19,30 +19,28 @@ DQN:
     - [000, "linear"]
 
 PPO:
-  learning_rate: 0.001
+  learning_rate_actor: 0.0001
+  learning_rate_critic: 0.0001
   gamma: 0.99
   lam: 0.95
   clip_ratio: 0.3
-  value_coef: 0.5
-  entropy_coef: 0.01
+  value_coef: 0.8
+  entropy_coef: 0.3
   entropy_coef_min: 000
   entropy_coef_decay: 000
-  num_trajectories: 1
-  num_epochs: 4
+  num_trajectories: 20
+  num_epochs: 2
   num_minibatches: 4
   max_grad_norm: 0.5
-  nn_architecture_actor:
-    - [ 000, "tanh" ]
-    - [ 128, "tanh" ]
-    - [ 128, "tanh" ]
-    - [ 000, "softmax" ]
-  nn_architecture_critic:
-    - [ 000, "tanh" ]
-    - [ 256, "tanh" ]
-    - [ 256, "tanh" ]
-    - [ 256, "tanh" ]
-    - [ 256, "tanh" ]
-    - [ 000, "linear" ]
+  num_neurons_actor: 128
+  num_layers_actor: 3
+  activation_actor: "relu"
+  num_neurons_critic: 256
+  num_layers_critic: 5
+  activation_critic: "relu"
+  nn_architecture_actor: # Place Holder
+  nn_architecture_critic: # Place Holder
+
 
 
 SAC:
