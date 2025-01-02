@@ -14,6 +14,8 @@ def set_seeds(seed, torch_deterministic):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
 
+
+
 # Load new or existing config depending on training or validation/testing
 def load_config(env, config_dir, algorithm):
 
@@ -43,8 +45,10 @@ def load_config(env, config_dir, algorithm):
         config["avg_test_reward"] = None
 
         # Adjust nn_architecture
-        config["nn_architecture"][0][0] = config["state_size"]
-        config["nn_architecture"][-1][0] = config["num_actions"]
+        config["nn_architecture_actor"][0][0] = config["state_size"]
+        config["nn_architecture_actor"][-1][0] = config["num_actions"]
+        config["nn_architecture_critic"][0][0] = config["state_size"]
+        config["nn_architecture_critic"][-1][0] = 1
 
 
     # Load existing config for validation/test run

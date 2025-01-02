@@ -1,4 +1,5 @@
 import random
+from datetime import datetime
 import numpy as np
 import os
 from typing import List, Tuple
@@ -9,6 +10,7 @@ import tensorflow_probability as tfp
 from keras import layers, optimizers
 from environment import Environment
 import matplotlib.pyplot as plt
+import wandb
 
 
 # TODO: extensions: LR annealing, advantage normalization
@@ -184,6 +186,7 @@ class PPOAgent:
 
     # TODO: ChatGPT fragen wie tf.function compatible
     def calc_advantage(self, values, next_values, rewards, dones):
+
         advantages = np.zeros_like(values)
         returns = np.zeros_like(values)
         advantage = 0
@@ -209,7 +212,7 @@ class PPOAgent:
         return advantages, returns
 
     # @tf.function
-    def update_actor(self, data):
+    def update_actor(self, data, episode):
         for mini_batch in data:
 
             states, actions, old_log_probs, advantages = mini_batch['states'], mini_batch['actions'], mini_batch['log_probs'], mini_batch['advantages']
@@ -231,10 +234,14 @@ class PPOAgent:
             actor_grads = tape.gradient(actor_loss, self.actor.trainable_variables)
 
             self.actor_optimizer.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
+
+            wandb_run.log({"Losses/Actor Loss": actor_loss}, episode)
+            wandb_run.log({"Losses/Entropy Loss": entropy}, episode)
+
         print("Updated Actor")
 
     # @tf.function
-    def update_critic(self, data):
+    def update_critic(self, data, episode):
         for mini_batch in data:
 
             states, returns = mini_batch['states'], mini_batch['returns']
@@ -243,9 +250,12 @@ class PPOAgent:
                 values = self.critic(states)
                 critic_loss = tf.reduce_mean(tf.square(values - returns))
 
+
             critic_grads = tape.gradient(critic_loss, self.critic.trainable_variables)
 
             self.critic_optimizer.apply_gradients(zip(critic_grads, self.critic.trainable_variables))
+
+            wandb_run.log({"Losses/Critic Loss": critic_loss}, episode)
         print("Updated Critic")
 
 
@@ -308,7 +318,8 @@ class GymEnvironment:
 
                 state = next_state
 
-                # self.env.render()
+
+                # self.env.renderer.render()
 
             if training and step % self.num_trajectories == 0:
 
@@ -328,22 +339,17 @@ class GymEnvironment:
 
                 dataset_actor, dataset_critic = agent.memory.generate_batches(self.batch_size, self.minibatch_size, self.num_epochs)
 
-                agent.update_actor(dataset_actor)
-                agent.update_critic(dataset_critic)
+                agent.update_actor(dataset_actor, step)
+                agent.update_critic(dataset_critic, step)
 
                 # Update entropy bonus
                 # agent.entropy_bonus = max(agent.entropy_bonus_min, agent.entropy_bonus * agent.entropy_bonus_decay)
 
                 agent.memory.clear()
 
-            if rew_trajectory > best:
-                print("start saving")
-                agent.save_weights()
-                best = rew_trajectory
-
             rew_episode.append(rew_trajectory)
-            print(rew_episode[-20:])
 
+            wandb_run.log({"Charts/Reward per Episode": rew_trajectory})
         return rew_episode
 
 
@@ -362,7 +368,7 @@ if __name__ == "__main__":
     num_updates = num_episodes // num_trajectories
 
     nn_architecture = [128, 128, 128]
-    state_size = 159
+    state_size = 161
     num_actions = 5
     learning_rate = 0.00015
     gamma = 0.99
@@ -392,6 +398,19 @@ if __name__ == "__main__":
     }
 
     data_dir = "../data"
+    exp_name = datetime.now().strftime("%Y%m%d_%H%M")
+    run_name = f"CL__PPO__Var0__{exp_name}"
+
+    wandb_run = wandb.init(
+        entity="gowiththetensorflow",
+        project="Coding_Lab",
+        config=agent_hyperparameters,
+        name=run_name,
+        save_code=True,
+        group="PPO",
+        tags=["0"],
+        job_type="train/validate"
+    )
 
     GymEnvironment = GymEnvironment(variant=0, data_dir=data_dir, agent_hyperparameters=agent_hyperparameters, mode="training")
 

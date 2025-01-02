@@ -1,11 +1,12 @@
-# Set data base path
+# Set base Seed
+SEED = 43
+
+# Set data directory
 DATA_DIR = "./data"
 
-# Set best base path
+# Set best model directory
 BEST_DIR = "./algorithms/best.yaml"
 
-# Set config base path
+# Set config directory
 CONFIG_DIR = "./config"
 
-# Set base Seed
-SEED = 42

@@ -7,8 +7,8 @@ DQN:
   learning_rate: 0.00001
   batch_size: 64
   target_update_interval: 150
-  eval_interval: 1000
   buffer_size: 80000
+  eval_interval: 100
   evaluation_treshold: 190
   evaluation_episodes: 50
   nn_architecture:
@@ -19,22 +19,30 @@ DQN:
     - [000, "linear"]
 
 PPO:
-  learning_rate: 000
-  gamma: 000
-  lam: 000
-  clip_ratio: 000
-  entropy_bonus: 000
-  entropy_bonus_min: 000
-  entropy_bonus_decay: 000
-  num_trajectories: 5
-  num_epochs: 000
-  num_minibatches: 10
-  nn_architecture:
-    - [ 000, "relu" ]
-    - [ 256, "relu" ]
-    - [ 256, "relu" ]
-    - [ 256, "relu" ]
+  learning_rate: 0.001
+  gamma: 0.99
+  lam: 0.95
+  clip_ratio: 0.3
+  value_coef: 0.5
+  entropy_coef: 0.01
+  entropy_coef_min: 000
+  entropy_coef_decay: 000
+  num_trajectories: 1
+  num_epochs: 4
+  num_minibatches: 4
+  max_grad_norm: 0.5
+  nn_architecture_actor:
+    - [ 000, "tanh" ]
+    - [ 128, "tanh" ]
+    - [ 128, "tanh" ]
     - [ 000, "softmax" ]
+  nn_architecture_critic:
+    - [ 000, "tanh" ]
+    - [ 256, "tanh" ]
+    - [ 256, "tanh" ]
+    - [ 256, "tanh" ]
+    - [ 256, "tanh" ]
+    - [ 000, "linear" ]
 
 
 SAC:

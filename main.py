@@ -25,13 +25,17 @@ if __name__ == "__main__":
     args = args.parse_args()
 
     # Set seeds
-    ut.set_seeds(settings.SEED, args.to)
+    ut.set_seeds(settings.SEED, args.torch_deterministic)
 
     # Set device variable for CUDA usage
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # Set run_name
     run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{args.experiment_name}"
+
+    # Load directories from settings
+    BEST_DIR = settings.BEST_DIR
+    DATA_DIR = settings.DATA_DIR
 
     # Set run-specific variables from args
     algorithm = args.algorithm.upper()
@@ -40,10 +44,10 @@ if __name__ == "__main__":
     best = args.best
     model_name = args.model_name
     if best:
-        model_name = ut.load_best(settings.BEST_DIR, variant, algorithm)
+        model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
     # Create environment
-    env = Environment(variant, settings.DATA_DIR)
+    env = Environment(variant, DATA_DIR, render=False)
 
     # Set config directory to the general config folder in case of training
     CONFIG_DIR = settings.CONFIG_DIR
@@ -61,7 +65,7 @@ if __name__ == "__main__":
     if args.track:
         wandb_run = wandb.init(
             entity=args.wandb_entity,
-            project=args.wandb_project_name,
+            project=args.wandb_projectname,
             config=config,
             name=run_name,
             save_code=True,
@@ -83,10 +87,22 @@ if __name__ == "__main__":
         agent.load_weights(f"{MODEL_DIR}/model.pt")
 
     # Perform training, validation or testing
-    rewards = agent.run(mode)
+    rew_train = None
+    rew_val = None
+    rew_test = None
+
+    if mode == "train":
+        rew_train = agent.run("training", config["num_episodes_train"])
+        rew_val = agent.run("validation", config["num_episodes_validate"])
+    if mode == "validate":
+        rew_val = agent.run("validation", config["num_episodes_validate"])
+    elif mode == "test":
+        rew_test = agent.run("testing", config["num_episodes_test"])
+
+    rewards = (rew_train, rew_val, rew_test)
 
     # Update best model
-    ut.update_best(algorithm, variant, rewards, model_name, run_name, settings.BEST_DIR)
+    ut.update_best(algorithm, variant, rewards, model_name, run_name, BEST_DIR)
 
     # Log the run
     if args.save:
