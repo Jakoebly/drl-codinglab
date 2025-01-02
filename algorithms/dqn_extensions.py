@@ -7,9 +7,18 @@ import random
 
 from environment import Environment
 from utils import utils as ut
-from config import dqn_extensions
+from dqn_extensions import (
+    DoubleDQNExtension,
+    PrioritizedReplayExtension,
+    DuelingDQNExtension,
+    MultiStepExtension,
+    DistributionalDQNExtension,
+    NoisyDQNExtension,
+)
 
 class QNetwork(nn.Module):
+    #TODO: NN Functions Auslagern
+    #TODO: Add CNN support
     def __init__(self, nn_architecture):
         super().__init__()
         layers = []
@@ -46,7 +55,7 @@ class QNetwork(nn.Module):
         return self.model(x)
     
 class PrioritizedReplayBuffer:
-    def __init__(self, capacity, alpha=0.75):
+    def __init__(self, capacity, alpha = 0.75):
         """Initialize the buffer."""
         self.capacity = capacity
         self.alpha = alpha
@@ -76,7 +85,6 @@ class PrioritizedReplayBuffer:
         indices = np.random.choice(len(self.buffer), batch_size, p=probs)
         samples = [self.buffer[i] for i in indices]
 
-        # Compute importance sampling weights
         weights = (len(self.buffer) * probs[indices]) ** -beta
         weights /= weights.max()
 
@@ -87,15 +95,14 @@ class PrioritizedReplayBuffer:
             torch.FloatTensor(rewards),
             torch.FloatTensor(next_states),
             torch.FloatTensor(dones),
-            torch.FloatTensor(weights),  # Importance-sampling weights
-            indices,  # For priority updates
+            torch.FloatTensor(weights),
+            indices,
         )
 
     def update_priorities(self, indices, priorities):
         """Update priorities for sampled experiences."""
         for idx, priority in zip(indices, priorities):
             self.priorities[idx] = priority ** self.alpha
-
 
 # Dueling Q-Network
 class DuelingQNetwork(nn.Module):
@@ -236,18 +243,16 @@ class NoisyQNetwork(nn.Module):
 
 # TODO:
 # - validate extension string and implement extensions based on this parameter
-# - evtl. unterschiedliche nn_architectures für q and target network
-# - evtl. training loop als for loop mit num_steps_trajectory anstatt mit while loop
 
-# Base Implementation
 class BaseImplementation:
     def __init__(self, agent):
         """Initialize with a reference to the agent."""
         self.agent = agent
 
-    def select_action(self, state, training=True):
+    def select_action(self, state, training = True):
+
         if training and np.random.rand() < self.epsilon:
-            action = np.random.randint(self.num_actions)
+            action = np.random.randint(self.action_size)
         else:
             state = torch.FloatTensor(state).unsqueeze(0)
             with torch.no_grad():
@@ -255,7 +260,7 @@ class BaseImplementation:
             action = torch.argmax(q_values).item()
 
         return action
-
+    
     def compute_targets(self, rewards, next_states, dones):
         """Default Q-value target computation."""
         q_targets_next = torch.max(self.agent.target_network(next_states), dim=1)[0]
@@ -271,24 +276,53 @@ class BaseImplementation:
         """Default sample logic."""
         batch = random.sample(self.agent.buffer, self.agent.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
+        weights = torch.ones(len(states))  # Default weights of 1
         return (
             torch.FloatTensor(states),
             torch.LongTensor(actions),
             torch.FloatTensor(rewards),
             torch.FloatTensor(next_states),
             torch.FloatTensor(dones),
+            torch.FloatTensor(weights),  # Always include weights
         )
 
-# Double DQN Extension
 class DoubleDQNExtension(BaseImplementation):
+    """
+    Implements Double Deep Q-Learning (Double DQN) to reduce overestimation bias in Q-value estimation.
+
+    Key Differences from Base DQN:
+    - **Decoupled Action Selection and Target Estimation**:
+      Double DQN uses the online network (q_network) to select the action:
+          next_action = argmax(Q_online(next_state))
+      and the target network (target_network) to estimate the Q-value for this action:
+          Q_target(next_state, next_action).
+    - **Reduced Overestimation Bias**:
+      By separating action selection and target estimation, Double DQN improves stability and 
+      performance, especially in noisy environments.
+    """
     def compute_targets(self, rewards, next_states, dones):
         """Double DQN target computation."""
         next_actions = torch.argmax(self.agent.q_network(next_states), dim=1)
         q_targets_next = self.agent.target_network(next_states).gather(1, next_actions.unsqueeze(1)).squeeze()
         return rewards + (1 - dones) * self.agent.gamma * q_targets_next
 
-# Prioritized Replay Extension
 class PrioritizedReplayExtension(BaseImplementation):
+    """
+    Implements Prioritized Experience Replay for Deep Q-Learning.
+
+    This extension enhances the standard replay buffer by assigning a priority to each
+    transition, allowing the agent to sample more significant experiences (based on TD error)
+    more frequently. Key features include:
+    
+    - **Priority Sampling**: Transitions with higher TD errors are sampled with higher probability.
+    - **Importance Sampling**: Adjusts the loss using weights to account for sampling bias.
+    - **Dynamic Priority Updates**: Updates priorities in the buffer after learning from sampled transitions.
+
+    Methods:
+    - `record`: Adds transitions to the prioritized buffer with their initial TD error.
+    - `sample_batch`: Samples transitions based on priority and provides importance sampling weights.
+    - `update_priorities`: Updates the priorities of sampled transitions.
+    """
     def __init__(self, agent):
         super().__init__(agent)
         self.prioritized_buffer = PrioritizedReplayBuffer(agent.buffer.maxlen)
@@ -316,8 +350,27 @@ class PrioritizedReplayExtension(BaseImplementation):
         """Update priorities based on new TD errors."""
         self.prioritized_buffer.update_priorities(self.last_sampled_indices, td_errors)
 
-# Dueling DQN Extension
 class DuelingDQNExtension(BaseImplementation):
+    """
+    Implements the Dueling Deep Q-Learning (Dueling DQN) extension.
+
+    This extension replaces the standard Q-network with a dueling network architecture,
+    which decomposes Q-value computation into:
+    - **Value Stream**: Estimates the value of being in a state, independent of actions.
+    - **Advantage Stream**: Estimates the advantage of each action relative to the state.
+
+    The Q-values are computed as:
+        Q(s, a) = V(s) + (A(s, a) - mean(A(s, a'))),
+    where V(s) is the value and A(s, a) is the advantage.
+
+    Benefits:
+    - Improves value estimation in states where the action has little impact.
+    - Leads to more stable learning in environments with large action spaces.
+
+    Key Methods:
+    - Initializes the dueling network architecture (`DuelingQNetwork`).
+    - Replaces the agent's Q-network and target network with the dueling architecture.
+    """
     def __init__(self, agent):
         super().__init__(agent)
         state_size = agent.state_size
@@ -425,7 +478,7 @@ class DQN_Agent:
         self.wandb_run = wandb_run
         self.env = env
         self.state_size = config["state_size"]
-        self.num_actions = config["num_actions"]
+        self.action_size = config["num_actions"]
         self.num_episodes_train = config["num_episodes_train"]
         self.num_episodes_validate = config["num_episodes_validate"]
         self.num_episodes_test = config["num_episodes_test"]
@@ -504,31 +557,31 @@ class DQN_Agent:
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, weights = batch
 
-        q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
         q_targets = rewards
+        q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
+        
         for extension in self.extensions:
             q_targets = extension.compute_targets(rewards, next_states, dones)
 
         td_errors = q_targets.detach() - q_values
+        # Weight == 1 for vanilla implementation!
         loss = (weights * td_errors ** 2).mean()
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
+        #TODO Def check_exentsions()
         for extension in self.extensions:
             if hasattr(extension, "update_priorities"):
                 extension.update_priorities(td_errors.detach().abs().numpy())
-
-        # Reset noise for NoisyDQN if applicable
-        for extension in self.extensions:
             if isinstance(extension, NoisyDQNExtension):
                 extension.reset_noise()
 
         self.step_count += 1
+
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
-
 
     def run(self, mode, num_episodes):
         rewards = []
