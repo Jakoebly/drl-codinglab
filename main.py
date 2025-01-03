@@ -79,8 +79,8 @@ if __name__ == "__main__":
         agent = DQN_Agent(wandb_run, env, config, device)
     elif algorithm == "PPO":
         agent = PPO_Agent(wandb_run, env, config, device)
-    elif algorithm == "SAC":
-        agent = SAC_Agent(env, config).to(device)
+    '''elif algorithm == "SAC":
+        agent = SAC_Agent(env, config).to(device)'''
 
     # Load weights if validating/testing
     if mode in ["validate", "test"]:

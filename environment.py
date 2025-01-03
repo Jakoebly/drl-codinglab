@@ -15,7 +15,7 @@ from copy import deepcopy
 from itertools import compress
 import numpy as np
 
-from Renderer.renderer import Renderer
+from renderer.renderer import Renderer
 
 # TODO: delete / move
 def manhatten_dist(pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
