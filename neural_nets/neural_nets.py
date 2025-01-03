@@ -77,7 +77,6 @@ class CNN(nn.Module):
             layers.append(self.get_activation(activation))
             input_channels = num_channels
 
-        # Calculate the flattened size for the fully connected layers
         fc_input_size = num_channels * height * width
         num_fc_layers = nn_architecture['num_fully_connected_layers']
         num_neurons = nn_architecture['num_neurons_fully_connected']
@@ -95,7 +94,7 @@ class CNN(nn.Module):
 
     def forward(self, x):
         x = x.contiguous()
-        x = x.reshape(x.size(0), -1)  # Flatten the tensor
+        x = x.reshape(x.size(0), -1)
         return self.model(x)
 
     @staticmethod
@@ -110,8 +109,6 @@ class CNN(nn.Module):
             return nn.Identity()
         else:
             raise ValueError(f"Unsupported activation function: {name}")
-
-
 
 
 '''class QNetwork(nn.Module):

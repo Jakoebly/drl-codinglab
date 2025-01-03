@@ -5,7 +5,7 @@ DQN:
     evaluation_episodes: 50
 
   hyperparams:
-    extension: []
+    extensions: []
     gamma: 0.95
     epsilon: 1.0
     epsilon_min: 0.1
@@ -16,14 +16,14 @@ DQN:
     buffer_size: 80000
 
   nn_architecture:
-    structure: DNN
+    structure: "DNN"
     num_layers: 3
     num_neurons: 256
     activation_layers: "relu"
     activation_output: "linear"
 
-  nn_architecture:
-    structure: CNN
+  '''nn_architecture:
+    structure: "CNN"
     num_convolutional_layers: 3
     num_convolutional_channels: 64
     kernel_size: 3
@@ -32,7 +32,7 @@ DQN:
     num_fully_connected_layers: 2
     num_neurons_fully_connected: 256
     activation_layers: "relu"
-    activation_output: "linear"
+    activation_output: "linear"'''
 
 PPO:
   learning_rate_actor: 0.0001

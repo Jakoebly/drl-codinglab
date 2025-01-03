@@ -3,10 +3,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from collections import deque
-import random
 
 from neural_nets import dqn_extensions, neural_nets
-
    
 class DQN_Agent:
     def __init__(self, wandb_run, env, config, device):
@@ -110,11 +108,10 @@ class DQN_Agent:
         loss.backward()
         self.optimizer.step()
 
-        #TODO Def check_exentsions()
         for extension in self.extensions:
             if hasattr(extension, "update_priorities"):
                 extension.update_priorities(td_errors.detach().abs().numpy())
-            if isinstance(extension, dqn_extensions.NoisyDQNExtension):
+            elif isinstance(extension, dqn_extensions.NoisyDQNExtension):
                 extension.reset_noise()
 
         self.step_count += 1
