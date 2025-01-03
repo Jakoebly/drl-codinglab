@@ -553,17 +553,24 @@ EXTENSION_REGISTRY = {
 }
 
 class DQN_Agent:
-    def __init__(self, wandb_run, env, config):
+    def __init__(self, wandb_run, env, config, device):
         self.wandb_run = wandb_run
+        self.device = device
         self.env = env
-        self.state_size = env.get_state_size(structure = nn_architecture)
+
+        # NN Architecture
+        self.nn_structure = config["structure"]
+        self.nn_architecture = config["architecture"]
+
+        # Env settings
+        self.state_size = env.get_state_size(structure = self.nn_structure)
         self.action_size = env.action_size
 
-        #self.state_size = config["state_size"]
-        #self.action_size = config["num_actions"]
+        '''self.state_size = config["state_size"]
+        self.action_size = config["num_actions"]
         self.num_episodes_train = config["num_episodes_train"]
         self.num_episodes_validate = config["num_episodes_validate"]
-        self.num_episodes_test = config["num_episodes_test"]
+        self.num_episodes_test = config["num_episodes_test"]'''
 
         # Hyperparams
         self.nn_architecture = config["nn_architecture"]
@@ -577,9 +584,9 @@ class DQN_Agent:
         self.buffer = deque(maxlen=config["buffer_size"])
 
         # Eval settings
-        self.eval_interval = 100
-        self.evaluation_treshold = 190
-        self.evaluation_episodes = 100
+        self.eval_interval = config["eval_interval"]
+        self.evaluation_treshold = config["evaluation_treshold"]
+        self.evaluation_episodes = config["evaluation_episodes"]
 
         # Initialize networks
         self.q_network = QNetwork(self.nn_architecture)

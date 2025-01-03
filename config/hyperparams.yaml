@@ -1,22 +1,38 @@
 DQN:
-  extension: "Vanilla"
-  gamma: 0.95
-  epsilon: 1.0
-  epsilon_min: 0.1
-  epsilon_decay: 0.99
-  learning_rate: 0.00001
-  batch_size: 64
-  target_update_interval: 150
-  buffer_size: 80000
-  eval_interval: 100
-  evaluation_treshold: 190
-  evaluation_episodes: 50
+  general:
+    eval_interval: 100
+    evaluation_treshold: 190
+    evaluation_episodes: 50
+
+  hyperparams:
+    extension: ["Vanilla"]
+    gamma: 0.95
+    epsilon: 1.0
+    epsilon_min: 0.1
+    epsilon_decay: 0.99
+    learning_rate: 0.00001
+    batch_size: 64
+    target_update_interval: 150
+    buffer_size: 80000
+
   nn_architecture:
-    - [000, "relu"]
+    structure: DNN
+    architecture:
+    - ["relu"]
     - [256, "relu"]
     - [256, "relu"]
     - [256, "relu"]
-    - [000, "linear"]
+    - ["linear"]
+
+  nn_architecture:
+    structure: CNN
+    architecture:
+    - [64, 3, 1, 1]
+    - [128, 3, 1, 1]
+    - [128, 3, 1, 1]
+    - [256, "relu"]
+    - [256, "relu"]
+    - ["linear"]
 
 PPO:
   learning_rate_actor: 0.0001

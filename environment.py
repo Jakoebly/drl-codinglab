@@ -182,7 +182,6 @@ class Environment(object):
                 target_count=self.current_episode_target_count
             )
     
-
     def get_new_obs(self, structure = "DNN"):
         structures = ["DNN", "CNN"]
         if structure not in structures:
@@ -361,7 +360,6 @@ class Environment(object):
         else:
             past_items_channel = np.zeros_like(past_items_channel)
 
-
         # Channel 5: Free capacity
         free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
 
@@ -382,11 +380,6 @@ class Environment(object):
             d_target = self.manhatten_dist(loc, self.target_loc)
             remaining_time_after_collection = self.max_response_time - time - d_agent
             if remaining_time_after_collection > 0:
-                #NEW
-                #prioritization_channel[loc] = (1 / (remaining_time_after_collection + 1)) + (1 / (d_target + 1))
-                #OLD
-                #prioritization_channel[loc] = ((remaining_time_after_collection / (d_target + 1)) + (1 / (d_agent + 1)))
-                #Own
                 prioritization_channel[loc] = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
 
         # Stack all channels into a 3D grid
@@ -405,7 +398,7 @@ class Environment(object):
 
         return state
     
-       # GRIDOBS
+    # GRIDOBS
     def get_grid_obs(self) -> List[float]:
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
 
