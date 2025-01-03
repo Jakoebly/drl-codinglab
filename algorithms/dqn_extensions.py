@@ -15,10 +15,10 @@ from dqn_extensions import (
     DistributionalDQNExtension,
     NoisyDQNExtension,
 )
+from nn_and_extensions.neural_nets import DNN, CNN
 
 class QNetwork(nn.Module):
-    #TODO: NN Functions Auslagern
-    #TODO: Add CNN support
+
     def __init__(self, nn_architecture):
         super().__init__()
         layers = []
@@ -382,6 +382,29 @@ class DuelingDQNExtension(BaseImplementation):
 
 # Multi-step Learning Extension
 class MultiStepExtension(BaseImplementation):
+    """
+    Implements multi-step learning for Deep Q-Learning.
+
+    Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
+    allowing for better credit assignment and faster convergence.
+
+    Key Features:
+    - **n-Step Return**:
+      Accumulates rewards over `n` steps:
+          G_t = r_t + γ r_{t+1} + γ^2 r_{t+2} + ... + γ^{n-1} r_{t+n-1}.
+    - **Buffer Management**:
+      Uses a deque to store transitions until `n` steps are collected.
+    - **Replay Buffer Integration**:
+      Adds multi-step transitions to the replay buffer, ensuring compatibility with prioritized replay.
+
+    Benefits:
+    - Improves stability and learning by incorporating longer-term rewards.
+    - Enhances convergence speed by providing richer updates.
+
+    Methods:
+    - `record`: Accumulates transitions and computes n-step returns when the buffer is full.
+    - `_get_n_step_transition`: Calculates cumulative reward and final transition state.
+    """
     def __init__(self, agent, n_steps=3):
         super().__init__(agent)
         self.n_steps = n_steps
@@ -409,6 +432,35 @@ class MultiStepExtension(BaseImplementation):
         return super().compute_targets(rewards, next_states, dones)
     
 class DistributionalDQNExtension(BaseImplementation):
+    """
+    Implements the Distributional Deep Q-Learning (C51) extension.
+
+    This extension learns a probability distribution over possible Q-values for each state-action pair
+    instead of a single scalar Q-value. The distribution is represented using discrete atoms across
+    a value range `[v_min, v_max]`.
+
+    Key Features:
+    - **Distributional Output**:
+      Outputs a probability distribution for each action over `num_atoms`.
+    - **Categorical Projection**:
+      Projects the target Q-value distribution onto the atom distribution using the Bellman equation.
+    - **Custom Network Architecture**:
+      Replaces the Q-network and target network with `DistributionalQNetwork`, which supports
+      distributional outputs.
+
+    Benefits:
+    - Provides a richer representation of value uncertainty.
+    - Can improve stability and performance in environments with stochastic rewards.
+
+    Parameters:
+    - `agent`: Reference to the agent, providing access to networks and hyperparameters.
+    - `num_atoms` (default=51): Number of discrete points (atoms) in the value distribution.
+    - `v_min` (default=-10): Minimum value of the distributional range.
+    - `v_max` (default=10): Maximum value of the distributional range.
+
+    Methods:
+    - `compute_targets`: Computes the target distribution using categorical projection.
+    """
     def __init__(self, agent):
         super().__init__(agent)
         state_size = agent.state_size
@@ -442,6 +494,33 @@ class DistributionalDQNExtension(BaseImplementation):
     
 # Noisy DQN Extension
 class NoisyDQNExtension(BaseImplementation):
+    """
+    Implements Noisy Networks for Deep Q-Learning (Noisy DQN).
+
+    This extension replaces explicit exploration mechanisms (like ε-greedy) with learnable
+    noise added to the network weights. Noisy layers allow the agent to explore the environment
+    by introducing stochasticity directly into the Q-network's computations.
+
+    Key Features:
+    - **Noisy Networks**:
+      Replaces standard linear layers with `NoisyLinear`, which adds learnable noise to the weights.
+    - **Exploration Without Epsilon**:
+      Eliminates the need for ε-decay by using noisy layers for action selection.
+    - **Resettable Noise**:
+      Resets noise at the beginning of each training step, ensuring consistent exploration.
+
+    Benefits:
+    - Adaptive exploration that improves as the agent learns.
+    - Removes the need to tune ε-decay parameters.
+
+    Parameters:
+    - `agent`: Reference to the agent, providing access to networks and hyperparameters.
+    - `hidden_units` (default=128): Number of units in the hidden layers of the network.
+
+    Methods:
+    - `select_action`: Selects actions based on the noisy Q-network's output, without ε-greedy logic.
+    - `reset_noise`: Resets the noise in all `NoisyLinear` layers at each training step.
+    """
     def __init__(self, agent):
         super().__init__(agent)
         state_size = agent.state_size
@@ -474,14 +553,24 @@ EXTENSION_REGISTRY = {
 }
 
 class DQN_Agent:
-    def __init__(self, wandb_run, env, config):
+    def __init__(self, wandb_run, env, config, device):
         self.wandb_run = wandb_run
+        self.device = device
         self.env = env
-        self.state_size = config["state_size"]
+
+        # NN Architecture
+        self.nn_structure = config["structure"]
+        self.nn_architecture = config["architecture"]
+
+        # Env settings
+        self.state_size = env.get_state_size(structure = self.nn_structure)
+        self.action_size = env.action_size
+
+        '''self.state_size = config["state_size"]
         self.action_size = config["num_actions"]
         self.num_episodes_train = config["num_episodes_train"]
         self.num_episodes_validate = config["num_episodes_validate"]
-        self.num_episodes_test = config["num_episodes_test"]
+        self.num_episodes_test = config["num_episodes_test"]'''
 
         # Hyperparams
         self.nn_architecture = config["nn_architecture"]
@@ -495,9 +584,9 @@ class DQN_Agent:
         self.buffer = deque(maxlen=config["buffer_size"])
 
         # Eval settings
-        self.eval_interval = 100
-        self.evaluation_treshold = 190
-        self.evaluation_episodes = 100
+        self.eval_interval = config["eval_interval"]
+        self.evaluation_treshold = config["evaluation_treshold"]
+        self.evaluation_episodes = config["evaluation_episodes"]
 
         # Initialize networks
         self.q_network = QNetwork(self.nn_architecture)
@@ -509,6 +598,8 @@ class DQN_Agent:
         # Initialize extensions
         self.extensions = []
         for ext_name in config.get("extensions", []):
+            if ext_name not in EXTENSION_REGISTRY:
+                raise ValueError(f"Unknown extension: {ext_name}")
             ExtensionClass = EXTENSION_REGISTRY[ext_name]
             self.extensions.append(ExtensionClass(self))
 

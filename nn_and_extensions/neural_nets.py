@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-class DNN(nn.Module):
-    #TODO: NN Functions Auslagern
-    #TODO: Add CNN support
+class DNN_Constructor(nn.Module):
     def __init__(self, nn_architecture):
         super().__init__()
         layers = []
@@ -39,6 +37,18 @@ class DNN(nn.Module):
     
     def forward(self, x):
         return self.model(x)
+    
+class CNN_Constructor(nn.Module):
+    print("test")
+
+
+
+
+
+
+
+
+
     
 class DuelingQNetwork(nn.Module):
     def __init__(self, state_size, action_size, hidden_units):

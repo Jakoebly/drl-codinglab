@@ -47,7 +47,7 @@ if __name__ == "__main__":
         model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
     # Create environment
-    env = Environment(variant, DATA_DIR, render=False)
+    env = Environment(variant, DATA_DIR, render = False)
 
     # Set config directory to the general config folder in case of training
     CONFIG_DIR = settings.CONFIG_DIR
@@ -79,8 +79,8 @@ if __name__ == "__main__":
         agent = DQN_Agent(wandb_run, env, config, device)
     elif algorithm == "PPO":
         agent = PPO_Agent(wandb_run, env, config, device)
-    elif algorithm == "SAC":
-        agent = SAC_Agent(env, config).to(device)
+    '''elif algorithm == "SAC":
+        agent = SAC_Agent(env, config).to(device)'''
 
     # Load weights if validating/testing
     if mode in ["validate", "test"]:

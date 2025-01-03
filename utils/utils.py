@@ -66,8 +66,6 @@ def load_config(env, config_dir, algorithm):
 
     return config
 
-
-
 # Update run_info.yaml after a run
 def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, run_name):
 
@@ -114,8 +112,6 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
                 writer.writerow(["Episode", "Reward"])
                 for eps, reward in enumerate(rewards[mode], start=1):
                     writer.writerow([eps, reward])
-
-
 
 
 
