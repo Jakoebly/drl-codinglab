@@ -5,7 +5,7 @@ DQN:
     evaluation_episodes: 50
 
   hyperparams:
-    extension: ["Vanilla"]
+    extension: ["Double", "Dueling", "Prioritized"]
     gamma: 0.95
     epsilon: 1.0
     epsilon_min: 0.1
@@ -18,7 +18,6 @@ DQN:
   nn_architecture:
     structure: DNN
     architecture:
-    - ["relu"]
     - [256, "relu"]
     - [256, "relu"]
     - [256, "relu"]
@@ -54,10 +53,6 @@ PPO:
   num_neurons_critic: 256
   num_layers_critic: 5
   activation_critic: "relu"
-  nn_architecture_actor: # Place Holder
-  nn_architecture_critic: # Place Holder
-
-
 
 SAC:
   gamma: 000
