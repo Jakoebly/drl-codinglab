@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from collections import deque
+import random
 
 from neural_nets import dqn_extensions, neural_nets
    
@@ -63,28 +64,60 @@ class DQN_Agent:
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
 
-    def select_action(self, state, training=True):
+    def compute_targets(self, rewards, next_states, dones):
+        """Default Q-value target computation for baseline."""
+        q_targets_next = torch.max(self.target_network(next_states), dim=1)[0]
+        return rewards + (1 - dones) * self.gamma * q_targets_next
+
+    '''def select_action(self, state, training=True):
         """Delegate action selection through extensions."""
         action = state
         for extension in self.extensions:
             action = extension.select_action(state, training)
-        return action
+        return action'''
+    
+    def select_action(self, state, training=True):
+        """Default action selection logic."""
+        if training and np.random.rand() < self.epsilon:
+            return np.random.randint(self.action_size)
+        else:
+            state = torch.FloatTensor(state).unsqueeze(0)
+            with torch.no_grad():
+                q_values = self.q_network(state)
+            return torch.argmax(q_values).item()
 
-    def record(self, state, action, reward, next_state, done):
+    '''def record(self, state, action, reward, next_state, done):
         """Delegate recording through extensions."""
         transition = None
         for extension in self.extensions:
             transition = extension.record(state, action, reward, next_state, done, transition)
         if transition is not None:
-            self.buffer.append(transition)
+            self.buffer.append(transition)'''
+
+    def record(self, state, action, reward, next_state, done):
+        """Default replay buffer logic."""
+        self.buffer.append((state, action, reward, next_state, done))
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
 
-    def sample_batch(self):
+    '''def sample_batch(self):
         """Delegate batch sampling through extensions."""
         for extension in self.extensions:
             return extension.sample_batch()
+        return BaseImplementation.sample_batch(self)'''
+    
+    def sample_batch(self):
+        """Default sample logic."""
+        batch = random.sample(self.buffer, self.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+        return (
+            torch.FloatTensor(states),
+            torch.LongTensor(actions),
+            torch.FloatTensor(rewards),
+            torch.FloatTensor(next_states),
+            torch.FloatTensor(dones),
+        )
 
     def train_step(self):
         """Perform one training step."""
