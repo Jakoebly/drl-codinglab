@@ -1,5 +1,5 @@
 # Set base Seed
-SEED = 43
+SEED = 42
 
 # Set data directory
 DATA_DIR = "./data"

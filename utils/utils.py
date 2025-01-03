@@ -32,10 +32,9 @@ def load_config(env, config_dir, algorithm):
         with open(f"{config_dir}/hyperparams.yaml", "r") as file:
             hyperparams = yaml.safe_load(file).get(algorithm, {})
         
-        #x = hyperparams[""]
+        nn_structure = hyperparams["nn_architecture"]["structure"]
 
-        config["nn_a"][kkk]
-        config["state_size"] = env.get_state_size(x)
+        config["state_size"] = env.get_state_size(nn_structure)
         config["action_size"] = env.action_size
         config["num_episodes_train"] = len(env.training_episodes)
         config["num_episodes_validate"] = len(env.validation_episodes)
