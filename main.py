@@ -47,7 +47,7 @@ if __name__ == "__main__":
         model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
     # Create environment
-    env = Environment(variant, DATA_DIR, render=False)
+    env = Environment(variant, DATA_DIR, render = False)
 
     # Set config directory to the general config folder in case of training
     CONFIG_DIR = settings.CONFIG_DIR

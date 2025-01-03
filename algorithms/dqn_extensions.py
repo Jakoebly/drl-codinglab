@@ -18,6 +18,7 @@ from dqn_extensions import (
 from nn_and_extensions.neural_nets import DNN, CNN
 
 class QNetwork(nn.Module):
+
     def __init__(self, nn_architecture):
         super().__init__()
         layers = []
@@ -555,8 +556,11 @@ class DQN_Agent:
     def __init__(self, wandb_run, env, config):
         self.wandb_run = wandb_run
         self.env = env
-        self.state_size = config["state_size"]
-        self.action_size = config["num_actions"]
+        self.state_size = env.get_state_size(structure = nn_architecture)
+        self.action_size = env.action_size
+
+        #self.state_size = config["state_size"]
+        #self.action_size = config["num_actions"]
         self.num_episodes_train = config["num_episodes_train"]
         self.num_episodes_validate = config["num_episodes_validate"]
         self.num_episodes_test = config["num_episodes_test"]
