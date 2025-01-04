@@ -43,10 +43,10 @@ class DQN_Agent:
         self.q_network = constructor.create_network()
         #self.target_network = self.q_network
         self.target_network = constructor.create_network()
+        self.update_target_weights()
         self.optimizer = optim.Adam(self.q_network.parameters(), lr = self.learning_rate)
         self.loss_fn = nn.MSELoss()
-        self.update_target_weights()
-
+       
         # Initialize extensions
         self.extensions = []
         for ext_name in extensions:
@@ -126,6 +126,18 @@ class DQN_Agent:
             torch.FloatTensor(dones),
             torch.FloatTensor(weights),
         )
+    
+    def compute_loss(self, q_values, q_targets, weights = 1):
+        td_errors = q_targets.detach() - q_values
+        # Weight == 1 for vanilla implementation
+        loss = (weights * td_errors ** 2).mean()
+        #loss = self.loss_fn(q_values, q_targets.detach())
+        return loss
+    
+    def update_network(self, loss):
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
     def train_step(self):
         """Perform one training step."""
@@ -140,18 +152,10 @@ class DQN_Agent:
         '''for extension in self.extensions:
             if hasattr(extension, "compute_targets"):
                 q_targets = extension.compute_targets(rewards, next_states, dones)'''
-
         q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
-    
-        td_errors = q_targets.detach() - q_values
 
-        # Weight == 1 for vanilla implementation!
-        loss = (weights * td_errors ** 2).mean()
-        #loss = self.loss_fn(q_values, q_targets.detach())
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+        loss = self.compute_loss(q_values, q_targets, weights)
+        self.update_network(loss)
 
         '''for extension in self.extensions:
             if hasattr(extension, "update_priorities"):
@@ -168,6 +172,7 @@ class DQN_Agent:
 
     def run(self, mode, num_episodes):
         rewards = []
+        last_evaluation_reward = -100
 
         if mode == "training":
             training = True
@@ -196,22 +201,27 @@ class DQN_Agent:
             if training:
                 self.update_epsilon()
                 wandb.log({"Losses/Total Loss": loss}, episode)
-                wandb.log({"Hyperparameters/Epsilon Loss": self.epsilon}, episode)
+                wandb.log({"Hyperparameters/Epsilon": self.epsilon}, episode)
 
             wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
 
-            print(f"Episode {episode + 1} / {num_episodes}, Total Reward: {reward_episode}")
+            print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
             #EVALUATION
-            '''if (episode + 1) % self.eval_interval == 0:
+            if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes:
+                print("evaluation started")
                 eval_reward = self.run(mode = "validation", num_episodes = self.evaluation_episodes)
                 average_eval_reward = np.mean(eval_reward)
-                print(f"Average Evaluation Reward: {average_eval_reward:.2f}")
+                wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
+                print(f"average evaluation reward: {average_eval_reward:.2f}")
 
-                if average_eval_reward >= self.evaluation_treshold:
-                    print(
-                        f"Training terminated after {episode + 1} episodes as the target average reward was achieved.")
+                difference = average_eval_reward - last_evaluation_reward
+
+                if difference <= last_evaluation_reward * (1 + self.evaluation_treshold):
+                    print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
                     rewards = rewards[:episode + 1]
-                    break'''
+                    break
+            
+        print(f"--- {mode} finished - average Reward after {num_episodes} episodes: {np.mean(rewards)} ---")
 
         return rewards
