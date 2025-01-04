@@ -218,7 +218,7 @@ class DQN_Agent:
 
                 difference = average_eval_reward - last_evaluation_reward
 
-                if difference <= last_evaluation_reward * (1 + self.evaluation_treshold):
+                if difference <= last_evaluation_reward * self.evaluation_treshold:
                     print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
                     rewards = rewards[:episode + 1]
                     break
