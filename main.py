@@ -92,12 +92,12 @@ if __name__ == "__main__":
     rew_test = None
 
     if mode == "train":
-        rew_train = agent.run(mode = "training", num_episodes = config["num_episodes_train"])
-        rew_val = agent.run(mode = "validation", num_episodes = config["num_episodes_validate"])
+        rew_train = agent.run(mode = "training", num_episodes = config["general"]["num_episodes_train"])
+        rew_val = agent.run(mode = "validation", num_episodes = config["general"]["num_episodes_validate"])
     if mode == "validate":
-        rew_val = agent.run(mode = "validation", num_episodes = config["num_episodes_validate"])
+        rew_val = agent.run(mode = "validation", num_episodes = config["general"]["num_episodes_validate"])
     elif mode == "test":
-        rew_test = agent.run(mode = "testing", num_episodes = config["num_episodes_test"])
+        rew_test = agent.run(mode = "testing", num_episodes = config["general"]["num_episodes_test"])
 
     rewards = (rew_train, rew_val, rew_test)
 

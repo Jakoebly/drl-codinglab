@@ -92,7 +92,7 @@ class CNN(nn.Module):
             fc_input_size = num_neurons
 
         layers.append(nn.Linear(fc_input_size, action_size))
-        if activation_output:
+        if activation_output is not None:
             layers.append(self.get_activation(activation_output))
 
         self.model = nn.Sequential(*layers)

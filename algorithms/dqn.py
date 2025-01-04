@@ -15,13 +15,14 @@ class DQN_Agent:
         hyperparameters = config["hyperparameters"]
         eval_settings = config["eval_settings"]
         nn_architecture = config["nn_architecture"]
+        general = config["general"]
         extensions = config.get("extensions", [])
 
         # NN Architecture
         self.nn_architecture = nn_architecture
         self.nn_structure = nn_architecture["structure"]
-        self.state_size = config["state_size"]
-        self.action_size = config["action_size"]
+        self.state_size = general["state_size"]
+        self.action_size = general["action_size"]
 
         # Hyperparams
         self.gamma = hyperparameters["gamma"]

@@ -36,18 +36,20 @@ def load_config(env, config_dir, algorithm):
         
         nn_structure = hyperparams["nn_architecture"]["structure"]
         config = hyperparams
+        config["general"] = {}
+        config["results"] = {}
 
-        config["state_size"] = env.get_state_size(nn_structure)
-        config["action_size"] = env.action_size
-        config["num_episodes_train"] = len(env.training_episodes)
-        config["num_episodes_validate"] = len(env.validation_episodes)
-        config["num_episodes_test"] = len(env.test_episodes)
-        config["num_steps_trajectory"] = env.episode_steps
+        config["general"]["state_size"] = env.get_state_size(nn_structure)
+        config["general"]["action_size"] = env.action_size
+        config["general"]["num_episodes_train"] = len(env.training_episodes)
+        config["general"]["num_episodes_validate"] = len(env.validation_episodes)
+        config["general"]["num_episodes_test"] = len(env.test_episodes)
+        config["general"]["num_steps_trajectory"] = env.episode_steps
 
         # Create key/value pairs for reward tracking
-        config["avg_train_reward"] = None
-        config["avg_validation_reward"] = None
-        config["avg_test_reward"] = None
+        config["results"]["avg_train_reward"] = None
+        config["results"]["avg_validation_reward"] = None
+        config["results"]["avg_test_reward"] = None
 
         # Adjust nn_architecture
         if algorithm == "DQN":
@@ -85,15 +87,15 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
 
     # Update relevant key/value pairs and create/reference .csv files for reward tracking
     if rew_train is not None:
-        config["avg_train_reward"] = float(np.mean(rew_train))
+        config["results"]["avg_train_reward"] = float(np.mean(rew_train))
         eps_dir[0] = f"{model_dir}/train_eps.csv"
 
     if rew_val is not None:
-        config["avg_validation_reward"] = float(np.mean(rew_val))
+        config["results"]["avg_validation_reward"] = float(np.mean(rew_val))
         eps_dir[1] = f"{model_dir}/val_eps.csv"
 
     if rew_test is not None:
-        config["avg_test_reward"] = float(np.mean(rew_test))
+        config["results"]["avg_test_reward"] = float(np.mean(rew_test))
         eps_dir[2] = f"{model_dir}/test_eps.csv"
 
 
@@ -111,16 +113,12 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
                 for eps, reward in enumerate(rewards[mode], start=1):
                     writer.writerow([eps, reward])
 
-
-
 def load_best(best_dir, variant, algorithm):
     with open(best_dir, 'r') as file:
         model_name = yaml.safe_load(file).get(f"Variant_{variant}", {}).get(algorithm, {}).get("model_name", {})
     return model_name
 
-
 def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
-
     # Extract validation rewards
     rew_val = rewards[1]
 
