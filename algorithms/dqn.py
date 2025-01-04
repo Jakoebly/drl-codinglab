@@ -208,12 +208,12 @@ class DQN_Agent:
             print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
             #EVALUATION
-            if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes:
+            if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
                 print("evaluation started")
                 eval_reward = self.run(mode = "validation", num_episodes = self.evaluation_episodes)
                 average_eval_reward = np.mean(eval_reward)
+
                 wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
-                print(f"average evaluation reward: {average_eval_reward:.2f}")
 
                 difference = average_eval_reward - last_evaluation_reward
 
@@ -221,7 +221,9 @@ class DQN_Agent:
                     print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
                     rewards = rewards[:episode + 1]
                     break
+
+                last_evaluation_reward = average_eval_reward
             
-        print(f"--- {mode} finished - average Reward after {num_episodes} episodes: {np.mean(rewards)} ---")
+        print(f"--- {mode} finished - average reward after {num_episodes} episodes: {np.mean(rewards)} ---")
 
         return rewards
