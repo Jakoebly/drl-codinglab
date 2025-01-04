@@ -41,9 +41,9 @@ class DQN_Agent:
 
         # Initialize networks
         constructor = neural_nets.NNConstructor(nn_architecture, self.state_size, self.action_size)
-        self.q_network = constructor.create_network()
+        self.q_network = constructor.create_network().to(self.device)
         #self.target_network = self.q_network
-        self.target_network = constructor.create_network()
+        self.target_network = constructor.create_network().to(self.device)
         self.update_target_weights()
         self.optimizer = optim.Adam(self.q_network.parameters(), lr = self.learning_rate)
         self.loss_fn = nn.MSELoss()
@@ -72,8 +72,9 @@ class DQN_Agent:
 
     def compute_targets(self, rewards, next_states, dones):
         """Default Q-value target computation for baseline."""
-        q_targets_next = torch.max(self.target_network(next_states), dim=1)[0]
-        return rewards + (1 - dones) * self.gamma * q_targets_next
+        q_targets_next = torch.max(self.target_network(next_states.to(self.device)), dim=1)[0]
+        q_targets = rewards.to(self.device) + (1 - dones.to(self.device)) * self.gamma * q_targets_next
+        return q_targets
 
     '''def select_action(self, state, training=True):
         """Delegate action selection through extensions."""
@@ -87,7 +88,7 @@ class DQN_Agent:
         if training and np.random.rand() < self.epsilon:
             return np.random.randint(self.action_size)
         else:
-            state = torch.FloatTensor(state).unsqueeze(0)
+            state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             with torch.no_grad():
                 q_values = self.q_network(state)
             return torch.argmax(q_values).item()
@@ -112,24 +113,26 @@ class DQN_Agent:
         for extension in self.extensions:
             return extension.sample_batch()
         return BaseImplementation.sample_batch(self)'''
-    
+       
     def sample_batch(self):
         """Default sample logic."""
         batch = random.sample(self.buffer, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
-        weights = torch.ones(len(states))  # Default weights of 1
+        states = np.array(states)
+        next_states = np.array(next_states)
+
         return (
-            #TODO: Improve performance here
-            torch.FloatTensor(states),
-            torch.LongTensor(actions),
-            torch.FloatTensor(rewards),
-            torch.FloatTensor(next_states),
-            torch.FloatTensor(dones),
-            torch.FloatTensor(weights),
+            torch.FloatTensor(states).to(self.device),
+            torch.LongTensor(actions).to(self.device),
+            torch.FloatTensor(rewards).to(self.device),
+            torch.FloatTensor(next_states).to(self.device),
+            torch.FloatTensor(dones).to(self.device),
+            torch.FloatTensor(torch.ones(len(states))).to(self.device),
         )
     
     def compute_loss(self, q_values, q_targets, weights = 1):
-        td_errors = q_targets.detach() - q_values
+        td_errors = q_targets.detach().to(self.device) - q_values.to(self.device)
+        weights = weights.to(self.device)
         # Weight == 1 for vanilla implementation
         loss = (weights * td_errors ** 2).mean()
         #loss = self.loss_fn(q_values, q_targets.detach())
@@ -147,6 +150,10 @@ class DQN_Agent:
 
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, weights = batch
+        actions = actions.to(self.device)
+        rewards = rewards.to(self.device)
+        dones = dones.to(self.device)
+        weights = weights.to(self.device)
 
         #q_targets = rewards
         q_targets = self.compute_targets(rewards, next_states, dones)
@@ -171,7 +178,7 @@ class DQN_Agent:
 
         return loss
 
-    def run(self, mode, num_episodes):
+    def run(self, mode, num_episodes, eval = False):
         rewards = []
         last_evaluation_reward = -100
 
@@ -203,15 +210,15 @@ class DQN_Agent:
                 self.update_epsilon()
                 wandb.log({"Losses/Total Loss": loss}, episode)
                 wandb.log({"Hyperparameters/Epsilon": self.epsilon}, episode)
-
-            wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
+            if not eval:
+                wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
 
             print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
             #EVALUATION
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
                 print("evaluation started")
-                eval_reward = self.run(mode = "validation", num_episodes = self.evaluation_episodes)
+                eval_reward = self.run(mode = "validation", num_episodes = self.evaluation_episodes, eval = True)
                 average_eval_reward = np.mean(eval_reward)
 
                 wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)

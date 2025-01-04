@@ -198,7 +198,9 @@ class Environment(object):
             #return self.get_new_obs(structure=structure).shape[0]
         if structure == "CNN":
             # (Channels, Height, Width) e.g. (6, 5, 5)
-            return self.reset(mode = "training", structure = structure).shape
+            state = self.reset(mode = "training", structure = structure).shape
+            print(state)
+            return state
             #return self.get_new_obs(structure=structure).shape
         
     def manhatten_dist(self, pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
@@ -354,13 +356,13 @@ class Environment(object):
             remaining_times_channel[loc] = (self.max_response_time - time) / self.max_response_time
 
         # Channel 4: Past items (spawn counts at each position)
-        past_items_channel = np.copy(self.past_items)
+        '''past_items_channel = np.copy(self.past_items)
 
         total_spawns = past_items_channel.sum()
         if total_spawns > 0:
             past_items_channel = past_items_channel / total_spawns
         else:
-            past_items_channel = np.zeros_like(past_items_channel)
+            past_items_channel = np.zeros_like(past_items_channel)'''
 
         # Channel 5: Free capacity
         free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
@@ -391,7 +393,7 @@ class Environment(object):
             item_positions_channel,
             #distances_channel,
             remaining_times_channel,
-            past_items_channel,
+            #past_items_channel,
             #target_channel,
             free_capacity_channel
             ],
