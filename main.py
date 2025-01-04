@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":
-        agent = DQN_Agent(wandb_run, env, config, device)
+        agent = DQN_Agent(env, config, device)
     elif algorithm == "PPO":
         agent = PPO_Agent(wandb_run, env, config, device)
     '''elif algorithm == "SAC":

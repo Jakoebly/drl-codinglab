@@ -201,7 +201,7 @@ class Environment(object):
             return self.reset(mode = "training", structure = structure).shape
             #return self.get_new_obs(structure=structure).shape
         
-    def manhatten_dist(pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
+    def manhatten_dist(self, pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
         return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
 
     def get_dnn_obs(self) -> np.ndarray:

@@ -12,17 +12,21 @@ class NNConstructor:
     def create_network(self):
         structure = self.nn_architecture['structure']
         if structure == 'DNN':
-            return DNN(self.nn_architecture, self.state_shape, self.action_size)
+            network = DNN(self.nn_architecture, self.state_shape, self.action_size)
         elif structure == 'CNN':
-            return CNN(self.nn_architecture, self.state_shape, self.action_size)
+            network = CNN(self.nn_architecture, self.state_shape, self.action_size)
         else:
             raise ValueError(f"Unsupported structure: {structure}")
+
+        print(f"Created {structure} Network Structure:\n{network}")
+        return network
 
 class DNN(nn.Module):
     def __init__(self, nn_architecture, state_shape, action_size):
         super(DNN, self).__init__()
         layers = []
-        input_size = state_shape[0]
+        #input_size = state_shape[0]
+        input_size = state_shape
         num_layers = nn_architecture['num_layers']
         num_neurons = nn_architecture['num_neurons']
         activation = nn_architecture['activation_layers']
@@ -34,7 +38,8 @@ class DNN(nn.Module):
             input_size = num_neurons
 
         layers.append(nn.Linear(input_size, action_size))
-        if activation_output:
+
+        if activation_output is not None:
             layers.append(self.get_activation(activation_output))
 
         self.model = nn.Sequential(*layers)

@@ -1,7 +1,7 @@
 DQN:
   eval_settings:
     eval_interval: 100
-    evaluation_treshold: 190
+    evaluation_treshold: 210
     evaluation_episodes: 50
 
   extensions: []
@@ -18,10 +18,10 @@ DQN:
 
   nn_architecture:
     structure: "DNN"
-    num_layers: 3
+    num_layers: 4
     num_neurons: 256
     activation_layers: "relu"
-    activation_output: "linear"
+    activation_output:
 
 PPO:
   learning_rate_actor: 0.0001

@@ -4,12 +4,12 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 import random
+import wandb
 
 from neural_nets import dqn_extensions, neural_nets
    
 class DQN_Agent:
-    def __init__(self, wandb_run, env, config, device):
-        self.wandb_run = wandb_run
+    def __init__(self, env, config, device):
         self.device = device
         self.env = env
         hyperparameters = config["hyperparameters"]
@@ -19,6 +19,7 @@ class DQN_Agent:
 
         # NN Architecture
         self.nn_architecture = nn_architecture
+        self.nn_structure = nn_architecture["structure"]
         self.state_size = config["state_size"]
         self.action_size = config["action_size"]
 
@@ -40,6 +41,7 @@ class DQN_Agent:
         # Initialize networks
         constructor = neural_nets.NNConstructor(nn_architecture, self.state_size, self.action_size)
         self.q_network = constructor.create_network()
+        #self.target_network = self.q_network
         self.target_network = constructor.create_network()
         self.optimizer = optim.Adam(self.q_network.parameters(), lr = self.learning_rate)
         self.loss_fn = nn.MSELoss()
@@ -114,12 +116,15 @@ class DQN_Agent:
         """Default sample logic."""
         batch = random.sample(self.buffer, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
+        weights = torch.ones(len(states))  # Default weights of 1
         return (
+            #TODO: Improve performance here
             torch.FloatTensor(states),
             torch.LongTensor(actions),
             torch.FloatTensor(rewards),
             torch.FloatTensor(next_states),
             torch.FloatTensor(dones),
+            torch.FloatTensor(weights),
         )
 
     def train_step(self):
@@ -130,10 +135,11 @@ class DQN_Agent:
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, weights = batch
 
-        q_targets = rewards
-        for extension in self.extensions:
+        #q_targets = rewards
+        q_targets = self.compute_targets(rewards, next_states, dones)
+        '''for extension in self.extensions:
             if hasattr(extension, "compute_targets"):
-                q_targets = extension.compute_targets(rewards, next_states, dones)
+                q_targets = extension.compute_targets(rewards, next_states, dones)'''
 
         q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
     
@@ -141,41 +147,46 @@ class DQN_Agent:
 
         # Weight == 1 for vanilla implementation!
         loss = (weights * td_errors ** 2).mean()
+        #loss = self.loss_fn(q_values, q_targets.detach())
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        for extension in self.extensions:
+        '''for extension in self.extensions:
             if hasattr(extension, "update_priorities"):
                 extension.update_priorities(td_errors.detach().abs().numpy())
             elif isinstance(extension, dqn_extensions.NoisyDQNExtension):
-                extension.reset_noise()
+                extension.reset_noise()'''
 
         self.step_count += 1
 
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
 
+        return loss
+
     def run(self, mode, num_episodes):
         rewards = []
+
         if mode == "training":
             training = True
         else:
             training = False
 
         for episode in range(num_episodes):
-            state = self.env.reset(mode)
+            state = self.env.reset(mode, structure = self.nn_structure)
             reward_episode = 0
+            self.step_count = 0
             done = False
 
             while not done:
                 action = self.select_action(state, training)
-                reward, next_state, done = self.env.step(action)
+                reward, next_state, done = self.env.step(action, structure = self.nn_structure)
 
                 if training:
                     self.record(state, action, reward, next_state, done)
-                    self.train_step()
+                    loss = self.train_step()
 
                 state = next_state
                 reward_episode += reward
@@ -184,12 +195,16 @@ class DQN_Agent:
 
             if training:
                 self.update_epsilon()
+                wandb.log({"Losses/Total Loss": loss}, episode)
+                wandb.log({"Hyperparameters/Epsilon Loss": self.epsilon}, episode)
 
-            self.wandb_run.log({"Reward per Episode": reward_episode})
-            print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {reward_episode}")
+            wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
 
-            if (episode + 1) % self.eval_interval == 0:
-                eval_reward = self.simulate_environment(num_episodes=num_episodes, mode = "validation")
+            print(f"Episode {episode + 1} / {num_episodes}, Total Reward: {reward_episode}")
+
+            #EVALUATION
+            '''if (episode + 1) % self.eval_interval == 0:
+                eval_reward = self.run(mode = "validation", num_episodes = self.evaluation_episodes)
                 average_eval_reward = np.mean(eval_reward)
                 print(f"Average Evaluation Reward: {average_eval_reward:.2f}")
 
@@ -197,6 +212,6 @@ class DQN_Agent:
                     print(
                         f"Training terminated after {episode + 1} episodes as the target average reward was achieved.")
                     rewards = rewards[:episode + 1]
-                    break
+                    break'''
 
         return rewards
