@@ -1,7 +1,7 @@
 DQN:
   eval_settings:
     eval_interval: 100
-    evaluation_treshold: 0.005
+    evaluation_treshold: 0.001
     evaluation_episodes: 50
 
   extensions: []

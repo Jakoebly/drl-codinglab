@@ -40,10 +40,12 @@ class DQN_Agent:
         self.evaluation_episodes = eval_settings["evaluation_episodes"]
 
         # Initialize networks
-        constructor = neural_nets.NNConstructor(nn_architecture, self.state_size, self.action_size)
+        '''constructor = neural_nets.NNConstructor(nn_architecture, self.state_size, self.action_size, self.learning_rate)
         self.q_network = constructor.create_network().to(self.device)
-        #self.target_network = self.q_network
-        self.target_network = constructor.create_network().to(self.device)
+        self.target_network = constructor.create_network().to(self.device)'''
+
+        self.q_network = neural_nets.create_network(nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
+        self.target_network = neural_nets.create_network(nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
         self.update_target_weights()
         self.optimizer = optim.Adam(self.q_network.parameters(), lr = self.learning_rate)
         self.loss_fn = nn.MSELoss()
@@ -55,7 +57,7 @@ class DQN_Agent:
                 raise ValueError(f"Unknown extension: {ext_name}")
             ExtensionClass = dqn_extensions.EXTENSION_REGISTRY[ext_name]
             self.extensions.append(ExtensionClass(self))
-
+        
         self.step_count = 0
 
     def load_weights(self, path):
@@ -135,13 +137,13 @@ class DQN_Agent:
         weights = weights.to(self.device)
         # Weight == 1 for vanilla implementation
         loss = (weights * td_errors ** 2).mean()
-        #loss = self.loss_fn(q_values, q_targets.detach())
+        #loss = self.q_network.loss_fn(q_values, q_targets.detach())
         return loss
-    
+
     def update_network(self, loss):
-        self.optimizer.zero_grad()
+        self.q_network.optimizer.zero_grad()
         loss.backward()
-        self.optimizer.step()
+        self.q_network.optimizer.step()
 
     def train_step(self):
         """Perform one training step."""
@@ -171,10 +173,9 @@ class DQN_Agent:
             elif isinstance(extension, dqn_extensions.NoisyDQNExtension):
                 extension.reset_noise()'''
 
-        self.step_count += 1
-
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
+        self.step_count += 1
 
         return loss
 
@@ -190,7 +191,6 @@ class DQN_Agent:
         for episode in range(num_episodes):
             state = self.env.reset(mode, structure = self.nn_structure)
             reward_episode = 0
-            self.step_count = 0
             done = False
 
             while not done:
@@ -203,7 +203,7 @@ class DQN_Agent:
 
                 state = next_state
                 reward_episode += reward
-
+                
             rewards.append(reward_episode)
 
             if training:
@@ -225,7 +225,7 @@ class DQN_Agent:
 
                 difference = average_eval_reward - last_evaluation_reward
 
-                if difference <= last_evaluation_reward * self.evaluation_treshold:
+                if difference < last_evaluation_reward * self.evaluation_treshold:
                     print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
                     rewards = rewards[:episode + 1]
                     break

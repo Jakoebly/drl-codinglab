@@ -2,27 +2,38 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-
-class NNConstructor:
-    def __init__(self, nn_architecture, state_shape, action_size):
+# Bitte noch drin lassen
+'''class NNConstructor:
+    def __init__(self, nn_architecture, state_shape, action_size, learning_rate):
         self.nn_architecture = nn_architecture
         self.state_shape = state_shape
         self.action_size = action_size
+        self.learning_rate = learning_rate
 
     def create_network(self):
         structure = self.nn_architecture['structure']
         if structure == 'DNN':
-            network = DNN(self.nn_architecture, self.state_shape, self.action_size)
+            network = DNN(self.nn_architecture, self.state_shape, self.action_size, self.learning_rate)
         elif structure == 'CNN':
-            network = CNN(self.nn_architecture, self.state_shape, self.action_size)
+            network = CNN(self.nn_architecture, self.state_shape, self.action_size, self.learning_rate)
         else:
             raise ValueError(f"Unsupported structure: {structure}")
 
         print(f"Created {structure} Network Structure:\n{network}")
-        return network
+
+        return network'''
+    
+def create_network(nn_architecture, state_shape, action_size, learning_rate):
+    structure = nn_architecture['structure']
+    if structure == 'DNN':
+        return DNN(nn_architecture, state_shape, action_size, learning_rate)
+    elif structure == 'CNN':
+        return CNN(nn_architecture, state_shape, action_size, learning_rate)
+    else:
+        raise ValueError(f"Unsupported structure: {structure}")
 
 class DNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size):
+    def __init__(self, nn_architecture, state_shape, action_size, learning_rate):
         super(DNN, self).__init__()
         layers = []
         #input_size = state_shape[0]
@@ -43,6 +54,8 @@ class DNN(nn.Module):
             layers.append(self.get_activation(activation_output))
 
         self.model = nn.Sequential(*layers)
+        self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
+        self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
         return self.model(x)
@@ -63,7 +76,7 @@ class DNN(nn.Module):
             raise ValueError(f"Unsupported activation function: {name}")
 
 class CNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size):
+    def __init__(self, nn_architecture, state_shape, action_size, learning_rate):
         super(CNN, self).__init__()
         layers = []
         input_channels = state_shape[0]
@@ -96,6 +109,8 @@ class CNN(nn.Module):
             layers.append(self.get_activation(activation_output))
 
         self.model = nn.Sequential(*layers)
+        self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
+        self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
         x = x.contiguous()
