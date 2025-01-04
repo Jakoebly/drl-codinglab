@@ -10,7 +10,7 @@ def parse_args():
     parser.add_argument("--variant", type=int, default=0, help="Problem variant to use, choose from (0 = default, 1 = added capacity, 2 = obstacles)")
     parser.add_argument("--mode", type=str, default="train", help="Mode of the run, choose from ('train', 'validate', 'test')")
     parser.add_argument("--model_name", type=str, nargs="?", help="Name of the model to load weights for validation/testing, format: 'CL__{args.algorithm.upper()}__Var{args.variant}__{args.experiment_name}'")
-    parser.add_argument("--best", action="store_true", default=True, help="If toggled, the current best model will be used for validation/testing")
+    parser.add_argument("--best", action="store_true", help="If toggled, the current best model will be used for validation/testing")
     parser.add_argument("--save", action="store_true", default=True, help="If toggled, the run will be saved under './logs'")
 
     # Cuda related args

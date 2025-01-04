@@ -4,6 +4,7 @@ import csv
 import torch
 import yaml
 import numpy as np
+from utils import settings
 
 # Set seeds
 def set_seeds(seed, torch_deterministic):
@@ -26,13 +27,15 @@ def compile_architecture(num_neurons, num_layers, activation):
 def load_config(env, config_dir, algorithm):
 
     # Load config for training run
-    if config_dir == "./config":
+    #if config_dir == "./config":
+    if config_dir == settings.CONFIG_DIR:
 
         # Open algorithm-specific config and load parameters
         with open(f"{config_dir}/hyperparams.yaml", "r") as file:
             hyperparams = yaml.safe_load(file).get(algorithm, {})
         
         nn_structure = hyperparams["nn_architecture"]["structure"]
+        config = hyperparams
 
         config["state_size"] = env.get_state_size(nn_structure)
         config["action_size"] = env.action_size
@@ -55,7 +58,6 @@ def load_config(env, config_dir, algorithm):
 
     # Load existing config for validation/test run
     else:
-
         # Open existing run_info config and load parameters
         with open(f"{config_dir}/run_info.yaml", "r") as file:
             config = yaml.safe_load(file)

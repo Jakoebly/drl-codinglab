@@ -194,10 +194,12 @@ class Environment(object):
         
     def get_state_size(self, structure = "DNN"):
         if structure == "DNN":
-            return self.get_new_obs(structure=structure).shape[0]
+            return self.reset(mode = "training", structure = structure).shape[0]
+            #return self.get_new_obs(structure=structure).shape[0]
         if structure == "CNN":
             # (Channels, Height, Width) e.g. (6, 5, 5)
-            return self.get_new_obs(structure=structure).shape
+            return self.reset(mode = "training", structure = structure).shape
+            #return self.get_new_obs(structure=structure).shape
         
     def manhatten_dist(pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
         return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
