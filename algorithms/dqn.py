@@ -97,6 +97,12 @@ class DQN_Agent:
         """
         q_targets_next = torch.max(self.target_network(next_states), dim=1)[0]
         q_targets = rewards + (1 - dones) * self.gamma * q_targets_next
+
+        # Allow extensions to modify the targets
+        for extension in self.extensions:
+            if hasattr(extension, "compute_targets"):
+                q_targets = extension.compute_targets(rewards, next_states, dones)
+
         return q_targets
     
     def tensorize_state(self, state, batch = False):
@@ -146,6 +152,11 @@ class DQN_Agent:
             next_state (np.ndarray): Next state after taking the action.
             done (bool): Whether the episode has ended.
         """
+        for extension in self.extensions:
+            if hasattr(extension, "record"):
+                extension.record(state, action, reward, next_state, done)
+                pass
+
         self.buffer.append((state, action, reward, next_state, done))
 
     def update_epsilon(self):
@@ -161,6 +172,11 @@ class DQN_Agent:
         Returns:
             tuple: A batch containing tensors for states, actions, rewards, next states, dones, and ones.
         """
+        for extension in self.extensions:
+            if hasattr(extension, "sample_batch"):
+                extension.sample_batch()
+                pass
+            
         batch = random.sample(self.buffer, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
         states = np.array(states)
@@ -198,7 +214,7 @@ class DQN_Agent:
         # Weight == 1 for vanilla implementation
         loss = (weights * td_errors ** 2).mean()
         #loss = self.q_network.loss_fn(q_values, q_targets.detach())
-        return loss
+        return loss, td_errors
 
     def update_network(self, loss):
         """
@@ -230,19 +246,20 @@ class DQN_Agent:
 
         #q_targets = rewards
         q_targets = self.compute_targets(rewards, next_states, dones)
-        '''for extension in self.extensions:
+        for extension in self.extensions:
             if hasattr(extension, "compute_targets"):
-                q_targets = extension.compute_targets(rewards, next_states, dones)'''
+                q_targets = extension.compute_targets(rewards, next_states, dones)
+
         q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
 
-        loss = self.compute_loss(q_values, q_targets, weights)
+        loss, td_errors = self.compute_loss(q_values, q_targets, weights)
         self.update_network(loss)
 
-        '''for extension in self.extensions:
+        for extension in self.extensions:
             if hasattr(extension, "update_priorities"):
                 extension.update_priorities(td_errors.detach().abs().numpy())
-            elif isinstance(extension, dqn_extensions.NoisyDQNExtension):
-                extension.reset_noise()'''
+            if hasattr(extension, "reset_noise"):
+                extension.reset_noise()
 
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()

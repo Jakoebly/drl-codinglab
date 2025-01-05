@@ -5,49 +5,7 @@ import random
 import numpy as np
 from collections import deque
 
-class BaseImplementation:
-    def __init__(self, agent):
-        """Initialize with a reference to the agent."""
-        self.agent = agent
-
-    def select_action(self, state, training = True):
-
-        if training and np.random.rand() < self.epsilon:
-            action = np.random.randint(self.action_size)
-        else:
-            state = torch.FloatTensor(state).unsqueeze(0)
-            with torch.no_grad():
-                q_values = self.q_network(state)
-            action = torch.argmax(q_values).item()
-
-        return action
-    
-    def compute_targets(self, rewards, next_states, dones):
-        """Default Q-value target computation."""
-        q_targets_next = torch.max(self.agent.target_network(next_states), dim=1)[0]
-        return rewards + (1 - dones) * self.agent.gamma * q_targets_next
-
-    def record(self, state, action, reward, next_state, done, transition):
-        """Default replay buffer logic."""
-        if transition is None:
-            transition = (state, action, reward, next_state, done)
-        return transition
-    
-    def sample_batch(self):
-        """Default sample logic."""
-        batch = random.sample(self.agent.buffer, self.agent.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-        weights = torch.ones(len(states))  # Default weights of 1
-        return (
-            torch.FloatTensor(states),
-            torch.LongTensor(actions),
-            torch.FloatTensor(rewards),
-            torch.FloatTensor(next_states),
-            torch.FloatTensor(dones),
-            torch.FloatTensor(weights),  # Always include weights
-        )
-
-class DoubleDQNExtension(BaseImplementation):
+class DoubleDQNExtension:
     """
     Implements Double Deep Q-Learning (Double DQN) to reduce overestimation bias in Q-value estimation.
 
@@ -61,11 +19,15 @@ class DoubleDQNExtension(BaseImplementation):
       By separating action selection and target estimation, Double DQN improves stability and 
       performance, especially in noisy environments.
     """
+    def __init__(self, agent):
+        self.agent = agent
+
     def compute_targets(self, rewards, next_states, dones):
         """Double DQN target computation."""
         next_actions = torch.argmax(self.agent.q_network(next_states), dim=1)
         q_targets_next = self.agent.target_network(next_states).gather(1, next_actions.unsqueeze(1)).squeeze()
-        return rewards + (1 - dones) * self.agent.gamma * q_targets_next
+        q_targets = rewards + (1 - dones) * self.agent.gamma * q_targets_next
+        return q_targets
     
 class PrioritizedReplayBuffer:
     def __init__(self, capacity, alpha = 0.75):
@@ -83,7 +45,7 @@ class PrioritizedReplayBuffer:
         else:
             self.buffer[self.pos] = transition
 
-        # Store the priority
+        # Storing priority
         self.priorities.append(priority ** self.alpha)
         self.pos = (self.pos + 1) % self.capacity
 
@@ -102,13 +64,23 @@ class PrioritizedReplayBuffer:
         weights /= weights.max()
 
         states, actions, rewards, next_states, dones = zip(*samples)
+        states = np.array(states)
+        next_states = np.array(next_states)
+
+        states_tensor = torch.FloatTensor(states)
+        next_states_tensor = torch.FloatTensor(next_states)
+        actions_tensor = torch.LongTensor(actions)
+        rewards_tensor = torch.FloatTensor(rewards)
+        dones_tensor = torch.FloatTensor(dones)
+        weights_tensor = torch.FloatTensor(weights)
+
         return (
-            torch.FloatTensor(states),
-            torch.LongTensor(actions),
-            torch.FloatTensor(rewards),
-            torch.FloatTensor(next_states),
-            torch.FloatTensor(dones),
-            torch.FloatTensor(weights),
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
             indices,
         )
 
@@ -117,7 +89,7 @@ class PrioritizedReplayBuffer:
         for idx, priority in zip(indices, priorities):
             self.priorities[idx] = priority ** self.alpha
 
-class PrioritizedReplayExtension(BaseImplementation):
+class PrioritizedReplayExtension:
     """
     Implements Prioritized Experience Replay for Deep Q-Learning.
 
@@ -135,20 +107,20 @@ class PrioritizedReplayExtension(BaseImplementation):
     - `update_priorities`: Updates the priorities of sampled transitions.
     """
     def __init__(self, agent):
-        super().__init__(agent)
+        self.agent = agent
         self.prioritized_buffer = PrioritizedReplayBuffer(agent.buffer.maxlen)
+        self.last_sampled_indices = None
 
-    def record(self, state, action, reward, next_state, done, transition=None):
-        if transition is None:
-            transition = (state, action, reward, next_state, done)
-
-        state, action, reward, next_state, done = transition
+    def record(self, state, action, reward, next_state, done):
+        transition = (state, action, reward, next_state, done)
         q_value = self.agent.q_network(torch.FloatTensor(state))[action].item()
         q_next = 0 if done else torch.max(self.agent.target_network(torch.FloatTensor(next_state))).item()
         td_error = abs(reward + self.agent.gamma * q_next - q_value)
 
+        # Add to the prioritized buffer
         self.prioritized_buffer.add(transition, td_error)
-        return transition
+
+        #return transition
 
     def sample_batch(self):
         """Sample from prioritized buffer."""
@@ -160,6 +132,83 @@ class PrioritizedReplayExtension(BaseImplementation):
     def update_priorities(self, td_errors):
         """Update priorities based on new TD errors."""
         self.prioritized_buffer.update_priorities(self.last_sampled_indices, td_errors)
+
+# Multi-step Learning Extension
+class MultiStepExtension:
+    """
+    Implements multi-step learning for Deep Q-Learning.
+
+    Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
+    allowing for better credit assignment and faster convergence.
+
+    Key Features:
+    - **n-Step Return**:
+      Accumulates rewards over `n` steps:
+          G_t = r_t + γ r_{t+1} + γ^2 r_{t+2} + ... + γ^{n-1} r_{t+n-1}.
+    - **Buffer Management**:
+      Uses a deque to store transitions until `n` steps are collected.
+    - **Replay Buffer Integration**:
+      Adds multi-step transitions to the replay buffer, ensuring compatibility with prioritized replay.
+
+    Benefits:
+    - Improves stability and learning by incorporating longer-term rewards.
+    - Enhances convergence speed by providing richer updates.
+
+    Methods:
+    - `record`: Accumulates transitions and computes n-step returns when the buffer is full.
+    - `_get_n_step_transition`: Calculates cumulative reward and final transition state.
+    """
+    def __init__(self, agent, n_steps=3):
+        self.agent = agent
+        self.n_steps = n_steps
+        self.n_step_buffer = deque(maxlen=n_steps)
+
+    def record(self, state, action, reward, next_state, done):
+        self.n_step_buffer.append((state, action, reward, next_state, done))
+        if len(self.n_step_buffer) == self.n_steps:
+            multi_step_reward, multi_step_state, multi_step_done = self._get_n_step_transition()
+            transition = (multi_step_state[0], multi_step_state[1], multi_step_reward, multi_step_state[3], multi_step_done)
+
+            for extension in self.agent.extensions:
+                if extension != self and hasattr(extension, "record"):
+                    extension.record(*transition)
+
+    def _get_n_step_transition(self):
+        """Compute n-step return and final transition."""
+        multi_step_reward = 0
+        for idx, (state, action, reward, next_state, done) in enumerate(self.n_step_buffer):
+            multi_step_reward += (self.agent.gamma ** idx) * reward
+            if done:
+                return multi_step_reward, (state, action, reward, next_state, done), True
+        return multi_step_reward, self.n_step_buffer[-1], False
+    
+    def compute_targets(self, rewards, next_states, dones):
+        """
+        Compute Q-value targets for multi-step learning.
+
+        Parameters:
+            rewards (torch.Tensor): Rewards received from the environment.
+            next_states (torch.Tensor): Next states resulting from actions taken.
+            dones (torch.Tensor): Binary tensor indicating terminal states (1 if done, 0 otherwise).
+
+        Returns:
+            torch.Tensor: Multi-step target Q-values.
+        """
+        # Use the agent's compute_targets method to get baseline or combined targets
+        baseline_targets = self.agent.compute_targets(rewards, next_states, dones)
+
+        # Modify targets for multi-step learning
+        multi_step_targets = torch.zeros_like(rewards)
+        for t in range(len(rewards)):
+            for n in range(self.n_steps):
+                if t + n < len(rewards):
+                    multi_step_targets[t] += (self.agent.gamma ** n) * rewards[t + n]
+                if dones[t + n]:
+                    break
+
+        # Combine multi-step targets with baseline targets for consistency
+        return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.n_steps) * baseline_targets
+
 
 # Dueling Q-Network
 class DuelingQNetwork(nn.Module):
@@ -187,7 +236,7 @@ class DuelingQNetwork(nn.Module):
         q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
         return q_values
     
-class DuelingDQNExtension(BaseImplementation):
+class DuelingDQNExtension:
     """
     Implements the Dueling Deep Q-Learning (Dueling DQN) extension.
 
@@ -216,57 +265,6 @@ class DuelingDQNExtension(BaseImplementation):
         self.agent.q_network = DuelingQNetwork(state_size, action_size, hidden_units)
         self.agent.target_network = DuelingQNetwork(state_size, action_size, hidden_units)
         self.agent.update_target_weights()
-
-# Multi-step Learning Extension
-class MultiStepExtension(BaseImplementation):
-    """
-    Implements multi-step learning for Deep Q-Learning.
-
-    Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
-    allowing for better credit assignment and faster convergence.
-
-    Key Features:
-    - **n-Step Return**:
-      Accumulates rewards over `n` steps:
-          G_t = r_t + γ r_{t+1} + γ^2 r_{t+2} + ... + γ^{n-1} r_{t+n-1}.
-    - **Buffer Management**:
-      Uses a deque to store transitions until `n` steps are collected.
-    - **Replay Buffer Integration**:
-      Adds multi-step transitions to the replay buffer, ensuring compatibility with prioritized replay.
-
-    Benefits:
-    - Improves stability and learning by incorporating longer-term rewards.
-    - Enhances convergence speed by providing richer updates.
-
-    Methods:
-    - `record`: Accumulates transitions and computes n-step returns when the buffer is full.
-    - `_get_n_step_transition`: Calculates cumulative reward and final transition state.
-    """
-    def __init__(self, agent, n_steps=3):
-        super().__init__(agent)
-        self.n_steps = n_steps
-        self.n_step_buffer = deque(maxlen=n_steps)
-
-    def record(self, state, action, reward, next_state, done, transition=None):
-        self.n_step_buffer.append((state, action, reward, next_state, done))
-        if len(self.n_step_buffer) == self.n_steps:
-            multi_step_reward, multi_step_state, multi_step_done = self._get_n_step_transition()
-            transition = (multi_step_state[0], multi_step_state[1], multi_step_reward, multi_step_state[3], multi_step_done)
-            super().record(state, action, reward, next_state, done, transition)
-        return transition
-
-    def _get_n_step_transition(self):
-        """Compute n-step return and final transition."""
-        multi_step_reward = 0
-        for idx, (state, action, reward, next_state, done) in enumerate(self.n_step_buffer):
-            multi_step_reward += (self.agent.gamma ** idx) * reward
-            if done:
-                return multi_step_reward, (state, action, reward, next_state, done), True
-        return multi_step_reward, self.n_step_buffer[-1], False
-
-    def compute_targets(self, rewards, next_states, dones):
-        """Adjust targets for multi-step learning."""
-        return super().compute_targets(rewards, next_states, dones)
     
 class DistributionalQNetwork(nn.Module):
     def __init__(self, state_size, action_size, hidden_units, num_atoms, v_min, v_max):
@@ -307,7 +305,7 @@ def categorical_projection(next_probs, rewards, dones, gamma, num_atoms, v_min, 
 
     return m
 
-class DistributionalDQNExtension(BaseImplementation):
+class DistributionalDQNExtension:
     """
     Implements the Distributional Deep Q-Learning (C51) extension.
 
@@ -442,7 +440,7 @@ class NoisyQNetwork(nn.Module):
                 module.reset_noise()
 
 # Noisy DQN Extension
-class NoisyDQNExtension(BaseImplementation):
+class NoisyDQNExtension:
     """
     Implements Noisy Networks for Deep Q-Learning (Noisy DQN).
 
@@ -491,6 +489,7 @@ class NoisyDQNExtension(BaseImplementation):
     def reset_noise(self):
         self.agent.q_network.reset_noise()
         self.agent.target_network.reset_noise()
+
 
 EXTENSION_REGISTRY = {
     "double": DoubleDQNExtension,

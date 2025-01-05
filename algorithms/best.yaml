@@ -1,7 +1,7 @@
 Variant_0:
   DQN:
-    model_name: CL__DQN__Var0__inittest3
-    avg_validation_reward: 212.225
+    model_name: CL__DQN__Var0__doubel_prio
+    avg_validation_reward: 213.455
   PPO:
     model_name: null
     avg_validation_reward: -10000
