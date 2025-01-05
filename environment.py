@@ -389,7 +389,7 @@ class Environment(object):
             [agent_channel,
             prioritization_channel,
             item_positions_channel,
-            distances_channel,
+            #distances_channel,
             remaining_times_channel,
             #past_items_channel,
             #target_channel,

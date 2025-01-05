@@ -1,7 +1,7 @@
 DQN:
   eval_settings:
     eval_interval: 100
-    evaluation_treshold: 0.001
+    evaluation_treshold: 0.000
     evaluation_episodes: 50
 
   extensions: []
@@ -17,16 +17,10 @@ DQN:
     buffer_size: 80000
 
   nn_architecture:
-    structure: "CNN"
-    num_convolutional_layers: 3
-    num_convolutional_channels: 128
-    kernel_size: 3
-    stride: 1
-    padding: 1
-    num_fully_connected_layers: 2
-    num_neurons_fully_connected: 256
-    activation_convolutional_layers: "relu"
-    activation_fully_connected_layers: "relu"
+    structure: "DNN"
+    num_layers: 4
+    num_neurons: 256
+    activation_layers: "relu"
     activation_output:
 
 PPO:

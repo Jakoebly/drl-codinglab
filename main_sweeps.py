@@ -7,7 +7,7 @@ import torch
 import wandb
 from environment import Environment
 from utils import utils as ut, args, settings
-# from algorithms.dqn import DQN_Agent
+from algorithms.dqn import DQN_Agent
 from algorithms.ppo import PPO_Agent
 # from algorithms.sac import SAC_Agent
 
@@ -62,7 +62,6 @@ def model_pipeline(config):
         ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name)
 
 if __name__ == "__main__":
-
     # Get args
     args = args.parse_args()
 

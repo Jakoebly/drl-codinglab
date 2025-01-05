@@ -58,7 +58,7 @@ class DNN(nn.Module):
             return nn.Softmax(dim=1)
         else:
             raise ValueError(f"Unsupported activation function: {name}")
-        
+
 class CNN(nn.Module):
     def __init__(self, nn_architecture, state_shape, action_size, learning_rate):
         super(CNN, self).__init__()
