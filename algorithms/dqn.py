@@ -74,8 +74,8 @@ class DQN_Agent:
 
     def compute_targets(self, rewards, next_states, dones):
         """Default Q-value target computation for baseline."""
-        q_targets_next = torch.max(self.target_network(next_states.to(self.device)), dim=1)[0]
-        q_targets = rewards.to(self.device) + (1 - dones.to(self.device)) * self.gamma * q_targets_next
+        q_targets_next = torch.max(self.target_network(next_states), dim=1)[0]
+        q_targets = rewards + (1 - dones) * self.gamma * q_targets_next
         return q_targets
 
     '''def select_action(self, state, training=True):
@@ -84,16 +84,19 @@ class DQN_Agent:
         for extension in self.extensions:
             action = extension.select_action(state, training)
         return action'''
-    
+   
     def select_action(self, state, training=True):
         """Default action selection logic."""
         if training and np.random.rand() < self.epsilon:
             return np.random.randint(self.action_size)
         else:
-            state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            state = self.tensorize_state(state)
             with torch.no_grad():
                 q_values = self.q_network(state)
             return torch.argmax(q_values).item()
+    
+    def agent_step(self, action):
+        return self.env.step(action, structure = self.nn_structure)
 
     '''def record(self, state, action, reward, next_state, done):
         """Delegate recording through extensions."""
@@ -115,6 +118,21 @@ class DQN_Agent:
         for extension in self.extensions:
             return extension.sample_batch()
         return BaseImplementation.sample_batch(self)'''
+    
+    def tensorize_state(self, state, batch = False):
+        if not batch:
+            return torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            '''if self.nn_structure == "DNN":
+                return torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            elif self.nn_structure == "CNN":
+                return torch.FloatTensor(state).permute(2, 0, 1).unsqueeze(0).to(self.device)'''
+    
+        elif batch:
+            return torch.FloatTensor(state).to(self.device)
+            '''if self.nn_structure == "DNN":
+                return torch.FloatTensor(state).to(self.device)
+            elif self.nn_structure == "CNN":
+                return torch.FloatTensor(state).permute(0, 3, 1, 2).to(self.device)'''
        
     def sample_batch(self):
         """Default sample logic."""
@@ -123,13 +141,20 @@ class DQN_Agent:
         states = np.array(states)
         next_states = np.array(next_states)
 
+        states_tensor = self.tensorize_state(states, batch = True)
+        next_states_tensor = self.tensorize_state(next_states, batch = True)
+        actions_tensor = torch.LongTensor(actions).to(self.device)
+        rewards_tensor = torch.FloatTensor(rewards).to(self.device)
+        dones_tensor = torch.FloatTensor(dones).to(self.device)
+        ones_tensor = torch.FloatTensor(torch.ones(len(states))).to(self.device)
+
         return (
-            torch.FloatTensor(states).to(self.device),
-            torch.LongTensor(actions).to(self.device),
-            torch.FloatTensor(rewards).to(self.device),
-            torch.FloatTensor(next_states).to(self.device),
-            torch.FloatTensor(dones).to(self.device),
-            torch.FloatTensor(torch.ones(len(states))).to(self.device),
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            ones_tensor,
         )
     
     def compute_loss(self, q_values, q_targets, weights = 1):
@@ -195,7 +220,8 @@ class DQN_Agent:
 
             while not done:
                 action = self.select_action(state, training)
-                reward, next_state, done = self.env.step(action, structure = self.nn_structure)
+                #reward, next_state, done = self.env.step(action, structure = self.nn_structure)
+                reward, next_state, done = self.agent_step(action)
 
                 if training:
                     self.record(state, action, reward, next_state, done)
@@ -208,8 +234,10 @@ class DQN_Agent:
 
             if training:
                 self.update_epsilon()
+
                 wandb.log({"Losses/Total Loss": loss}, episode)
                 wandb.log({"Hyperparameters/Epsilon": self.epsilon}, episode)
+
             if not eval:
                 wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
 

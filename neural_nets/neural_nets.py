@@ -26,11 +26,16 @@ import torch.optim as optim
 def create_network(nn_architecture, state_shape, action_size, learning_rate):
     structure = nn_architecture['structure']
     if structure == 'DNN':
-        return DNN(nn_architecture, state_shape, action_size, learning_rate)
+        network = DNN(nn_architecture, state_shape, action_size, learning_rate)
     elif structure == 'CNN':
-        return CNN(nn_architecture, state_shape, action_size, learning_rate)
+        network = CNN(nn_architecture, state_shape, action_size, learning_rate)
     else:
         raise ValueError(f"Unsupported structure: {structure}")
+    
+    print(f"Created {structure} Network Structure:\n{network}")
+    print(f"Optimizer: {network.optimizer} with learning rate {learning_rate}")
+    
+    return network
 
 class DNN(nn.Module):
     def __init__(self, nn_architecture, state_shape, action_size, learning_rate):
@@ -79,8 +84,9 @@ class CNN(nn.Module):
     def __init__(self, nn_architecture, state_shape, action_size, learning_rate):
         super(CNN, self).__init__()
         layers = []
-        input_channels = state_shape[0]
-        height, width = state_shape[1], state_shape[2]
+
+        # Unpack state shape (Height, Width, Channels)
+        height, width, input_channels = state_shape
 
         num_conv_layers = nn_architecture['num_convolutional_layers']
         num_channels = nn_architecture['num_convolutional_channels']
@@ -88,37 +94,48 @@ class CNN(nn.Module):
         stride = nn_architecture['stride']
         padding = nn_architecture['padding']
         activation = nn_architecture['activation_layers']
-        activation_output = nn_architecture['activation_output']
+        activation_output = nn_architecture.get('activation_output', None)
 
         for _ in range(num_conv_layers):
             layers.append(nn.Conv2d(input_channels, num_channels, kernel_size, stride, padding))
             layers.append(self.get_activation(activation))
             input_channels = num_channels
+            height = (height + 2 * padding - kernel_size) // stride + 1
+            width = (width + 2 * padding - kernel_size) // stride + 1
 
-        fc_input_size = num_channels * height * width
+        self.fc_input_size = num_channels * height * width
+
         num_fc_layers = nn_architecture['num_fully_connected_layers']
         num_neurons = nn_architecture['num_neurons_fully_connected']
 
         for _ in range(num_fc_layers):
-            layers.append(nn.Linear(fc_input_size, num_neurons))
+            layers.append(nn.Linear(self.fc_input_size, num_neurons))
             layers.append(self.get_activation(activation))
-            fc_input_size = num_neurons
+            self.fc_input_size = num_neurons
 
-        layers.append(nn.Linear(fc_input_size, action_size))
+        layers.append(nn.Linear(self.fc_input_size, action_size))
         if activation_output is not None:
             layers.append(self.get_activation(activation_output))
 
         self.model = nn.Sequential(*layers)
-        self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
+        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
-        x = x.contiguous()
-        x = x.reshape(x.size(0), -1)
-        return self.model(x)
+        """
+        Forward pass of the CNN.
+        Input: x of shape (Batch, Height, Width, Channels)
+        """
+        x = x.permute(0, 3, 1, 2) 
+        for layer in self.model:
+            if isinstance(layer, nn.Linear):
+                x = x.contiguous().view(x.size(0), -1) 
+            x = layer(x)
+        return x
 
     @staticmethod
     def get_activation(name):
+        """Return the activation function based on its name."""
         if name == 'relu':
             return nn.ReLU()
         elif name == 'sigmoid':
@@ -127,9 +144,10 @@ class CNN(nn.Module):
             return nn.Tanh()
         elif name == 'linear':
             return nn.Identity()
+        elif name == 'softmax':
+            return nn.Softmax(dim=1)
         else:
             raise ValueError(f"Unsupported activation function: {name}")
-
 
 '''class QNetwork(nn.Module):
     def __init__(self, nn_architecture):

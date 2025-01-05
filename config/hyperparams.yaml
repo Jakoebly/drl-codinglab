@@ -17,9 +17,14 @@ DQN:
     buffer_size: 80000
 
   nn_architecture:
-    structure: "DNN"
-    num_layers: 4
-    num_neurons: 256
+    structure: "CNN"
+    num_convolutional_layers: 3
+    num_convolutional_channels: 128
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    num_fully_connected_layers: 2
+    num_neurons_fully_connected: 256
     activation_layers: "relu"
     activation_output:
 

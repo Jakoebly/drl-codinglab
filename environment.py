@@ -197,11 +197,9 @@ class Environment(object):
             return self.reset(mode = "training", structure = structure).shape[0]
             #return self.get_new_obs(structure=structure).shape[0]
         if structure == "CNN":
-            # (Channels, Height, Width) e.g. (6, 5, 5)
+            # (Height, Width, Channels) e.g. (5, 5, 6)
             state = self.reset(mode = "training", structure = structure).shape
-            print(state)
             return state
-            #return self.get_new_obs(structure=structure).shape
         
     def manhatten_dist(self, pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
         return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
@@ -391,7 +389,7 @@ class Environment(object):
             [agent_channel,
             prioritization_channel,
             item_positions_channel,
-            #distances_channel,
+            distances_channel,
             remaining_times_channel,
             #past_items_channel,
             #target_channel,
@@ -402,8 +400,8 @@ class Environment(object):
 
         return state
     
-    # GRIDOBS
-    def get_grid_obs(self) -> List[float]:
+    # GRIDOBS - OLD SHIT, DONT NEED IT ANYMORE
+    '''def get_grid_obs(self) -> List[float]:
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
 
         # Agent position
@@ -420,7 +418,7 @@ class Environment(object):
         for loc, time in zip(self.item_locs, self.item_times):
             remaining_times[loc] = (self.max_response_time - time) / self.max_response_time
 
-        '''# TODO: evtl. weg weil eigentlich nicht relevant für die entscheidung
+        # TODO: evtl. weg weil eigentlich nicht relevant für die entscheidung
         # Past items (spawn counts at each position)
         past_items_vector = self.past_items_vector.flatten()
 
@@ -428,7 +426,7 @@ class Environment(object):
         if total_spawns > 0:
             past_items_vector = past_items_vector / total_spawns
         else:
-            past_items_vector = np.zeros_like(past_items_vector)'''
+            past_items_vector = np.zeros_like(past_items_vector)
 
         # Target location
         target_location = np.zeros(grid_shape)
@@ -482,7 +480,7 @@ class Environment(object):
             np.array(num_items).flatten(), # Dim 1
         ])
 
-        return state
+        return state'''
 
     def get_to_tgt(self, tgt):
         """Determines which action to take to get to tgt coordinates."""
