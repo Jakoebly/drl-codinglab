@@ -70,6 +70,11 @@ class Environment(object):
         modes = ["training", "validation", "testing"]
         if mode not in modes:
             raise ValueError("Invalid mode. Expected one of: %s" % modes)
+        
+        structures = ["DNN", "CNN"]
+        if structure not in structures:
+            raise ValueError("Invalid NN structure. Expected one of: %s" % structures)
+        self.nn_structure = structure
 
         self.step_count = 0
         self.agent_loc = (self.vertical_idx_target, self.horizontal_idx_target)
@@ -96,15 +101,15 @@ class Environment(object):
         self.update_render()
 
         '''
-        if structure == "DNN":
+        if self.nn_structure == "DNN":
             self.past_items = []
-        elif structure == "CNN":
+        elif self.nn_structure == "CNN":
             self.past_items = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)'''
 
-        return self.get_new_obs(structure)
+        return self.get_new_obs()
 
     # take one environment step based on the action act
-    def step(self, act, structure = "DNN"):
+    def step(self, act):
         self.step_count += 1
         rew = 0
         # done signal (1 if episode ends, 0 if not)
@@ -163,7 +168,7 @@ class Environment(object):
             self.past_items[loc] += 1'''
 
         # get new observation
-        next_obs = self.get_new_obs(structure)
+        next_obs = self.get_new_obs()
 
         # for Render:
         self.update_render()
@@ -182,14 +187,10 @@ class Environment(object):
                 target_count=self.current_episode_target_count
             )
     
-    def get_new_obs(self, structure = "DNN"):
-        structures = ["DNN", "CNN"]
-        if structure not in structures:
-            raise ValueError("Invalid NN structure. Expected one of: %s" % structures)
-        
-        if structure == "DNN":
+    def get_new_obs(self):
+        if self.nn_structure == "DNN":
             return self.get_dnn_obs()
-        if structure == "CNN":
+        if self.nn_structure == "CNN":
             return self.get_cnn_obs()
         
     def get_state_size(self, structure = "DNN"):

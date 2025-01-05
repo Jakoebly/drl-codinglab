@@ -134,19 +134,6 @@ class DQN_Agent:
             with torch.no_grad():
                 q_values = self.q_network(state)
             return torch.argmax(q_values).item()
-    
-    def agent_step(self, action) -> Tuple[float, np.ndarray, bool]:
-        """
-        Select an action based on the epsilon-greedy policy.
-
-        Parameters:
-            state (np.ndarray): Current state of the environment.
-            training (bool): Whether the agent is in training mode.
-
-        Returns:
-            int: The selected action.
-        """
-        return self.env.step(action, structure = self.nn_structure)
 
     def record(self, state, action, reward, next_state, done):
         """
@@ -291,7 +278,7 @@ class DQN_Agent:
             while not done:
                 action = self.select_action(state, training)
                 #reward, next_state, done = self.env.step(action, structure = self.nn_structure)
-                reward, next_state, done = self.agent_step(action)
+                reward, next_state, done = self.env.step(action)
 
                 if training:
                     self.record(state, action, reward, next_state, done)
