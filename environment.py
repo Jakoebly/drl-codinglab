@@ -195,9 +195,8 @@ class Environment(object):
     def get_state_size(self, structure = "DNN"):
         if structure == "DNN":
             return self.reset(mode = "training", structure = structure).shape[0]
-            #return self.get_new_obs(structure=structure).shape[0]
         if structure == "CNN":
-            # (Height, Width, Channels) e.g. (5, 5, 6)
+            # (Height, Width, Channels) i.e. (5, 5, x)
             state = self.reset(mode = "training", structure = structure).shape
             return state
         
