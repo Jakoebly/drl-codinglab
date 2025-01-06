@@ -48,13 +48,27 @@ class DQN_Agent:
         self.loss_fn = nn.MSELoss()
        
         """Initialize extensions"""
+        if "vanilla" in extensions:
+            extensions = []
+        elif "rainbow" in extensions:
+            extensions = dqn_extensions.EXTENSION_ORDER
+
+        extensions = [ext for ext in dqn_extensions.EXTENSION_ORDER if ext in extensions]
+
         self.extensions = []
         for ext_name in extensions:
             if ext_name not in dqn_extensions.EXTENSION_REGISTRY:
                 raise ValueError(f"Unknown extension: {ext_name}")
             ExtensionClass = dqn_extensions.EXTENSION_REGISTRY[ext_name]
-            self.extensions.append(ExtensionClass(self))
-        
+            extension_instance = ExtensionClass(self)
+            self.extensions.append(extension_instance)
+
+            for method_name in dir(extension_instance):
+                if method_name.startswith("__") or not callable(getattr(extension_instance, method_name)):
+                    continue
+                if hasattr(self, method_name):
+                    setattr(self, method_name, getattr(extension_instance, method_name))
+                
         self.step_count = 0
 
     def load_weights(self, path):
@@ -97,11 +111,6 @@ class DQN_Agent:
         """
         q_targets_next = torch.max(self.target_network(next_states), dim=1)[0]
         q_targets = rewards + (1 - dones) * self.gamma * q_targets_next
-
-        # Allow extensions to modify the targets
-        for extension in self.extensions:
-            if hasattr(extension, "compute_targets"):
-                q_targets = extension.compute_targets(rewards, next_states, dones)
 
         return q_targets
     
@@ -152,11 +161,6 @@ class DQN_Agent:
             next_state (np.ndarray): Next state after taking the action.
             done (bool): Whether the episode has ended.
         """
-        for extension in self.extensions:
-            if hasattr(extension, "record"):
-                extension.record(state, action, reward, next_state, done)
-                pass
-
         self.buffer.append((state, action, reward, next_state, done))
 
     def update_epsilon(self):
@@ -172,11 +176,6 @@ class DQN_Agent:
         Returns:
             tuple: A batch containing tensors for states, actions, rewards, next states, dones, and ones.
         """
-        for extension in self.extensions:
-            if hasattr(extension, "sample_batch"):
-                extension.sample_batch()
-                pass
-            
         batch = random.sample(self.buffer, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
         states = np.array(states)
@@ -187,17 +186,15 @@ class DQN_Agent:
         actions_tensor = torch.LongTensor(actions).to(self.device)
         rewards_tensor = torch.FloatTensor(rewards).to(self.device)
         dones_tensor = torch.FloatTensor(dones).to(self.device)
-        ones_tensor = torch.FloatTensor(torch.ones(len(states))).to(self.device)
 
         return (states_tensor,
                 actions_tensor,
                 rewards_tensor,
                 next_states_tensor,
                 dones_tensor,
-                ones_tensor,
         )
     
-    def compute_loss(self, q_values, q_targets, weights = 1):
+    def compute_loss(self, q_values, q_targets):
         """
         Compute the Temporal Difference (TD) loss.
 
@@ -209,12 +206,9 @@ class DQN_Agent:
         Returns:
             torch.Tensor: Computed loss value.
         """
-        td_errors = q_targets.detach().to(self.device) - q_values.to(self.device)
-        weights = weights.to(self.device)
-        # Weight == 1 for vanilla implementation
-        loss = (weights * td_errors ** 2).mean()
-        #loss = self.q_network.loss_fn(q_values, q_targets.detach())
-        return loss, td_errors
+        loss = self.q_network.loss_fn(q_values, q_targets.detach())
+
+        return loss
 
     def update_network(self, loss):
         """
@@ -238,28 +232,34 @@ class DQN_Agent:
             return
 
         batch = self.sample_batch()
-        states, actions, rewards, next_states, dones, weights = batch
+        states, actions, rewards, next_states, dones, *optional = batch
         actions = actions.to(self.device)
         rewards = rewards.to(self.device)
         dones = dones.to(self.device)
-        weights = weights.to(self.device)
+        
+        # Handle weights if prioritized replay is active
+        if optional:
+            weights = optional[0].to(self.device)
+        else:
+            weights = torch.ones(rewards.size(0), device=self.device)
 
-        #q_targets = rewards
         q_targets = self.compute_targets(rewards, next_states, dones)
-        for extension in self.extensions:
-            if hasattr(extension, "compute_targets"):
-                q_targets = extension.compute_targets(rewards, next_states, dones)
-
         q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
 
-        loss, td_errors = self.compute_loss(q_values, q_targets, weights)
+        q_targets.to(self.device)
+        q_values.to(self.device)
+
+        if hasattr(self, "compute_loss"):
+            loss, td_errors = self.compute_loss(q_values, q_targets, weights)
+        else:
+            loss = self.compute_loss(q_values, q_targets)
+
         self.update_network(loss)
 
+        # Update priorities if applicable
         for extension in self.extensions:
             if hasattr(extension, "update_priorities"):
-                extension.update_priorities(td_errors.detach().abs().numpy())
-            if hasattr(extension, "reset_noise"):
-                extension.reset_noise()
+                extension.update_priorities(td_errors.detach().abs().cpu().numpy())
 
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
@@ -290,6 +290,7 @@ class DQN_Agent:
         for episode in range(num_episodes):
             state = self.env.reset(mode, structure = self.nn_structure)
             reward_episode = 0
+            loss_episode = 0
             done = False
 
             while not done:
@@ -300,16 +301,18 @@ class DQN_Agent:
                 if training:
                     self.record(state, action, reward, next_state, done)
                     loss = self.train_step()
+                    if loss is not None:
+                        loss_episode += loss
 
                 state = next_state
                 reward_episode += reward
-                
+
             rewards.append(reward_episode)
 
             if training:
                 self.update_epsilon()
 
-                wandb.log({"Losses/Total Loss": loss}, episode)
+                wandb.log({"Losses/Total Loss": loss_episode}, episode)
                 wandb.log({"Hyperparameters/Epsilon": self.epsilon}, episode)
 
             if not eval:
@@ -327,7 +330,7 @@ class DQN_Agent:
 
                 difference = average_eval_reward - last_evaluation_reward
 
-                if difference < last_evaluation_reward * self.evaluation_treshold:
+                if difference < last_evaluation_reward * self.evaluation_treshold and self.evaluation_treshold != 0:
                     print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
                     rewards = rewards[:episode + 1]
                     break

@@ -1,9 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import random
 import numpy as np
 from collections import deque
+
+EXTENSION_ORDER = [
+    "double", 
+    "priority", 
+    "multi_step", 
+    "dueling", 
+    "distribution", 
+    "noisy"
+]
 
 class DoubleDQNExtension:
     """
@@ -24,9 +32,13 @@ class DoubleDQNExtension:
 
     def compute_targets(self, rewards, next_states, dones):
         """Double DQN target computation."""
+        # Online network action selection
         next_actions = torch.argmax(self.agent.q_network(next_states), dim=1)
+        # Target network Q-value estimation for action from online network
         q_targets_next = self.agent.target_network(next_states).gather(1, next_actions.unsqueeze(1)).squeeze()
+        # Computing target Q-values via Bellman equation
         q_targets = rewards + (1 - dones) * self.agent.gamma * q_targets_next
+
         return q_targets
     
 class PrioritizedReplayBuffer:
@@ -37,6 +49,9 @@ class PrioritizedReplayBuffer:
         self.buffer = []
         self.priorities = deque(maxlen=capacity)
         self.pos = 0
+
+    def __len__(self):
+        return len(self.buffer)  # Return the length of the buffer
 
     def add(self, transition, priority):
         """Add a new experience to the buffer."""
@@ -90,48 +105,78 @@ class PrioritizedReplayBuffer:
             self.priorities[idx] = priority ** self.alpha
 
 class PrioritizedReplayExtension:
-    """
-    Implements Prioritized Experience Replay for Deep Q-Learning.
-
-    This extension enhances the standard replay buffer by assigning a priority to each
-    transition, allowing the agent to sample more significant experiences (based on TD error)
-    more frequently. Key features include:
-    
-    - **Priority Sampling**: Transitions with higher TD errors are sampled with higher probability.
-    - **Importance Sampling**: Adjusts the loss using weights to account for sampling bias.
-    - **Dynamic Priority Updates**: Updates priorities in the buffer after learning from sampled transitions.
-
-    Methods:
-    - `record`: Adds transitions to the prioritized buffer with their initial TD error.
-    - `sample_batch`: Samples transitions based on priority and provides importance sampling weights.
-    - `update_priorities`: Updates the priorities of sampled transitions.
-    """
     def __init__(self, agent):
+        """
+        Implements Prioritized Experience Replay.
+        """
         self.agent = agent
-        self.prioritized_buffer = PrioritizedReplayBuffer(agent.buffer.maxlen)
+        # Replace the default buffer with prioritized buffer
+        self.agent.buffer = PrioritizedReplayBuffer(capacity = agent.buffer.maxlen)
         self.last_sampled_indices = None
 
-    def record(self, state, action, reward, next_state, done):
-        transition = (state, action, reward, next_state, done)
-        q_value = self.agent.q_network(torch.FloatTensor(state))[action].item()
-        q_next = 0 if done else torch.max(self.agent.target_network(torch.FloatTensor(next_state))).item()
-        td_error = abs(reward + self.agent.gamma * q_next - q_value)
-
-        # Add to the prioritized buffer
-        self.prioritized_buffer.add(transition, td_error)
-
-        #return transition
-
     def sample_batch(self):
-        """Sample from prioritized buffer."""
-        batch = self.prioritized_buffer.sample(self.agent.batch_size)
+        """
+        Sample a batch from the prioritized replay buffer.
+        """
+        batch = self.agent.buffer.sample(self.agent.batch_size)
         states, actions, rewards, next_states, dones, weights, indices = batch
-        self.last_sampled_indices = indices  # Store for priority updates
+
+        # Move tensors to the correct device
+        states = states.to(self.agent.device)
+        actions = actions.to(self.agent.device)
+        rewards = rewards.to(self.agent.device)
+        next_states = next_states.to(self.agent.device)
+        dones = dones.to(self.agent.device)
+        weights = weights.to(self.agent.device)
+
+        self.last_sampled_indices = indices
         return states, actions, rewards, next_states, dones, weights
-    
+
+    def record(self, state, action, reward, next_state, done):
+        """
+        Add transitions to the prioritized buffer using TD error as priority.
+        """
+        state_tensor = self.agent.tensorize_state(state)
+        next_state_tensor = self.agent.tensorize_state(next_state)
+
+        rewards_tensor = torch.FloatTensor([reward]).to(self.agent.device)
+        dones_tensor = torch.FloatTensor([done]).to(self.agent.device)
+        q_next = self.agent.compute_targets(rewards_tensor, next_state_tensor, dones_tensor)
+
+        q_value = self.agent.q_network(state_tensor)[0, action]
+        td_error = self.compute_td_errors(q_value, q_next).item()
+
+        transition = (state, action, reward, next_state, done)
+        self.agent.buffer.add(transition, abs(td_error))
+
     def update_priorities(self, td_errors):
-        """Update priorities based on new TD errors."""
-        self.prioritized_buffer.update_priorities(self.last_sampled_indices, td_errors)
+        """
+        Update priorities for sampled transitions.
+        """
+        if self.last_sampled_indices is None:
+            raise ValueError("No samples have been drawn from the buffer.")
+        self.agent.buffer.update_priorities(self.last_sampled_indices, td_errors)
+
+    def compute_td_errors(self, q_values, q_targets):
+        """
+        Compute the Temporal Difference (TD) errors.
+
+        Parameters:
+            q_values (torch.Tensor): Q-values predicted by the Q-network for the sampled states and actions.
+            q_targets (torch.Tensor): Target Q-values computed using the target network.
+
+        Returns:
+            torch.Tensor: Computed TD errors.
+        """
+        td_errors = q_targets.detach() - q_values
+
+        return td_errors
+
+    def compute_loss(self, q_values, q_targets, weights):
+        td_errors = self.compute_td_errors(q_values, q_targets)
+        loss = (weights * td_errors ** 2).mean()
+
+        return loss, td_errors
 
 # Multi-step Learning Extension
 class MultiStepExtension:
