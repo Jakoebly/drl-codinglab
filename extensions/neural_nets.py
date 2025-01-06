@@ -10,13 +10,16 @@ def create_network(nn_architecture, state_shape, action_size, learning_rate):
         network = CNN(nn_architecture, state_shape, action_size, learning_rate)
     else:
         raise ValueError(f"Unsupported structure: {structure}")
-    
+
+    network.optimizer = optim.Adam(network.parameters(), lr=learning_rate)
+    network.loss_fn = nn.MSELoss()
+
     print(f"Created {structure} Network Structure:\n{network}")
-    
+
     return network
 
 class DNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size, learning_rate = None):
+    def __init__(self, nn_architecture, state_shape, action_size):
         super(DNN, self).__init__()
         layers = []
         input_size = state_shape
@@ -36,8 +39,6 @@ class DNN(nn.Module):
             layers.append(self.get_activation(activation_output))
 
         self.model = nn.Sequential(*layers)
-        self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
-        self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
         return self.model(x)
@@ -58,12 +59,10 @@ class DNN(nn.Module):
             raise ValueError(f"Unsupported activation function: {name}")
 
 class CNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size, learning_rate = None):
+    def __init__(self, nn_architecture, state_shape, action_size):
         super(CNN, self).__init__()
         self.conv_layers = self.build_conv_layers(nn_architecture, state_shape)
         self.fc_layers = self.build_fc_layers(nn_architecture, action_size)
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        self.loss_fn = nn.MSELoss()
 
     def build_conv_layers(self, nn_architecture, state_shape):
         layers = []
@@ -107,7 +106,6 @@ class CNN(nn.Module):
     def forward(self, x):
         x = x.permute(0, 3, 1, 2)
         x = self.conv_layers(x)
-        #x = x.view(x.size(0), -1)
         x = x.reshape(x.size(0), -1)
         x = self.fc_layers(x)
         return x
@@ -163,12 +161,11 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
             self.action_size = action_size
             self.num_atoms = num_atoms
 
-            # Extract the feature layers (everything except the last layer)
             if isinstance(base_network, DNN):
-                feature_layers = list(base_network.model[:-1])  # Remove the last layer
+                feature_layers = list(base_network.model[:-1])  # Remove last layer
                 input_size = base_network.model[-1].in_features
             elif isinstance(base_network, CNN):
-                feature_layers = base_network.fc_layers[:-1]  # Remove the last fully connected layer
+                feature_layers = base_network.fc_layers[:-1]  # Remove last fully connected layer
                 input_size = base_network.fc_layers[-1].in_features
             else:
                 raise ValueError("Unsupported network type for distributional conversion.")
