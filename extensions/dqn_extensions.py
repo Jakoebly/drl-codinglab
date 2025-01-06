@@ -3,14 +3,15 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from collections import deque
+from extensions import neural_nets
 
 EXTENSION_ORDER = [
     "double", 
     "priority", 
-    "multi_step", 
-    "dueling", 
-    "distribution", 
-    "noisy"
+    "distribution",
+    "dueling",
+    "noisy",
+    "multi_step",
 ]
 
 class DoubleDQNExtension:
@@ -51,7 +52,7 @@ class PrioritizedReplayBuffer:
         self.pos = 0
 
     def __len__(self):
-        return len(self.buffer)  # Return the length of the buffer
+        return len(self.buffer)
 
     def add(self, transition, priority):
         """Add a new experience to the buffer."""
@@ -110,7 +111,6 @@ class PrioritizedReplayExtension:
         Implements Prioritized Experience Replay.
         """
         self.agent = agent
-        # Replace the default buffer with prioritized buffer
         self.agent.buffer = PrioritizedReplayBuffer(capacity = agent.buffer.maxlen)
         self.last_sampled_indices = None
 
@@ -121,7 +121,6 @@ class PrioritizedReplayExtension:
         batch = self.agent.buffer.sample(self.agent.batch_size)
         states, actions, rewards, next_states, dones, weights, indices = batch
 
-        # Move tensors to the correct device
         states = states.to(self.agent.device)
         actions = actions.to(self.agent.device)
         rewards = rewards.to(self.agent.device)
@@ -178,182 +177,6 @@ class PrioritizedReplayExtension:
 
         return loss, td_errors
 
-class MultiStepExtension:
-    """
-    Implements multi-step learning for Deep Q-Learning.
-
-    Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
-    allowing for better credit assignment and faster convergence.
-    """
-    def __init__(self, agent, n_steps=3):
-        self.agent = agent
-        self.n_steps = n_steps
-        self.n_step_buffer = deque(maxlen=n_steps)
-
-        # Save references to the "current" record and compute_targets methods
-        self.previous_record = agent.record
-        self.previous_compute_targets = agent.compute_targets
-
-    def record(self, state, action, reward, next_state, done):
-        """
-        Record a transition with multi-step accumulation.
-
-        Parameters:
-            state (np.ndarray): Current state.
-            action (int): Action taken.
-            reward (float): Reward received.
-            next_state (np.ndarray): Next state after taking the action.
-            done (bool): Whether the episode has ended.
-        """
-        # Append the transition to the n-step buffer
-        self.n_step_buffer.append((state, action, reward, next_state, done))
-
-        # If the buffer is full, compute the multi-step transition
-        if len(self.n_step_buffer) == self.n_steps:
-            multi_step_reward, (s, a, _, ns, d), multi_step_done = self._get_n_step_transition()
-            transition = (s, a, multi_step_reward, ns, multi_step_done)
-
-            # Use the saved "current" record method
-            self.previous_record(*transition)
-
-    def _get_n_step_transition(self):
-        """
-        Compute the n-step reward and final transition state.
-
-        Returns:
-            tuple: (multi-step reward, final transition, multi-step done flag)
-        """
-        multi_step_reward = 0
-        for idx, (s, a, r, ns, d) in enumerate(self.n_step_buffer):
-            multi_step_reward += (self.agent.gamma ** idx) * r
-            if d:
-                return multi_step_reward, (s, a, r, ns, d), True
-        return multi_step_reward, self.n_step_buffer[-1], False
-
-    def compute_targets(self, rewards, next_states, dones):
-        """
-        Compute Q-value targets for multi-step learning.
-
-        Parameters:
-            rewards (torch.Tensor): Rewards received from the environment.
-            next_states (torch.Tensor): Next states resulting from actions taken.
-            dones (torch.Tensor): Binary tensor indicating terminal states (1 if done, 0 otherwise).
-
-        Returns:
-            torch.Tensor: Multi-step target Q-values.
-        """
-        # Use the saved "current" compute_targets method
-        baseline_targets = self.previous_compute_targets(rewards, next_states, dones)
-
-        # Compute multi-step targets
-        multi_step_targets = torch.zeros_like(rewards)
-        num_samples = rewards.size(0)
-
-        for t in range(num_samples):
-            for n in range(self.n_steps):
-                if t + n < num_samples:  # Ensure index does not exceed tensor size
-                    multi_step_targets[t] += (self.agent.gamma ** n) * rewards[t + n]
-                    if dones[t + n]:
-                        break
-
-        # Combine multi-step targets with baseline targets for consistency
-        return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.n_steps) * baseline_targets
-
-# Dueling Q-Network
-class DuelingQNetwork(nn.Module):
-    def __init__(self, state_size, action_size, hidden_units):
-        super().__init__()
-        self.feature_layer = nn.Sequential(
-            nn.Linear(state_size, hidden_units),
-            nn.ReLU()
-        )
-        self.value_stream = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units),
-            nn.ReLU(),
-            nn.Linear(hidden_units, 1)
-        )
-        self.advantage_stream = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units),
-            nn.ReLU(),
-            nn.Linear(hidden_units, action_size)
-        )
-
-    def forward(self, x):
-        features = self.feature_layer(x)
-        value = self.value_stream(features)
-        advantages = self.advantage_stream(features)
-        q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
-        return q_values
-    
-class DuelingDQNExtension:
-    """
-    Implements the Dueling Deep Q-Learning (Dueling DQN) extension.
-
-    This extension replaces the standard Q-network with a dueling network architecture,
-    which decomposes Q-value computation into:
-    - **Value Stream**: Estimates the value of being in a state, independent of actions.
-    - **Advantage Stream**: Estimates the advantage of each action relative to the state.
-
-    The Q-values are computed as:
-        Q(s, a) = V(s) + (A(s, a) - mean(A(s, a'))),
-    where V(s) is the value and A(s, a) is the advantage.
-
-    Benefits:
-    - Improves value estimation in states where the action has little impact.
-    - Leads to more stable learning in environments with large action spaces.
-
-    Key Methods:
-    - Initializes the dueling network architecture (`DuelingQNetwork`).
-    - Replaces the agent's Q-network and target network with the dueling architecture.
-    """
-    def __init__(self, agent):
-        super().__init__(agent)
-        state_size = agent.state_size
-        action_size = agent.num_actions
-        hidden_units = 128  # Example hidden layer size, can be parameterized
-        self.agent.q_network = DuelingQNetwork(state_size, action_size, hidden_units)
-        self.agent.target_network = DuelingQNetwork(state_size, action_size, hidden_units)
-        self.agent.update_target_weights()
-    
-class DistributionalQNetwork(nn.Module):
-    def __init__(self, state_size, action_size, hidden_units, num_atoms, v_min, v_max):
-        super().__init__()
-        self.num_atoms = num_atoms
-        self.v_min = v_min
-        self.v_max = v_max
-        self.support = torch.linspace(v_min, v_max, num_atoms)
-        self.delta_z = (v_max - v_min) / (num_atoms - 1)
-
-        self.feature_layer = nn.Sequential(
-            nn.Linear(state_size, hidden_units),
-            nn.ReLU()
-        )
-        self.output_layer = nn.Linear(hidden_units, action_size * num_atoms)
-
-    def forward(self, x):
-        features = self.feature_layer(x)
-        logits = self.output_layer(features)
-        logits = logits.view(-1, self.num_atoms)
-        probs = torch.softmax(logits, dim=-1)
-        return probs
-    
-def categorical_projection(next_probs, rewards, dones, gamma, num_atoms, v_min, v_max):
-    delta_z = (v_max - v_min) / (num_atoms - 1)
-    support = torch.linspace(v_min, v_max, num_atoms)
-    next_support = rewards.unsqueeze(1) + gamma * (1 - dones.unsqueeze(1)) * support
-
-    next_support = next_support.clamp(v_min, v_max)
-    b = (next_support - v_min) / delta_z
-    l = b.floor().long()
-    u = b.ceil().long()
-
-    m = torch.zeros_like(next_probs)
-    for i in range(num_atoms):
-        m[:, l[:, i]] += next_probs[:, i] * (u[:, i] - b[:, i])
-        m[:, u[:, i]] += next_probs[:, i] * (b[:, i] - l[:, i])
-
-    return m
-
 class DistributionalDQNExtension:
     """
     Implements the Distributional Deep Q-Learning (C51) extension.
@@ -385,38 +208,147 @@ class DistributionalDQNExtension:
     - `compute_targets`: Computes the target distribution using categorical projection.
     """
     def __init__(self, agent):
-        super().__init__(agent)
-        state_size = agent.state_size
-        action_size = agent.num_actions
-        hidden_units = 128  # Example hidden layer size, can be parameterized
-        num_atoms = 51
-        v_min = -10
-        v_max = 10
+        self.agent = agent
+        nn_architecture = self.agent.nn_architecture
+        state_shape = self.agent.state_size
+        action_size = self.agent.action_size
 
-        self.num_atoms = num_atoms
-        self.v_min = v_min
-        self.v_max = v_max
+        self.v_min = -10
+        self.v_max = 10
+        self.num_atoms = 51
 
-        # Replace networks with distributional versions
-        self.agent.q_network = DistributionalQNetwork(state_size, action_size, hidden_units, num_atoms, v_min, v_max)
-        self.agent.target_network = DistributionalQNetwork(state_size, action_size, hidden_units, num_atoms, v_min, v_max)
+        self.agent.v_min = self.v_min
+        self.agent.v_max = self.v_max
+        self.agent.num_atoms = self.num_atoms
+
+        self.agent.q_network = neural_nets.create_distributional_network(
+            nn_architecture=nn_architecture,
+            state_shape=state_shape,
+            action_size=action_size,
+            num_atoms=self.num_atoms,
+            v_min=self.v_min,
+            v_max=self.v_max,
+            learning_rate=self.agent.learning_rate
+        )
+        self.agent.target_network = neural_nets.create_distributional_network(
+            nn_architecture=nn_architecture,
+            state_shape=state_shape,
+            action_size=action_size,
+            num_atoms=self.num_atoms,
+            v_min=self.v_min,
+            v_max=self.v_max,
+            learning_rate=self.agent.learning_rate
+        )
+
         self.agent.update_target_weights()
 
     def compute_targets(self, rewards, next_states, dones):
-        """Compute target distribution using categorical projection."""
+        """
+        Compute target distributions for the Distributional DQN extension.
+
+        Accounts for Double DQN and Priority Replay extensions.
+
+        Parameters:
+            rewards (torch.Tensor): Rewards received for taking actions.
+            next_states (torch.Tensor): Next states resulting from actions taken.
+            dones (torch.Tensor): Binary tensor indicating terminal states.
+
+        Returns:
+            torch.Tensor: Projected target distribution.
+        """
         with torch.no_grad():
             next_probs = self.agent.target_network(next_states)
-            next_actions = torch.argmax(next_probs.sum(dim=-1), dim=1)
-            next_probs = next_probs[torch.arange(next_probs.size(0)), next_actions]
 
-        target_probs = categorical_projection(
-            next_probs, rewards, dones, self.agent.gamma,
-            self.num_atoms, self.v_min, self.v_max
-        )
+            if any(isinstance(ext, DoubleDQNExtension) for ext in self.agent.extensions):
+                next_actions = torch.argmax(self.agent.q_network(next_states).sum(dim=-1), dim=1)
+            else:
+                next_actions = torch.argmax(next_probs.sum(dim=-1), dim=1)
+
+            batch_indices = torch.arange(next_probs.size(0), device=next_probs.device)
+            selected_probs = next_probs[batch_indices, next_actions]
+
+            target_probs = self.categorical_projection(
+                selected_probs, rewards, dones, self.agent.gamma,
+                self.num_atoms, self.v_min, self.v_max
+            )
+
         return target_probs
 
+    
+    def categorical_projection(self, next_probs, rewards, dones, gamma, num_atoms, v_min, v_max):
+        """
+        Project the target distribution onto the support using the Bellman equation.
 
-# Noisy Linear Layer
+        Parameters:
+            next_probs (torch.Tensor): Probabilities of the next state distribution.
+            rewards (torch.Tensor): Rewards for the transitions.
+            dones (torch.Tensor): Binary tensor indicating terminal states.
+            gamma (float): Discount factor.
+            num_atoms (int): Number of atoms in the distribution.
+            v_min (float): Minimum value of the distribution.
+            v_max (float): Maximum value of the distribution.
+
+        Returns:
+            torch.Tensor: Projected target distribution.
+        """
+        delta_z = (v_max - v_min) / (num_atoms - 1)
+        support = torch.linspace(v_min, v_max, num_atoms).to(rewards.device)
+
+        next_support = rewards.unsqueeze(1) + gamma * (1 - dones.unsqueeze(1)) * support
+        next_support = next_support.clamp(v_min, v_max)
+
+        b = (next_support - v_min) / delta_z
+        l = b.floor().long()
+        u = b.ceil().long()
+
+        m = torch.zeros_like(next_probs)
+        for i in range(num_atoms):
+            l_idx = torch.clamp(l[:, i], 0, num_atoms - 1)
+            u_idx = torch.clamp(u[:, i], 0, num_atoms - 1)
+            m.scatter_add_(1, l_idx.unsqueeze(1), next_probs[:, i:i+1] * (u[:, i] - b[:, i]).unsqueeze(1))
+            m.scatter_add_(1, u_idx.unsqueeze(1), next_probs[:, i:i+1] * (b[:, i] - l[:, i]).unsqueeze(1))
+
+        return m
+
+class DuelingDQNExtension:
+    """
+    Implements the Dueling Deep Q-Learning (Dueling DQN) extension.
+
+    This extension replaces the standard Q-network with a dueling network architecture,
+    which decomposes Q-value computation into:
+    - **Value Stream**: Estimates the value of being in a state, independent of actions.
+    - **Advantage Stream**: Estimates the advantage of each action relative to the state.
+
+    The Q-values are computed as:
+        Q(s, a) = V(s) + (A(s, a) - mean(A(s, a'))),
+    where V(s) is the value and A(s, a) is the advantage.
+
+    Benefits:
+    - Improves value estimation in states where the action has little impact.
+    - Leads to more stable learning in environments with large action spaces.
+
+    Key Methods:
+    - Initializes the dueling network architecture (`DuelingQNetwork`).
+    - Replaces the agent's Q-network and target network with the dueling architecture.
+    """
+    
+    def __init__(self, agent):
+        self.agent = agent
+        nn_architecture = self.agent.nn_architecture
+        state_shape = self.agent.state_size
+        action_size = self.agent.action_size
+
+        if nn_architecture["structure"] == "DNN":
+            self.agent.q_network = neural_nets.DuelingQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
+            self.agent.target_network = neural_nets.DuelingQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
+        elif nn_architecture["structure"] == "CNN":
+            self.agent.q_network = neural_nets.DuelingQNetworkCNN(nn_architecture, state_shape, action_size)
+            self.agent.target_network = neural_nets.DuelingQNetworkCNN(nn_architecture, state_shape, action_size)
+        else:
+            raise ValueError(f"Unsupported structure: {nn_architecture['structure']}")
+
+        self.agent.update_target_weights()
+
 class NoisyLinear(nn.Module):
     def __init__(self, in_features, out_features, std_init=0.5):
         super().__init__()
@@ -488,7 +420,6 @@ class NoisyQNetwork(nn.Module):
             if isinstance(module, NoisyLinear):
                 module.reset_noise()
 
-# Noisy DQN Extension
 class NoisyDQNExtension:
     """
     Implements Noisy Networks for Deep Q-Learning (Noisy DQN).
@@ -518,14 +449,20 @@ class NoisyDQNExtension:
     - `reset_noise`: Resets the noise in all `NoisyLinear` layers at each training step.
     """
     def __init__(self, agent):
-        super().__init__(agent)
-        state_size = agent.state_size
-        action_size = agent.num_actions
-        hidden_units = 128  # Example hidden layer size, can be parameterized
+        self.agent = agent
+        nn_architecture = self.agent.nn_architecture
+        state_shape = self.agent.state_size
+        action_size = self.agent.action_size
 
-        # Replace networks with noisy versions
-        self.agent.q_network = NoisyQNetwork(state_size, action_size, hidden_units)
-        self.agent.target_network = NoisyQNetwork(state_size, action_size, hidden_units)
+        if nn_architecture["structure"] == "DNN":
+            self.agent.q_network = NoisyQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
+            self.agent.target_network = NoisyQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
+        elif nn_architecture["structure"] == "CNN":
+            self.agent.q_network = neural_nets.NoisyQNetworkCNN(nn_architecture, state_shape, action_size)
+            self.agent.target_network = neural_nets.NoisyQNetworkCNN(nn_architecture, state_shape, action_size)
+        else:
+            raise ValueError(f"Unsupported structure: {nn_architecture['structure']}")
+
         self.agent.update_target_weights()
 
     def select_action(self, state, training=True):
@@ -538,6 +475,87 @@ class NoisyDQNExtension:
     def reset_noise(self):
         self.agent.q_network.reset_noise()
         self.agent.target_network.reset_noise()
+
+class MultiStepExtension:
+    """
+    Implements multi-step learning for Deep Q-Learning.
+
+    Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
+    allowing for better credit assignment and faster convergence.
+    """
+    def __init__(self, agent, n_steps=3):
+        self.agent = agent
+        self.n_steps = n_steps
+        self.n_step_buffer = deque(maxlen=n_steps)
+
+        self.previous_record = agent.record
+        self.previous_compute_targets = agent.compute_targets
+
+    def record(self, state, action, reward, next_state, done):
+        """
+        Record a transition with multi-step accumulation.
+
+        Parameters:
+            state (np.ndarray): Current state.
+            action (int): Action taken.
+            reward (float): Reward received.
+            next_state (np.ndarray): Next state after taking the action.
+            done (bool): Whether the episode has ended.
+        """
+        self.n_step_buffer.append((state, action, reward, next_state, done))
+
+        if len(self.n_step_buffer) == self.n_steps:
+            multi_step_reward, (s, a, _, ns, d), multi_step_done = self._get_n_step_transition()
+            transition = (s, a, multi_step_reward, ns, multi_step_done)
+
+            self.previous_record(*transition)
+
+    def _get_n_step_transition(self):
+        """
+        Compute the n-step reward and final transition state.
+
+        Returns:
+            tuple: (multi-step reward, final transition, multi-step done flag)
+        """
+        multi_step_reward = 0
+        for idx, (s, a, r, ns, d) in enumerate(self.n_step_buffer):
+            multi_step_reward += (self.agent.gamma ** idx) * r
+            if d:
+                return multi_step_reward, (s, a, r, ns, d), True
+        return multi_step_reward, self.n_step_buffer[-1], False
+
+    def compute_targets(self, rewards, next_states, dones):
+        """
+        Compute Q-value targets for multi-step learning.
+
+        Parameters:
+            rewards (torch.Tensor): Rewards received from the environment.
+            next_states (torch.Tensor): Next states resulting from actions taken.
+            dones (torch.Tensor): Binary tensor indicating terminal states (1 if done, 0 otherwise).
+
+        Returns:
+            torch.Tensor: Multi-step target Q-values.
+        """
+        # Use the saved "current" compute_targets method
+        baseline_targets = self.previous_compute_targets(rewards, next_states, dones)
+
+        # Initialize multi-step targets
+        multi_step_targets = torch.zeros_like(rewards)
+
+        # Batch size
+        num_samples = rewards.size(0)
+
+        for t in range(num_samples):
+            accumulated_reward = 0
+            for n in range(self.n_steps):
+                if t + n < num_samples:
+                    accumulated_reward += (self.agent.gamma ** n) * rewards[t + n]
+                    if dones[t + n]:  # Stop if terminal state is reached
+                        break
+            multi_step_targets[t] = accumulated_reward
+
+        # Combine multi-step rewards with baseline targets
+        return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.n_steps) * baseline_targets
 
 
 EXTENSION_REGISTRY = {

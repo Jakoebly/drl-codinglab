@@ -7,7 +7,7 @@ import random
 import wandb
 from typing import List, Tuple
 
-from neural_nets import dqn_extensions, neural_nets
+from extensions import dqn_extensions, neural_nets
    
 class DQN_Agent:
     def __init__(self, env, config, device):
@@ -46,7 +46,7 @@ class DQN_Agent:
         self.update_target_weights()
         self.optimizer = optim.Adam(self.q_network.parameters(), lr = self.learning_rate)
         self.loss_fn = nn.MSELoss()
-       
+      
         """Initialize extensions"""
         if "vanilla" in extensions:
             extensions = []
@@ -62,13 +62,14 @@ class DQN_Agent:
             ExtensionClass = dqn_extensions.EXTENSION_REGISTRY[ext_name]
             extension_instance = ExtensionClass(self)
             self.extensions.append(extension_instance)
+            print(f"Initialized {ext_name} extension")
 
             for method_name in dir(extension_instance):
                 if method_name.startswith("__") or not callable(getattr(extension_instance, method_name)):
                     continue
                 if hasattr(self, method_name):
                     setattr(self, method_name, getattr(extension_instance, method_name))
-                
+ 
         self.step_count = 0
 
     def load_weights(self, path):
@@ -244,15 +245,28 @@ class DQN_Agent:
             weights = torch.ones(rewards.size(0), device=self.device)
 
         q_targets = self.compute_targets(rewards, next_states, dones)
-        q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
+        q_network_output = self.q_network(states)
 
-        q_targets.to(self.device)
-        q_values.to(self.device)
+        # For Distributional DQN, compute the expected Q-values
+        if q_network_output.dim() == 3:
+            batch_indices = torch.arange(q_network_output.size(0), device=self.device)
+            selected_logits = q_network_output[batch_indices, actions]
 
-        if "priority" in self.extensions:
-            loss, td_errors = self.compute_loss(q_values, q_targets, weights)
+            # Compute loss using KL divergence for distributional DQN
+            loss = -(q_targets * selected_logits.log()).sum(dim=-1)
+            loss = (weights * loss).mean()
+
+        # Standard DQN case
         else:
-            loss = self.compute_loss(q_values, q_targets)
+            q_values = q_network_output.gather(1, actions.unsqueeze(1)).squeeze()
+
+            q_targets.to(self.device)
+            q_values.to(self.device)
+
+            if any(isinstance(ext, dqn_extensions.PrioritizedReplayExtension) for ext in self.extensions):
+                loss, td_errors = self.compute_loss(q_values, q_targets, weights)
+            else:
+                loss = self.compute_loss(q_values, q_targets)
 
         self.update_network(loss)
 
