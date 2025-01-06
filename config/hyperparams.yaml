@@ -4,7 +4,7 @@ DQN:
     evaluation_treshold: 0.000
     evaluation_episodes: 50
 
-  extensions: ["vanilla"]
+  extensions: ["noisy"]
 
   hyperparameters:
     gamma: 0.95

@@ -9,8 +9,8 @@ EXTENSION_ORDER = [
     "double", 
     "priority", 
     "distribution",
-    "dueling",
     "noisy",
+    "dueling",
     "multi_step",
 ]
 
@@ -176,6 +176,41 @@ class PrioritizedReplayExtension:
         loss = (weights * td_errors ** 2).mean()
 
         return loss, td_errors
+    
+class NoisyDQNExtension:
+    def __init__(self, agent):
+        self.agent = agent
+        nn_architecture = self.agent.nn_architecture
+        state_shape = self.agent.state_size
+        action_size = self.agent.action_size
+
+        self.agent.q_network = neural_nets.NoisyAdapter(base_network=self.agent.q_network, action_size=action_size)
+        self.agent.target_network = neural_nets.NoisyAdapter(base_network=self.agent.target_network, action_size=action_size)
+
+        self.agent.update_target_weights()
+
+    def select_action(self, state, training=True):
+        """
+        Select action using noisy exploration (no epsilon-greedy).
+
+        Parameters:
+            state (np.ndarray): Current state of the environment.
+            training (bool): Whether the agent is in training mode.
+
+        Returns:
+            int: The selected action.
+        """
+        state_tensor = self.agent.tensorize_state(state)
+        with torch.no_grad():
+            q_values = self.agent.q_network(state_tensor)
+        return torch.argmax(q_values).item()
+
+    def reset_noise(self):
+        """
+        Reset noise in both Q-network and target network.
+        """
+        self.agent.q_network.reset_noise()
+        self.agent.target_network.reset_noise()
 
 class DistributionalDQNExtension:
     """
@@ -337,133 +372,6 @@ class DuelingDQNExtension:
             raise ValueError(f"Unsupported structure: {nn_architecture['structure']}")
 
         self.agent.update_target_weights()
-
-class NoisyLinear(nn.Module):
-    def __init__(self, in_features, out_features, std_init=0.5):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.std_init = std_init
-
-        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
-        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
-        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
-
-        self.bias_mu = nn.Parameter(torch.empty(out_features))
-        self.bias_sigma = nn.Parameter(torch.empty(out_features))
-        self.register_buffer('bias_epsilon', torch.empty(out_features))
-
-        self.reset_parameters()
-        self.reset_noise()
-
-    def reset_parameters(self):
-        bound = 1 / np.sqrt(self.in_features)
-        self.weight_mu.data.uniform_(-bound, bound)
-        self.weight_sigma.data.fill_(self.std_init / np.sqrt(self.in_features))
-        self.bias_mu.data.uniform_(-bound, bound)
-        self.bias_sigma.data.fill_(self.std_init / np.sqrt(self.out_features))
-
-    def reset_noise(self):
-        epsilon_in = torch.randn(self.in_features)
-        epsilon_out = torch.randn(self.out_features)
-        self.weight_epsilon = epsilon_out.ger(epsilon_in)
-        self.bias_epsilon = epsilon_out
-
-    def forward(self, x):
-        if self.training:
-            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
-            bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
-        else:
-            weight = self.weight_mu
-            bias = self.bias_mu
-        return nn.functional.linear(x, weight, bias)
-
-# Noisy Q-Network
-class NoisyQNetwork(nn.Module):
-    def __init__(self, state_size, action_size, hidden_units):
-        super().__init__()
-        self.feature_layer = nn.Sequential(
-            NoisyLinear(state_size, hidden_units),
-            nn.ReLU()
-        )
-        self.value_stream = nn.Sequential(
-            NoisyLinear(hidden_units, hidden_units),
-            nn.ReLU(),
-            NoisyLinear(hidden_units, 1)
-        )
-        self.advantage_stream = nn.Sequential(
-            NoisyLinear(hidden_units, hidden_units),
-            nn.ReLU(),
-            NoisyLinear(hidden_units, action_size)
-        )
-
-    def forward(self, x):
-        features = self.feature_layer(x)
-        value = self.value_stream(features)
-        advantages = self.advantage_stream(features)
-        q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
-        return q_values
-
-    def reset_noise(self):
-        for module in self.modules():
-            if isinstance(module, NoisyLinear):
-                module.reset_noise()
-
-class NoisyDQNExtension:
-    """
-    Implements Noisy Networks for Deep Q-Learning (Noisy DQN).
-
-    This extension replaces explicit exploration mechanisms (like ε-greedy) with learnable
-    noise added to the network weights. Noisy layers allow the agent to explore the environment
-    by introducing stochasticity directly into the Q-network's computations.
-
-    Key Features:
-    - **Noisy Networks**:
-      Replaces standard linear layers with `NoisyLinear`, which adds learnable noise to the weights.
-    - **Exploration Without Epsilon**:
-      Eliminates the need for ε-decay by using noisy layers for action selection.
-    - **Resettable Noise**:
-      Resets noise at the beginning of each training step, ensuring consistent exploration.
-
-    Benefits:
-    - Adaptive exploration that improves as the agent learns.
-    - Removes the need to tune ε-decay parameters.
-
-    Parameters:
-    - `agent`: Reference to the agent, providing access to networks and hyperparameters.
-    - `hidden_units` (default=128): Number of units in the hidden layers of the network.
-
-    Methods:
-    - `select_action`: Selects actions based on the noisy Q-network's output, without ε-greedy logic.
-    - `reset_noise`: Resets the noise in all `NoisyLinear` layers at each training step.
-    """
-    def __init__(self, agent):
-        self.agent = agent
-        nn_architecture = self.agent.nn_architecture
-        state_shape = self.agent.state_size
-        action_size = self.agent.action_size
-
-        if nn_architecture["structure"] == "DNN":
-            self.agent.q_network = NoisyQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
-            self.agent.target_network = NoisyQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
-        elif nn_architecture["structure"] == "CNN":
-            self.agent.q_network = neural_nets.NoisyQNetworkCNN(nn_architecture, state_shape, action_size)
-            self.agent.target_network = neural_nets.NoisyQNetworkCNN(nn_architecture, state_shape, action_size)
-        else:
-            raise ValueError(f"Unsupported structure: {nn_architecture['structure']}")
-
-        self.agent.update_target_weights()
-
-    def select_action(self, state, training=True):
-        """No epsilon-greedy needed; use noisy exploration."""
-        state = torch.FloatTensor(state).unsqueeze(0)
-        with torch.no_grad():
-            q_values = self.agent.q_network(state)
-        return torch.argmax(q_values).item()
-
-    def reset_noise(self):
-        self.agent.q_network.reset_noise()
-        self.agent.target_network.reset_noise()
 
 class MultiStepExtension:
     """

@@ -5,13 +5,13 @@ import torch.optim as optim
 def create_network(nn_architecture, state_shape, action_size, learning_rate):
     structure = nn_architecture['structure']
     if structure == 'DNN':
-        network = DNN(nn_architecture, state_shape, action_size, learning_rate)
+        network = DNN(nn_architecture, state_shape, action_size)
     elif structure == 'CNN':
-        network = CNN(nn_architecture, state_shape, action_size, learning_rate)
+        network = CNN(nn_architecture, state_shape, action_size)
     else:
         raise ValueError(f"Unsupported structure: {structure}")
 
-    network.optimizer = optim.Adam(network.parameters(), lr=learning_rate)
+    network.optimizer = optim.Adam(network.parameters(), lr = learning_rate)
     network.loss_fn = nn.MSELoss()
 
     print(f"Created {structure} Network Structure:\n{network}")
@@ -139,6 +139,97 @@ class CNN(nn.Module):
             width = (width + 2 * padding - kernel_size) // stride + 1
 
         return height * width * nn_architecture['num_convolutional_channels']
+
+class NoisyAdapter(nn.Module):
+    def __init__(self, base_network, action_size):
+        """
+        Adapts a base Q-network into a noisy Q-network by replacing linear layers
+        with noisy linear layers.
+
+        Parameters:
+            base_network (nn.Module): The existing Q-network to adapt.
+            action_size (int): Number of actions in the environment.
+        """
+        super().__init__()
+        self.base_network = base_network
+        self.action_size = action_size
+
+        if isinstance(base_network, DNN):
+            noisy_layers = [
+                NoisyLinear(layer.in_features, layer.out_features) if isinstance(layer, nn.Linear) else layer
+                for layer in base_network.model.children()
+            ]
+            base_network.model = nn.Sequential(*noisy_layers)
+        elif isinstance(base_network, CNN):
+            noisy_fc_layers = [
+                NoisyLinear(layer.in_features, layer.out_features) if isinstance(layer, nn.Linear) else layer
+                for layer in base_network.fc_layers.children()
+            ]
+            base_network.fc_layers = nn.Sequential(*noisy_fc_layers)
+        else:
+            raise ValueError("Unsupported network type for noisy conversion.")
+
+        self.optimizer = getattr(base_network, "optimizer", None)
+        self.loss_fn = getattr(base_network, "loss_fn", None)
+
+        print(f"Converted to Noisy Network with updated layers:\n{self}")
+
+    def forward(self, x):
+        return self.base_network(x)
+
+    def reset_noise(self):
+        """
+        Reset noise in all noisy layers.
+        """
+        for module in self.modules():
+            if isinstance(module, NoisyLinear):
+                module.reset_noise()
+
+    def __str__(self):
+        """
+        Override the string representation to print the updated noisy network structure.
+        """
+        return f"{self.base_network}"
+
+class NoisyLinear(nn.Module):
+    def __init__(self, in_features, out_features, std_init=0.5):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.std_init = std_init
+
+        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
+        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
+        self.bias_mu = nn.Parameter(torch.empty(out_features))
+        self.bias_sigma = nn.Parameter(torch.empty(out_features))
+
+        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
+        self.register_buffer('bias_epsilon', torch.empty(out_features))
+
+        self.reset_parameters()
+        self.reset_noise()
+
+    def reset_parameters(self):
+        bound = 1 / (self.in_features**0.5)
+        self.weight_mu.data.uniform_(-bound, bound)
+        self.weight_sigma.data.fill_(self.std_init / (self.in_features**0.5))
+        self.bias_mu.data.uniform_(-bound, bound)
+        self.bias_sigma.data.fill_(self.std_init / (self.out_features**0.5))
+
+    def reset_noise(self):
+        epsilon_in = torch.randn(self.in_features)
+        epsilon_out = torch.randn(self.out_features)
+        self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
+        self.bias_epsilon.copy_(epsilon_out)
+
+    def forward(self, x):
+        if self.training:
+            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
+            bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
+        else:
+            weight = self.weight_mu
+            bias = self.bias_mu
+        return nn.functional.linear(x, weight, bias)
     
 def convert_to_distributional_network(base_network, action_size, num_atoms):
     """
@@ -185,7 +276,8 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
 
     return DistributionalAdapter(base_network, action_size, num_atoms)
 
-class DuelingQNetwork(nn.Module):
+
+'''class DuelingQNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_units):
         super().__init__()
         self.feature_layer = DNN(input_dim, hidden_units)
@@ -230,15 +322,5 @@ class DuelingQNetworkCNN(nn.Module):
         value = self.value_stream(features)
         advantages = self.advantage_stream(features)
         q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
-        return q_values
+        return q_values'''
     
-class NoisyQNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_units):
-        super().__init__()
-        self.feature_layer = DNN(input_dim, hidden_units, noisy=True)
-        self.output_layer = NoisyLinear(hidden_units, output_dim)
-
-    def forward(self, x):
-        features = self.feature_layer(x)
-        q_values = self.output_layer(features)
-        return q_values

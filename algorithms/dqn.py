@@ -231,6 +231,11 @@ class DQN_Agent:
         """
         if len(self.buffer) < self.batch_size:
             return
+        
+        if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
+            for ext in self.extensions:
+                if isinstance(ext, dqn_extensions.NoisyDQNExtension):
+                    ext.reset_noise()
 
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, *optional = batch
@@ -247,8 +252,7 @@ class DQN_Agent:
         q_targets = self.compute_targets(rewards, next_states, dones)
         q_network_output = self.q_network(states)
 
-        # For Distributional DQN, compute the expected Q-values
-        if q_network_output.dim() == 3:
+        if any(isinstance(ext, dqn_extensions.DistributionalDQNExtension) for ext in self.extensions):
             batch_indices = torch.arange(q_network_output.size(0), device=self.device)
             selected_logits = q_network_output[batch_indices, actions]
 
@@ -256,7 +260,6 @@ class DQN_Agent:
             loss = -(q_targets * selected_logits.log()).sum(dim=-1)
             loss = (weights * loss).mean()
 
-        # Standard DQN case
         else:
             q_values = q_network_output.gather(1, actions.unsqueeze(1)).squeeze()
 
@@ -271,12 +274,12 @@ class DQN_Agent:
         self.update_network(loss)
 
         # Update priorities if applicable
-        for extension in self.extensions:
-            if hasattr(extension, "update_priorities"):
-                extension.update_priorities(td_errors.detach().abs().cpu().numpy())
+        if any(isinstance(ext, dqn_extensions.PrioritizedReplayBuffer) for ext in self.extensions):
+            self.update_priorities(td_errors.detach().abs().cpu().numpy())
 
         if self.step_count % self.target_update_interval == 0:
             self.update_target_weights()
+            
         self.step_count += 1
 
         return loss
@@ -309,7 +312,6 @@ class DQN_Agent:
 
             while not done:
                 action = self.select_action(state, training)
-                #reward, next_state, done = self.env.step(action, structure = self.nn_structure)
                 reward, next_state, done = self.env.step(action)
 
                 if training:
