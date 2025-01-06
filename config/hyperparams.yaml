@@ -4,7 +4,7 @@ DQN:
     evaluation_treshold: 0.000
     evaluation_episodes: 50
 
-  extensions: ["priority"]
+  extensions: ["multi_step"]
 
   hyperparameters:
     gamma: 0.95

@@ -249,7 +249,7 @@ class DQN_Agent:
         q_targets.to(self.device)
         q_values.to(self.device)
 
-        if hasattr(self, "compute_loss"):
+        if "priority" in self.extensions:
             loss, td_errors = self.compute_loss(q_values, q_targets, weights)
         else:
             loss = self.compute_loss(q_values, q_targets)

@@ -42,7 +42,7 @@ class DoubleDQNExtension:
         return q_targets
     
 class PrioritizedReplayBuffer:
-    def __init__(self, capacity, alpha = 0.75):
+    def __init__(self, capacity, alpha = 0.6):
         """Initialize the buffer."""
         self.capacity = capacity
         self.alpha = alpha
@@ -178,55 +178,58 @@ class PrioritizedReplayExtension:
 
         return loss, td_errors
 
-# Multi-step Learning Extension
 class MultiStepExtension:
     """
     Implements multi-step learning for Deep Q-Learning.
 
     Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
     allowing for better credit assignment and faster convergence.
-
-    Key Features:
-    - **n-Step Return**:
-      Accumulates rewards over `n` steps:
-          G_t = r_t + γ r_{t+1} + γ^2 r_{t+2} + ... + γ^{n-1} r_{t+n-1}.
-    - **Buffer Management**:
-      Uses a deque to store transitions until `n` steps are collected.
-    - **Replay Buffer Integration**:
-      Adds multi-step transitions to the replay buffer, ensuring compatibility with prioritized replay.
-
-    Benefits:
-    - Improves stability and learning by incorporating longer-term rewards.
-    - Enhances convergence speed by providing richer updates.
-
-    Methods:
-    - `record`: Accumulates transitions and computes n-step returns when the buffer is full.
-    - `_get_n_step_transition`: Calculates cumulative reward and final transition state.
     """
     def __init__(self, agent, n_steps=3):
         self.agent = agent
         self.n_steps = n_steps
         self.n_step_buffer = deque(maxlen=n_steps)
 
-    def record(self, state, action, reward, next_state, done):
-        self.n_step_buffer.append((state, action, reward, next_state, done))
-        if len(self.n_step_buffer) == self.n_steps:
-            multi_step_reward, multi_step_state, multi_step_done = self._get_n_step_transition()
-            transition = (multi_step_state[0], multi_step_state[1], multi_step_reward, multi_step_state[3], multi_step_done)
+        # Save references to the "current" record and compute_targets methods
+        self.previous_record = agent.record
+        self.previous_compute_targets = agent.compute_targets
 
-            for extension in self.agent.extensions:
-                if extension != self and hasattr(extension, "record"):
-                    extension.record(*transition)
+    def record(self, state, action, reward, next_state, done):
+        """
+        Record a transition with multi-step accumulation.
+
+        Parameters:
+            state (np.ndarray): Current state.
+            action (int): Action taken.
+            reward (float): Reward received.
+            next_state (np.ndarray): Next state after taking the action.
+            done (bool): Whether the episode has ended.
+        """
+        # Append the transition to the n-step buffer
+        self.n_step_buffer.append((state, action, reward, next_state, done))
+
+        # If the buffer is full, compute the multi-step transition
+        if len(self.n_step_buffer) == self.n_steps:
+            multi_step_reward, (s, a, _, ns, d), multi_step_done = self._get_n_step_transition()
+            transition = (s, a, multi_step_reward, ns, multi_step_done)
+
+            # Use the saved "current" record method
+            self.previous_record(*transition)
 
     def _get_n_step_transition(self):
-        """Compute n-step return and final transition."""
+        """
+        Compute the n-step reward and final transition state.
+
+        Returns:
+            tuple: (multi-step reward, final transition, multi-step done flag)
+        """
         multi_step_reward = 0
-        for idx, (state, action, reward, next_state, done) in enumerate(self.n_step_buffer):
-            multi_step_reward += (self.agent.gamma ** idx) * reward
-            if done:
-                return multi_step_reward, (state, action, reward, next_state, done), True
+        for idx, (s, a, r, ns, d) in enumerate(self.n_step_buffer):
+            multi_step_reward += (self.agent.gamma ** idx) * r
+            if d:
+                return multi_step_reward, (s, a, r, ns, d), True
         return multi_step_reward, self.n_step_buffer[-1], False
-    
+
     def compute_targets(self, rewards, next_states, dones):
         """
         Compute Q-value targets for multi-step learning.
@@ -239,21 +242,22 @@ class MultiStepExtension:
         Returns:
             torch.Tensor: Multi-step target Q-values.
         """
-        # Use the agent's compute_targets method to get baseline or combined targets
-        baseline_targets = self.agent.compute_targets(rewards, next_states, dones)
+        # Use the saved "current" compute_targets method
+        baseline_targets = self.previous_compute_targets(rewards, next_states, dones)
 
-        # Modify targets for multi-step learning
+        # Compute multi-step targets
         multi_step_targets = torch.zeros_like(rewards)
-        for t in range(len(rewards)):
+        num_samples = rewards.size(0)
+
+        for t in range(num_samples):
             for n in range(self.n_steps):
-                if t + n < len(rewards):
+                if t + n < num_samples:  # Ensure index does not exceed tensor size
                     multi_step_targets[t] += (self.agent.gamma ** n) * rewards[t + n]
-                if dones[t + n]:
-                    break
+                    if dones[t + n]:
+                        break
 
         # Combine multi-step targets with baseline targets for consistency
         return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.n_steps) * baseline_targets
-
 
 # Dueling Q-Network
 class DuelingQNetwork(nn.Module):
