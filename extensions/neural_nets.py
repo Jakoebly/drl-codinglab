@@ -12,7 +12,6 @@ def create_network(nn_architecture, state_shape, action_size, learning_rate):
         raise ValueError(f"Unsupported structure: {structure}")
     
     print(f"Created {structure} Network Structure:\n{network}")
-    print(f"Optimizer: {network.optimizer} with learning rate {learning_rate}")
     
     return network
 
@@ -20,7 +19,6 @@ class DNN(nn.Module):
     def __init__(self, nn_architecture, state_shape, action_size, learning_rate = None):
         super(DNN, self).__init__()
         layers = []
-        #input_size = state_shape[0]
         input_size = state_shape
         num_layers = nn_architecture['num_layers']
         num_neurons = nn_architecture['num_neurons']
@@ -144,90 +142,51 @@ class CNN(nn.Module):
 
         return height * width * nn_architecture['num_convolutional_channels']
     
-def create_distributional_network(nn_architecture, state_shape, action_size, num_atoms, v_min, v_max, learning_rate):
+def convert_to_distributional_network(base_network, action_size, num_atoms):
     """
-    Creates a Distributional Q-Network based on the specified architecture.
+    Converts a base Q-network into a Distributional Q-network.
 
     Parameters:
-        nn_architecture (dict): Neural network architecture configuration.
-        state_shape (tuple): Shape of the input state.
-        action_size (int): Number of actions.
+        base_network (nn.Module): The existing Q-network to adapt.
+        action_size (int): Number of actions in the environment.
         num_atoms (int): Number of atoms for the distributional output.
-        v_min (float): Minimum value of the support.
-        v_max (float): Maximum value of the support.
+        v_min (float): Minimum value of the distributional support.
+        v_max (float): Maximum value of the distributional support.
 
     Returns:
-        nn.Module: A distributional Q-network (DNN or CNN based).
+        nn.Module: A distributional Q-network.
     """
-    if nn_architecture['structure'] == 'DNN':
+    class DistributionalAdapter(nn.Module):
+        def __init__(self, base_network, action_size, num_atoms):
+            super().__init__()
+            self.base_network = base_network
+            self.action_size = action_size
+            self.num_atoms = num_atoms
 
-        base_network = DNN(
-            nn_architecture=nn_architecture,
-            state_shape=state_shape,
-            action_size=action_size * num_atoms,
-            learning_rate=learning_rate
-        )
+            # Extract the feature layers (everything except the last layer)
+            if isinstance(base_network, DNN):
+                feature_layers = list(base_network.model[:-1])  # Remove the last layer
+                input_size = base_network.model[-1].in_features
+            elif isinstance(base_network, CNN):
+                feature_layers = base_network.fc_layers[:-1]  # Remove the last fully connected layer
+                input_size = base_network.fc_layers[-1].in_features
+            else:
+                raise ValueError("Unsupported network type for distributional conversion.")
 
-        return DistributionalQNetwork(base_network, action_size, num_atoms)
+            self.feature_layer = nn.Sequential(*feature_layers)
+            self.output_layer = nn.Linear(input_size, action_size * num_atoms)
 
-    elif nn_architecture['structure'] == 'CNN':
+            self.optimizer = getattr(base_network, "optimizer", None)
+            self.loss_fn = getattr(base_network, "loss_fn", None)
 
-        return DistributionalQNetworkCNN(
-            nn_architecture=nn_architecture,
-            state_shape=state_shape,
-            action_size=action_size,
-            num_atoms=num_atoms,
-            v_min=v_min,
-            v_max=v_max
-        )
+            print(f"Created Distributional Network with updated output layer \n{self.output_layer}")
 
-    else:
-        raise ValueError(f"Unsupported structure: {nn_architecture['structure']}")
-    
+        def forward(self, x):
+            features = self.feature_layer(x)
+            logits = self.output_layer(features).view(-1, self.action_size, self.num_atoms)
+            return torch.softmax(logits, dim=-1)
 
-class DistributionalQNetwork(nn.Module):
-    def __init__(self, base_network, action_size, num_atoms):
-        super().__init__()
-        self.base_network = base_network
-        self.action_size = action_size
-        self.num_atoms = num_atoms
-        self.optimizer = optim.Adam(self.parameters(), lr=0.0001)
-        self.loss_fn = nn.MSELoss()
-
-
-    def forward(self, x):
-        """
-        Forward pass to compute distributional logits and probabilities.
-
-        Parameters:
-            x (torch.Tensor): Input state tensor.
-
-        Returns:
-            torch.Tensor: Softmax probabilities for each atom.
-        """
-        logits = self.base_network(x).view(-1, self.action_size, self.num_atoms)
-        return torch.softmax(logits, dim=-1)
-
-class DistributionalQNetworkCNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size, num_atoms, v_min, v_max):
-        super().__init__()
-        self.num_atoms = num_atoms
-        self.v_min = v_min
-        self.v_max = v_max
-        self.action_size = action_size
-
-        self.conv_layers = CNN.build_conv_layers(nn_architecture, state_shape)
-        feature_size = CNN.get_feature_size(nn_architecture, state_shape)
-
-        self.output_layer = nn.Linear(feature_size, action_size * num_atoms)
-
-    def forward(self, x):
-        features = self.conv_layers(x).flatten(start_dim=1)
-        logits = self.output_layer(features).view(-1, self.action_size, self.num_atoms)
-        return torch.softmax(logits, dim=-1)
-    
-
-
+    return DistributionalAdapter(base_network, action_size, num_atoms)
 
 class DuelingQNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_units):

@@ -209,9 +209,6 @@ class DistributionalDQNExtension:
     """
     def __init__(self, agent):
         self.agent = agent
-        nn_architecture = self.agent.nn_architecture
-        state_shape = self.agent.state_size
-        action_size = self.agent.action_size
 
         self.v_min = -10
         self.v_max = 10
@@ -221,23 +218,16 @@ class DistributionalDQNExtension:
         self.agent.v_max = self.v_max
         self.agent.num_atoms = self.num_atoms
 
-        self.agent.q_network = neural_nets.create_distributional_network(
-            nn_architecture=nn_architecture,
-            state_shape=state_shape,
-            action_size=action_size,
+        self.agent.q_network = neural_nets.convert_to_distributional_network(
+            self.agent.q_network,
+            action_size=self.agent.action_size,
             num_atoms=self.num_atoms,
-            v_min=self.v_min,
-            v_max=self.v_max,
-            learning_rate=self.agent.learning_rate
         )
-        self.agent.target_network = neural_nets.create_distributional_network(
-            nn_architecture=nn_architecture,
-            state_shape=state_shape,
-            action_size=action_size,
+
+        self.agent.target_network = neural_nets.convert_to_distributional_network(
+            self.agent.target_network,
+            action_size=self.agent.action_size,
             num_atoms=self.num_atoms,
-            v_min=self.v_min,
-            v_max=self.v_max,
-            learning_rate=self.agent.learning_rate
         )
 
         self.agent.update_target_weights()
@@ -274,7 +264,6 @@ class DistributionalDQNExtension:
 
         return target_probs
 
-    
     def categorical_projection(self, next_probs, rewards, dones, gamma, num_atoms, v_min, v_max):
         """
         Project the target distribution onto the support using the Bellman equation.
