@@ -8,8 +8,8 @@ from extensions import neural_nets
 EXTENSION_ORDER = [
     "double", 
     "priority", 
-    "distribution",
     "noisy",
+    "distribution",
     "dueling",
     "multi_step",
 ]
@@ -355,22 +355,24 @@ class DuelingDQNExtension:
     - Initializes the dueling network architecture (`DuelingQNetwork`).
     - Replaces the agent's Q-network and target network with the dueling architecture.
     """
-    
     def __init__(self, agent):
         self.agent = agent
         nn_architecture = self.agent.nn_architecture
         state_shape = self.agent.state_size
         action_size = self.agent.action_size
 
-        if nn_architecture["structure"] == "DNN":
-            self.agent.q_network = neural_nets.DuelingQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
-            self.agent.target_network = neural_nets.DuelingQNetwork(state_shape, action_size, nn_architecture["num_neurons"])
-        elif nn_architecture["structure"] == "CNN":
-            self.agent.q_network = neural_nets.DuelingQNetworkCNN(nn_architecture, state_shape, action_size)
-            self.agent.target_network = neural_nets.DuelingQNetworkCNN(nn_architecture, state_shape, action_size)
-        else:
-            raise ValueError(f"Unsupported structure: {nn_architecture['structure']}")
-
+        self.agent.q_network = neural_nets.create_dueling_network(
+            base_network=self.agent.q_network,
+            state_shape=state_shape,
+            action_size=action_size,
+            nn_architecture=nn_architecture,
+        )
+        self.agent.target_network = neural_nets.create_dueling_network(
+            base_network=self.agent.target_network,
+            state_shape=state_shape,
+            action_size=action_size,
+            nn_architecture=nn_architecture,
+        )
         self.agent.update_target_weights()
 
 class MultiStepExtension:

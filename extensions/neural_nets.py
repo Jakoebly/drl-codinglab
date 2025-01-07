@@ -175,7 +175,15 @@ class NoisyAdapter(nn.Module):
         print(f"Converted to Noisy Network with updated layers:\n{self}")
 
     def forward(self, x):
-        return self.base_network(x)
+        """
+        Forward method for noisy network, propagating prior logic.
+        """
+        x = self.base_network(x)
+
+        # If the previous layer outputs a distribution, retain the format
+        if hasattr(self.base_network, "num_atoms"):
+            return x.view(-1, self.action_size, self.base_network.num_atoms)
+        return x
 
     def reset_noise(self):
         """
@@ -267,60 +275,109 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
             self.optimizer = getattr(base_network, "optimizer", None)
             self.loss_fn = getattr(base_network, "loss_fn", None)
 
-            print(f"Created Distributional Network with updated output layer \n{self.output_layer}")
+            print(f"Converted to Noisy Network with updated layers:\n{self}")
+            #print(f"Created Distributional Network with updated output layer \n{self.output_layer}")
 
         def forward(self, x):
+            """
+            Forward method for distributional network, propagating prior logic.
+            """
             features = self.feature_layer(x)
             logits = self.output_layer(features).view(-1, self.action_size, self.num_atoms)
             return torch.softmax(logits, dim=-1)
+        
+        def __str__(self):
+            """
+            Override the string representation to print the updated noisy network structure.
+            """
+            return f"{self.base_network}"
 
     return DistributionalAdapter(base_network, action_size, num_atoms)
 
 
-'''class DuelingQNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_units):
-        super().__init__()
-        self.feature_layer = DNN(input_dim, hidden_units)
-        self.value_stream = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units),
-            nn.ReLU(),
-            nn.Linear(hidden_units, 1),
-        )
-        self.advantage_stream = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units),
-            nn.ReLU(),
-            nn.Linear(hidden_units, output_dim),
-        )
+def create_dueling_network(base_network, state_shape, action_size, nn_architecture):
+    """
+    Converts a base Q-network into a Dueling Q-network.
 
-    def forward(self, x):
-        features = self.feature_layer(x)
-        value = self.value_stream(features)
-        advantages = self.advantage_stream(features)
-        q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
-        return q_values
+    Parameters:
+        base_network (nn.Module): The existing Q-network to adapt.
+        state_shape (int or tuple): State size or shape.
+        action_size (int): Number of actions.
+        nn_architecture (dict): Neural network architecture configuration.
 
+    Returns:
+        nn.Module: A dueling Q-network.
+    """
+    class DuelingAdapter(nn.Module):
+        def __init__(self, base_network, action_size):
+            super().__init__()
+            self.base_network = base_network
+            self.action_size = action_size
 
-class DuelingQNetworkCNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size):
-        super().__init__()
-        self.conv_layers = CNN.build_conv_layers(nn_architecture, state_shape)
-        feature_size = CNN.get_feature_size(nn_architecture, state_shape)
+            self.optimizer = getattr(base_network, "optimizer", None)
+            self.loss_fn = getattr(base_network, "loss_fn", None)
 
-        self.value_stream = nn.Sequential(
-            nn.Linear(feature_size, nn_architecture["num_neurons"]),
-            nn.ReLU(),
-            nn.Linear(nn_architecture["num_neurons"], 1),
-        )
-        self.advantage_stream = nn.Sequential(
-            nn.Linear(feature_size, nn_architecture["num_neurons"]),
-            nn.ReLU(),
-            nn.Linear(nn_architecture["num_neurons"], action_size),
-        )
+            if isinstance(base_network, nn.Sequential):
+                feature_layer = list(base_network.children())[:-1]
+                input_layer = list(base_network.children())[-1]
+            elif hasattr(base_network, "model"):
+                feature_layer = list(base_network.model.children())[:-1]
+                input_layer = list(base_network.model.children())[-1]
+            else:
+                raise ValueError("Unsupported base_network structure.")
 
-    def forward(self, x):
-        features = self.conv_layers(x).flatten(start_dim=1)
-        value = self.value_stream(features)
-        advantages = self.advantage_stream(features)
-        q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
-        return q_values'''
+            if not isinstance(input_layer, nn.Linear):
+                raise ValueError(
+                    "The base network's last layer must be a linear layer for dueling network adaptation."
+                )
+
+            self.feature_layer = nn.Sequential(*feature_layer)
+            input_size = input_layer.in_features
+
+            self.value_stream = nn.Sequential(
+                nn.Linear(input_size, nn_architecture["num_neurons"]),
+                nn.ReLU(),
+                nn.Linear(nn_architecture["num_neurons"], 1),
+            )
+            self.advantage_stream = nn.Sequential(
+                nn.Linear(input_size, nn_architecture["num_neurons"]),
+                nn.ReLU(),
+                nn.Linear(nn_architecture["num_neurons"], action_size),
+            )
+
+            print(f"Converted to Dueling Network with updated streams:\n{self}")
+
+        def forward(self, x):
+            """
+            Forward method that integrates previous extension logic.
+            """
+            features = self.feature_layer(x)
+
+            if features.size(-1) != self.value_stream[0].in_features:
+                raise RuntimeError(
+                    f"Feature size mismatch: expected {self.value_stream[0].in_features}, got {features.size(-1)}"
+                )
+
+            value = self.value_stream(features)
+            advantages = self.advantage_stream(features)
+
+            q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
+
+            if hasattr(self.base_network, "num_atoms"):
+                q_values = q_values.view(-1, self.action_size, self.base_network.num_atoms)
+                return torch.softmax(q_values, dim=-1)
+
+            return q_values
+
+        def __str__(self):
+            """
+            Override the string representation to print the updated dueling network structure.
+            """
+            return (
+                f"Feature Layer: {self.feature_layer}\n"
+                f"Value Stream: {self.value_stream}\n"
+                f"Advantage Stream: {self.advantage_stream}\n"
+            )
+
+    return DuelingAdapter(base_network, action_size)
     
