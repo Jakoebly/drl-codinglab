@@ -63,16 +63,21 @@ if __name__ == "__main__":
     # Initialize wandb run
     wandb_run = None
     if args.track:
-        wandb_run = wandb.init(
-            entity=args.wandb_entity,
-            project=args.wandb_projectname,
-            config=config,
-            name=run_name,
-            save_code=True,
-            group=algorithm,
-            tags=[f"Var_{variant}"],
-            job_type=f"{mode}/validate" if mode == "train" else mode
-        )
+        wandb_mode = "online"
+    else:
+        wandb_mode = "disabled"
+
+    wandb_run = wandb.init(
+        entity=args.wandb_entity,
+        project=args.wandb_projectname,
+        config=config,
+        name=run_name,
+        save_code=True,
+        mode = wandb_mode,
+        group=algorithm,
+        tags=[f"Var_{variant}"],
+        job_type=f"{mode}/validate" if mode == "train" else mode
+    )
 
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":
