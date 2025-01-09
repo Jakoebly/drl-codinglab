@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import os
+from utils import settings
 
 
 class Renderer:
@@ -15,7 +16,8 @@ class Renderer:
         self.eligible_cells = eligible_cells
         self.max_response_time = max_response_time
         self.previous_target_count = 0
-        self.image_dir = "./Renderer/Images/"
+        #self.image_dir = "./Renderer/Images/"
+        self.image_dir = settings.RENDER_DIR
 
         # Load images
         self.agent_img = mpimg.imread(os.path.join(self.image_dir, "agent.png"))

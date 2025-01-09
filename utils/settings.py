@@ -13,3 +13,5 @@ BEST_DIR = "drl-codinglab/algorithms/best.yaml"
 #CONFIG_DIR = "./config"
 CONFIG_DIR = "drl-codinglab/config"
 
+RENDER_DIR = "drl-codinglab/renderer/Images"
+

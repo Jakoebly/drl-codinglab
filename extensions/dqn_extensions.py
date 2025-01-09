@@ -1,6 +1,4 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import numpy as np
 from collections import deque
 from extensions import neural_nets
@@ -65,7 +63,7 @@ class PrioritizedReplayBuffer:
         self.priorities.append(priority ** self.alpha)
         self.pos = (self.pos + 1) % self.capacity
 
-    def sample(self, batch_size, beta=0.4):
+    def sample(self, batch_size, beta = 0.4):
         """Sample a batch of experiences with priorities."""
         if len(self.buffer) == 0:
             raise ValueError("Replay buffer is empty!")
@@ -455,7 +453,6 @@ class MultiStepExtension:
 
         # Combine multi-step rewards with baseline targets
         return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.n_steps) * baseline_targets
-
 
 EXTENSION_REGISTRY = {
     "double": DoubleDQNExtension,

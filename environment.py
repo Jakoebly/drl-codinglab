@@ -62,7 +62,8 @@ class Environment(object):
         # FOR RENDERING ONLY:
         self.render_enabled = render
         if self.render_enabled:
-            self.renderer = Renderer(grid_size=(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
+            self.renderer = Renderer(grid_size =(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
+        
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
     # Initializing new episode (specify if training, validation, or testing via the mode argument)
@@ -95,10 +96,6 @@ class Environment(object):
             episode = random.choice(self.remaining_training_episodes)
             self.remaining_training_episodes.remove(episode)
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
-
-        #For renderer:
-        self.current_episode_target_count = 0
-        self.update_render()
 
         '''
         if self.nn_structure == "DNN":
@@ -170,21 +167,20 @@ class Environment(object):
         # get new observation
         next_obs = self.get_new_obs()
 
-        # for Render:
-        self.update_render()
+        if self.render_enabled:
+            self.update_render()
 
         return rew, next_obs, done
 
     def update_render(self):
         """Update the render only if enabled."""
-        if self.render_enabled:
-            self.renderer.render(
-                agent_loc=self.agent_loc,
-                target_loc=self.target_loc,
-                item_locs=self.item_locs,
-                item_times=self.item_times,
-                agent_load=self.agent_load,
-                target_count=self.current_episode_target_count
+        self.renderer.render(
+            agent_loc=self.agent_loc,
+            target_loc=self.target_loc,
+            item_locs=self.item_locs,
+            item_times=self.item_times,
+            agent_load=self.agent_load,
+            target_count=self.current_episode_target_count
             )
     
     def get_new_obs(self):
@@ -384,6 +380,8 @@ class Environment(object):
             if remaining_time_after_collection > 0:
                 prioritization_channel[loc] = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
 
+        free_capacity = self.agent_capacity - self.agent_load
+
         # Stack all channels into a 3D grid
         state = np.stack(
             [agent_channel,
@@ -393,12 +391,12 @@ class Environment(object):
             remaining_times_channel,
             #past_items_channel,
             #target_channel,
-            free_capacity_channel
+            #free_capacity_channel
             ],
             axis=-1,
         )
 
-        return state
+        return state, free_capacity
     
     # GRIDOBS - OLD SHIT, DONT NEED IT ANYMORE
     '''def get_grid_obs(self) -> List[float]:

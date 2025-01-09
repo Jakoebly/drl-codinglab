@@ -2,14 +2,14 @@ DQN:
   eval_settings:
     eval_interval: 100
     evaluation_treshold: 0.000
-    evaluation_episodes: 50
+    evaluation_episodes: 100
 
-  extensions: ["dueling"]
+  extensions: ["priority"]
 
   hyperparameters:
-    gamma: 0.9
+    gamma: 0.95
     epsilon: 1.0
-    epsilon_min: 0.15
+    epsilon_min: 0.05
     epsilon_decay: 0.99
     learning_rate: 0.00001
     batch_size: 64
@@ -18,8 +18,8 @@ DQN:
 
   nn_architecture:
     structure: "DNN"
-    num_layers: 4
-    num_neurons: 256
+    num_layers: 5
+    num_neurons: 512
     activation_layers: "relu"
     activation_output:
 

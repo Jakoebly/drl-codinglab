@@ -43,11 +43,12 @@ if __name__ == "__main__":
     mode = args.mode.lower()
     best = args.best
     model_name = args.model_name
+    render = args.visualize
     if best:
         model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
     # Create environment
-    env = Environment(variant, DATA_DIR, render = False)
+    env = Environment(variant, DATA_DIR, render = render)
 
     # Set config directory to the general config folder in case of training
     CONFIG_DIR = settings.CONFIG_DIR
@@ -60,13 +61,13 @@ if __name__ == "__main__":
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
 
-    # Initialize wandb run
     wandb_run = None
     if args.track:
         wandb_mode = "online"
     else:
         wandb_mode = "disabled"
 
+    # Initialize wandb run
     wandb_run = wandb.init(
         entity=args.wandb_entity,
         project=args.wandb_projectname,
