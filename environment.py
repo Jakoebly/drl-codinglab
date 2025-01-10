@@ -214,81 +214,82 @@ class Environment(object):
         distance = self.manhatten_dist(self.agent_loc, item_loc)
         return distance <= remaining_time
     
+    def get_dnn_obs(self, two_dim = True) -> np.ndarray:
+        """
+        Returns the default observation of the environment, which is 2D encoded.
+        """
+        if two_dim:
+            return self.get_dnn_obs_2d()
+        else:
+            return self.get_dnn_obs_one_hot()
 
-    def get_dnn_obs(self) -> np.ndarray:
-        """Returns the state of the environment as a flattened 1D array."""
+    def get_dnn_obs_2d(self) -> np.ndarray:
+        """Returns the 2D encoded observations of the environment."""
         grid_size = self.vertical_cell_count * self.horizontal_cell_count
+
         # Free Capacity
         free_capacity = [self.agent_capacity - self.agent_load]
-        # Agent Position (One-Hot Encoded)
-        agent_position = np.zeros(grid_size)
-        agent_index = self.agent_loc[0] * self.horizontal_cell_count + self.agent_loc[1]
-        agent_position[agent_index] = 1
+
         # Agent Position (2D Flattened)
         agent_position_2d = [self.agent_loc[0], self.agent_loc[1]]
-        # Item Positions (One-Hot Encoded)
-        item_positions = np.zeros(grid_size)
-        item_positions_2d = []
-        for loc in self.item_locs:
-            item_index = loc[0] * self.horizontal_cell_count + loc[1]
-            item_positions[item_index] = 1
-            item_positions_2d.extend([loc[0], loc[1]])
-        # Pad item_positions_2d if fewer items than grid cells
-        while len(item_positions_2d) < grid_size * 2:
-            item_positions_2d.extend([-1, -1])
-        # Remaining Item Times
-        remaining_item_times = np.full(grid_size, -1.0)
-        # Remaining Item Times (Normalized, Ordered to Match item_positions_2d)
-        remaining_item_times_2d = []
-        for loc, time in zip(self.item_locs, self.item_times):
-            item_index = loc[0] * self.horizontal_cell_count + loc[1]
-            remaining_time = (self.max_response_time - time) / self.max_response_time
-            remaining_item_times[item_index] = remaining_time
-            remaining_item_times_2d.append(remaining_time)
-        # Pad remaining_item_times_2d
-        while len(remaining_item_times_2d) < grid_size:
-            remaining_item_times_2d.append(-1)
-        # Frequency of Past Items
-        '''past_items_vector = self.past_items.flatten()
-        # frequency_past_items = past_items_vector / past_items_vector.sum() if past_items_vector.sum() > 0 else past_items_vector'''
-        # Target Position (One-Hot Encoded)
-        '''target_position = np.zeros(grid_size)
-        target_index = self.target_loc[0] * self.horizontal_cell_count + self.target_loc[1]
-        target_position[target_index] = 1'''
-        # Target Position (2D Flattened)
-        '''target_position_2d = [self.target_loc[0], self.target_loc[1]]'''
-        # Closest Item (One-Hot Encoded)
-        closest_item = np.zeros(grid_size)
-        if self.item_locs:
-            distances = [self.manhatten_dist(self.agent_loc, item) for item in self.item_locs]
-            closest_idx = np.argmin(distances)
-            closest_item_index = self.item_locs[closest_idx][0] * self.horizontal_cell_count + self.item_locs[closest_idx][1]
-            closest_item[closest_item_index] = 1
-            closest_item_2d = [self.item_locs[closest_idx][0], self.item_locs[closest_idx][1]]
-            distance_closest_item = [distances[closest_idx]]
-            distance_closest_item_2d = [
-                abs(self.agent_loc[0] - self.item_locs[closest_idx][0]),
-                abs(self.agent_loc[1] - self.item_locs[closest_idx][1]),
-            ]
-        else:
-            closest_item_2d = [-1, -1]
-            distance_closest_item = [-1]
-            distance_closest_item_2d = [-1, -1]
 
-        # Distances to all items (One-Hot Encoded)
-        distances_all_items = np.full(grid_size, -1, dtype=float)
+        # Initialize observations
+        item_positions_2d = []
+        remaining_item_times_2d = []
+        prioritization_ratios = np.zeros(grid_size)
         distances_all_items_2d = []
-        for loc in self.item_locs:
-            item_index = loc[0] * self.horizontal_cell_count + loc[1]
-            distance = self.manhatten_dist(self.agent_loc, loc)
-            distances_all_items[item_index] = self.manhatten_dist(self.agent_loc, loc)
+        closest_item_2d = [-1, -1]
+
+        filtered_item_locs = []
+        filtered_item_times = []
+
+        # Filter reachable items
+        for loc, time in zip(self.item_locs, self.item_times):
+            if self.is_reachable(loc, self.max_response_time - time):
+                filtered_item_locs.append(loc)
+                filtered_item_times.append(time)
+
+        # Process filtered items for observations
+        closest_idx = -1
+        if filtered_item_locs:
+            distances = [self.manhatten_dist(self.agent_loc, item) for item in filtered_item_locs]
+            closest_idx = np.argmin(distances)
+            closest_item_2d = [filtered_item_locs[closest_idx][0], filtered_item_locs[closest_idx][1]]
+
+        # Process filtered items for observations
+        for loc, time in zip(filtered_item_locs, filtered_item_times):
+            item_positions_2d.extend([loc[0], loc[1]])
+
+            remaining_time = (self.max_response_time - time) / self.max_response_time
+            remaining_item_times_2d.append(remaining_time)
+
+            d_agent = self.manhatten_dist(self.agent_loc, loc)
+            d_target = self.manhatten_dist(loc, self.target_loc)
+            remaining_time_after_collection = self.max_response_time - time - d_agent
+            if remaining_time_after_collection > 0:
+                ratio = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
+                prioritization_ratios[loc[0] * self.horizontal_cell_count + loc[1]] = ratio
+
             distances_all_items_2d.extend([
                 abs(self.agent_loc[0] - loc[0]),
                 abs(self.agent_loc[1] - loc[1]),
             ])
-        # Pad distances_all_items_2d
+
+        # Pad _2d observations
+        while len(item_positions_2d) < grid_size * 2:
+            item_positions_2d.extend([-1, -1])
+        while len(remaining_item_times_2d) < grid_size:
+            remaining_item_times_2d.append(-1)
         while len(distances_all_items_2d) < grid_size * 2:
             distances_all_items_2d.extend([-1, -1])
+
+        # Distance to Closest Item
+        distance_closest_item_2d = [-1, -1]
+        if closest_idx != -1:
+            distance_closest_item_2d = [
+                abs(self.agent_loc[0] - filtered_item_locs[closest_idx][0]),
+                abs(self.agent_loc[1] - filtered_item_locs[closest_idx][1]),
+            ]
 
         # Distance to Walls
         distance_to_walls = [
@@ -298,49 +299,92 @@ class Environment(object):
             self.horizontal_cell_count - 1 - self.agent_loc[1],  # Right
         ]
 
+        obs = np.concatenate([
+            free_capacity,
+            prioritization_ratios,
+            agent_position_2d,
+            item_positions_2d,
+            remaining_item_times_2d,
+            closest_item_2d,
+            distance_closest_item_2d,
+            distances_all_items_2d,
+            distance_to_walls,
+        ])
+
+        return obs
+
+
+    def get_dnn_obs_one_hot(self) -> np.ndarray:
+        """Returns the one-hot encoded observations of the environment."""
+        grid_size = self.vertical_cell_count * self.horizontal_cell_count
+
+        # Free Capacity
+        free_capacity = [self.agent_capacity - self.agent_load]
+
+        # Agent Position (One-Hot Encoded)
+        agent_position = np.zeros(grid_size)
+        agent_index = self.agent_loc[0] * self.horizontal_cell_count + self.agent_loc[1]
+        agent_position[agent_index] = 1
+
+        # Initialize observations
+        item_positions = np.zeros(grid_size)
+        remaining_item_times = np.full(grid_size, -1.0)
         prioritization_ratios = np.zeros(grid_size)
+        closest_item = np.zeros(grid_size)
+
+        filtered_item_locs = []
+        filtered_item_times = []
+
+        # Filter reachable items
         for loc, time in zip(self.item_locs, self.item_times):
+            if self.is_reachable(loc, self.max_response_time - time):
+                filtered_item_locs.append(loc)
+                filtered_item_times.append(time)
+            
+        # Process filtered items for observations
+        closest_idx = -1
+        if filtered_item_locs:
+            distances = [self.manhatten_dist(self.agent_loc, item) for item in filtered_item_locs]
+            closest_idx = np.argmin(distances)
+            closest_item_index = filtered_item_locs[closest_idx][0] * self.horizontal_cell_count + filtered_item_locs[closest_idx][1]
+            closest_item[closest_item_index] = 1
+
+        # Process filtered items for observations
+        for loc, time in zip(filtered_item_locs, filtered_item_times):
+            item_index = loc[0] * self.horizontal_cell_count + loc[1]
+            item_positions[item_index] = 1
+
+            remaining_time = (self.max_response_time - time) / self.max_response_time
+            remaining_item_times[item_index] = remaining_time
+
             d_agent = self.manhatten_dist(self.agent_loc, loc)
             d_target = self.manhatten_dist(loc, self.target_loc)
             remaining_time_after_collection = self.max_response_time - time - d_agent
             if remaining_time_after_collection > 0:
-                #ratio = (1 / (remaining_time_after_collection + 1)) + (1 / (d_target + 1))
-                #Own
                 ratio = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
-                prioritization_ratios[loc[0] * self.horizontal_cell_count + loc[1]] = ratio
+                prioritization_ratios[item_index] = ratio
 
-        # Other features remain unchanged
-        free_capacity = [self.agent_capacity - self.agent_load]
-        agent_position_2d = [self.agent_loc[0], self.agent_loc[1]]
-        item_positions_2d = [coord for loc in self.item_locs for coord in loc]
-        remaining_item_times_2d = [(self.max_response_time - time) / self.max_response_time
-                                for time in self.item_times]
+        # Distance to Closest Item
+        distance_closest_item = [-1]
+        if closest_idx != -1:
+            distance_closest_item = [distances[closest_idx]]
 
-        # Pad features for consistency
-        while len(item_positions_2d) < grid_size * 2:
-            item_positions_2d.extend([-1, -1])
-        while len(remaining_item_times_2d) < grid_size:
-            remaining_item_times_2d.append(-1)
+        # Distance to Walls
+        distance_to_walls = [
+            self.agent_loc[0],  # Up
+            self.vertical_cell_count - 1 - self.agent_loc[0],  # Down
+            self.agent_loc[1],  # Left
+            self.horizontal_cell_count - 1 - self.agent_loc[1],  # Right
+        ]
 
         obs = np.concatenate([
-            free_capacity,  # Scalar
+            free_capacity,
             prioritization_ratios,
-            #agent_position,  # One-hot
-            agent_position_2d,  # 2D Flattened e.g. [1 0]
-            #item_positions,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
-            item_positions_2d,  # 2D Flattened e.g. [ 0  1  3  3  0  2 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
-            #remaining_item_times,  # Normalized times e.g. [-1.  -1.  -1.  -1.  -1.  -1.   0.6 -1.  -1.   0.4 -1.  -1.  -1.  -1.-1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
-            remaining_item_times_2d,  # Times according to 2D Positions e.g. [ 0.3  0.4  0.9 -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1.  -1. ]
-            #frequency_past_items,  # Past frequency
-            #target_position,  # One-hot e.g. [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
-            #target_position_2d,  # 2D Flattened e.g. [2 0]
-            #closest_item,  # One-hot e.g. [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.0.]
-            closest_item_2d,  # 2D Flattened e.g. [4 2]
-            #distance_closest_item,  # Scalar e.g. [2]
-            distance_closest_item_2d,  # 2D Flattened e.g. [0 2]
-            #distances_all_items,  # Scalar e.g. [-1.  6. -1. -1.  3. -1. -1.  4. -1.  2. -1. -1. -1. -1. -1. -1. -1. -1.-1.  0. -1. -1. -1. -1. -1.]
-            distances_all_items_2d,  # 2D Flattened e.g. [ 1  3  2  0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1-1 -1]
-            distance_to_walls  # Scalar e.g. [1 3 2 2]
+            agent_position,
+            item_positions,
+            remaining_item_times,
+            distance_closest_item,
+            distance_to_walls,
         ])
 
         return obs
