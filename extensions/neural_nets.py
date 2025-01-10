@@ -314,6 +314,7 @@ def create_dueling_network(base_network, action_size, nn_architecture):
             super().__init__()
             self.base_network = base_network
             self.action_size = action_size
+            self.num_neurons_stream = nn_architecture["num_neurons"]
 
             self.optimizer = getattr(base_network, "optimizer", None)
             self.loss_fn = getattr(base_network, "loss_fn", None)
@@ -336,22 +337,22 @@ def create_dueling_network(base_network, action_size, nn_architecture):
             input_size = input_layer.in_features
 
             self.value_stream = nn.Sequential(
-                nn.Linear(input_size, nn_architecture["num_neurons"]/4),
+                nn.Linear(input_size, 256),
                 nn.ReLU(),
-                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
+                nn.Linear(256, 128),
                 nn.ReLU(),
-                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
+                nn.Linear(128, 128),
                 nn.ReLU(),
-                nn.Linear(nn_architecture["num_neurons"], 1),
+                nn.Linear(128, 1),
             )
             self.advantage_stream = nn.Sequential(
-                nn.Linear(input_size, nn_architecture["num_neurons"]/4),
+             nn.Linear(input_size, 256),
                 nn.ReLU(),
-                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
+                nn.Linear(256, 128),
                 nn.ReLU(),
-                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
+                nn.Linear(128, 128),
                 nn.ReLU(),
-                nn.Linear(nn_architecture["num_neurons"], action_size),
+                nn.Linear(128, action_size),
             )
 
             print(f"Converted to Dueling Network with updated streams:\n{self}")
