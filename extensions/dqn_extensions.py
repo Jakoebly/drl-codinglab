@@ -181,8 +181,6 @@ class PrioritizedReplayExtension:
 class NoisyDQNExtension:
     def __init__(self, agent):
         self.agent = agent
-        nn_architecture = self.agent.nn_architecture
-        state_shape = self.agent.state_size
         action_size = self.agent.action_size
 
         self.agent.q_network = neural_nets.NoisyAdapter(base_network=self.agent.q_network, action_size=action_size)
@@ -204,7 +202,9 @@ class NoisyDQNExtension:
         state_tensor = self.agent.tensorize_state(state)
         with torch.no_grad():
             q_values = self.agent.q_network(state_tensor)
-        return torch.argmax(q_values).item()
+            action = torch.argmax(q_values).item()
+
+        return action
 
     def reset_noise(self):
         """
@@ -330,6 +330,13 @@ class DistributionalDQNExtension:
             m.scatter_add_(1, u_idx.unsqueeze(1), next_probs[:, i:i+1] * (b[:, i] - l[:, i]).unsqueeze(1))
 
         return m
+    
+    def compute_loss(self, q_targets, selected_logits, weights):
+            # Compute loss using KL divergence for distributional DQN
+            loss = (q_targets * selected_logits.log()).sum(dim=-1)
+            loss = (weights * loss).mean()
+
+            return loss
 
 class DuelingDQNExtension:
     """
@@ -355,18 +362,15 @@ class DuelingDQNExtension:
     def __init__(self, agent):
         self.agent = agent
         nn_architecture = self.agent.nn_architecture
-        state_shape = self.agent.state_size
         action_size = self.agent.action_size
 
         self.agent.q_network = neural_nets.create_dueling_network(
             base_network=self.agent.q_network,
-            state_shape=state_shape,
             action_size=action_size,
             nn_architecture=nn_architecture,
         )
         self.agent.target_network = neural_nets.create_dueling_network(
             base_network=self.agent.target_network,
-            state_shape=state_shape,
             action_size=action_size,
             nn_architecture=nn_architecture,
         )

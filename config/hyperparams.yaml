@@ -4,7 +4,7 @@ DQN:
     evaluation_treshold: 0.000
     evaluation_episodes: 100
 
-  extensions: ["vanilla"]
+  extensions: ["dueling"]
 
   hyperparameters:
     gamma: 0.93
@@ -20,12 +20,17 @@ DQN:
 
   extensionparameters:
     replay:
-      alpha: 0.6
-      beta: 0.4
+      alpha: 0.65
+      beta: 0.45
+    noisy:
+      std_init: 0.5
     distribution:
       v_min: -10
       v_max: 10
       num_atoms: 51
+    dueling:
+      num_layers_stream: 3
+      num_neurons_stream: 256
     multi_step:
       n_steps: 3
 

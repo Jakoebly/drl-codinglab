@@ -4,6 +4,7 @@ from collections import deque
 import random
 import wandb
 from typing import List, Tuple
+from utils import utils as ut
 
 from extensions import dqn_extensions, neural_nets
    
@@ -229,16 +230,21 @@ class DQN_Agent:
         if len(self.buffer) < self.batch_size:
             return
         
-        if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
+        '''if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
             for ext in self.extensions:
                 if isinstance(ext, dqn_extensions.NoisyDQNExtension):
-                    ext.reset_noise()
+                    ext.reset_noise()'''
+
+        if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
+            self.q_network.reset_noise()
+            self.target_network.reset_noise()
 
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, *optional = batch
         actions = actions.to(self.device)
         rewards = rewards.to(self.device)
         dones = dones.to(self.device)
+        actions = torch.clamp(actions, 0, self.action_size - 1)
         
         # Handle weights if prioritized replay is active
         if optional:
@@ -252,10 +258,7 @@ class DQN_Agent:
         if any(isinstance(ext, dqn_extensions.DistributionalDQNExtension) for ext in self.extensions):
             batch_indices = torch.arange(q_network_output.size(0), device=self.device)
             selected_logits = q_network_output[batch_indices, actions]
-
-            # Compute loss using KL divergence for distributional DQN
-            loss = -(q_targets * selected_logits.log()).sum(dim=-1)
-            loss = (weights * loss).mean()
+            loss = self.compute_loss(q_targets, selected_logits, weights)
 
         else:
             q_values = q_network_output.gather(1, actions.unsqueeze(1)).squeeze()
@@ -265,12 +268,12 @@ class DQN_Agent:
 
             if any(isinstance(ext, dqn_extensions.PrioritizedReplayExtension) for ext in self.extensions):
                 loss, td_errors = self.compute_loss(q_values, q_targets, weights)
+
             else:
                 loss = self.compute_loss(q_values, q_targets)
 
         self.update_network(loss)
 
-        # Update priorities if applicable
         if any(isinstance(ext, dqn_extensions.PrioritizedReplayBuffer) for ext in self.extensions):
             self.update_priorities(td_errors.detach().abs().cpu().numpy())
 
@@ -292,7 +295,7 @@ class DQN_Agent:
 
         Returns:
             list: Total rewards collected in each episode.
-        """
+        """       
         rewards = []
         last_evaluation_reward = -100
 
@@ -350,6 +353,10 @@ class DQN_Agent:
                     break
 
                 last_evaluation_reward = average_eval_reward
+
+        if training:
+            test_rewards = self.run(mode = "testing", num_episodes = 100)
+            wandb.log({"Charts/Testing Rewards": np.mean(test_rewards)}, episode)
             
         print(f"--- {mode} finished - average reward after {num_episodes} episodes: {np.mean(rewards)} ---")
 

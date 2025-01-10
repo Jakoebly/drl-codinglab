@@ -200,7 +200,7 @@ class NoisyAdapter(nn.Module):
         return f"{self.base_network}"
 
 class NoisyLinear(nn.Module):
-    def __init__(self, in_features, out_features, std_init=0.5):
+    def __init__(self, in_features, out_features, std_init = 0.4):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -208,6 +208,8 @@ class NoisyLinear(nn.Module):
 
         self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
         self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
+
+
         self.bias_mu = nn.Parameter(torch.empty(out_features))
         self.bias_sigma = nn.Parameter(torch.empty(out_features))
 
@@ -275,8 +277,7 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
             self.optimizer = getattr(base_network, "optimizer", None)
             self.loss_fn = getattr(base_network, "loss_fn", None)
 
-            print(f"Converted to Noisy Network with updated layers:\n{self}")
-            #print(f"Created Distributional Network with updated output layer \n{self.output_layer}")
+            print(f"Created Distributional Network with updated output layer \n{self.output_layer}\n")
 
         def forward(self, x):
             """
@@ -295,7 +296,7 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
     return DistributionalAdapter(base_network, action_size, num_atoms)
 
 
-def create_dueling_network(base_network, state_shape, action_size, nn_architecture):
+def create_dueling_network(base_network, action_size, nn_architecture):
     """
     Converts a base Q-network into a Dueling Q-network.
 
@@ -335,12 +336,20 @@ def create_dueling_network(base_network, state_shape, action_size, nn_architectu
             input_size = input_layer.in_features
 
             self.value_stream = nn.Sequential(
-                nn.Linear(input_size, nn_architecture["num_neurons"]),
+                nn.Linear(input_size, nn_architecture["num_neurons"]/4),
+                nn.ReLU(),
+                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
+                nn.ReLU(),
+                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
                 nn.ReLU(),
                 nn.Linear(nn_architecture["num_neurons"], 1),
             )
             self.advantage_stream = nn.Sequential(
-                nn.Linear(input_size, nn_architecture["num_neurons"]),
+                nn.Linear(input_size, nn_architecture["num_neurons"]/4),
+                nn.ReLU(),
+                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
+                nn.ReLU(),
+                nn.Linear(input_size, nn_architecture["num_neurons"]/2),
                 nn.ReLU(),
                 nn.Linear(nn_architecture["num_neurons"], action_size),
             )
