@@ -97,12 +97,6 @@ class Environment(object):
             self.remaining_training_episodes.remove(episode)
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
-        '''
-        if self.nn_structure == "DNN":
-            self.past_items = []
-        elif self.nn_structure == "CNN":
-            self.past_items = np.zeros((self.vertical_cell_count, self.horizontal_cell_count), dtype=int)'''
-
         return self.get_new_obs()
 
     # take one environment step based on the action act
@@ -160,9 +154,6 @@ class Environment(object):
         new_items = [i for i in new_items if i not in self.item_locs]  # not more than one item per cell
         self.item_locs += new_items
         self.item_times += [0] * len(new_items)
-
-        '''for loc in new_items:
-            self.past_items[loc] += 1'''
 
         # get new observation
         next_obs = self.get_new_obs()
@@ -222,7 +213,8 @@ class Environment(object):
             return self.get_dnn_obs_2d()
         else:
             return self.get_dnn_obs_one_hot()
-
+    
+    
     def get_dnn_obs_2d(self) -> np.ndarray:
         """Returns the 2D encoded observations of the environment."""
         grid_size = self.vertical_cell_count * self.horizontal_cell_count
@@ -239,6 +231,7 @@ class Environment(object):
         prioritization_ratios = np.zeros(grid_size)
         distances_all_items_2d = []
         closest_item_2d = [-1, -1]
+        cumulative_timeout_risk = 0
 
         filtered_item_locs = []
         filtered_item_times = []
@@ -263,12 +256,13 @@ class Environment(object):
             remaining_time = (self.max_response_time - time) / self.max_response_time
             remaining_item_times_2d.append(remaining_time)
 
+            cumulative_timeout_risk += remaining_time
+
             d_agent = self.manhatten_dist(self.agent_loc, loc)
             d_target = self.manhatten_dist(loc, self.target_loc)
-            remaining_time_after_collection = self.max_response_time - time - d_agent
-            if remaining_time_after_collection > 0:
-                ratio = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
-                prioritization_ratios[loc[0] * self.horizontal_cell_count + loc[1]] = ratio
+       
+            ratio = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
+            prioritization_ratios[loc[0] * self.horizontal_cell_count + loc[1]] = ratio
 
             distances_all_items_2d.extend([
                 abs(self.agent_loc[0] - loc[0]),
@@ -276,12 +270,17 @@ class Environment(object):
             ])
 
         # Pad _2d observations
-        while len(item_positions_2d) < grid_size * 2:
+        while len(item_positions_2d) < grid_size + 1:
             item_positions_2d.extend([-1, -1])
-        while len(remaining_item_times_2d) < grid_size:
+        while len(remaining_item_times_2d) < grid_size + 1:
             remaining_item_times_2d.append(-1)
-        while len(distances_all_items_2d) < grid_size * 2:
+        while len(distances_all_items_2d) < grid_size + 1:
             distances_all_items_2d.extend([-1, -1])
+
+        # Distance to Target
+        distance_to_target = [
+            self.manhatten_dist(self.agent_loc, self.target_loc)
+        ]
 
         # Distance to Closest Item
         distance_closest_item_2d = [-1, -1]
@@ -300,19 +299,22 @@ class Environment(object):
         ]
 
         obs = np.concatenate([
-            free_capacity,
-            prioritization_ratios,
             agent_position_2d,
-            item_positions_2d,
-            remaining_item_times_2d,
-            closest_item_2d,
-            distance_closest_item_2d,
-            distances_all_items_2d,
+            distance_to_target,
             distance_to_walls,
+            free_capacity,
+            [cumulative_timeout_risk],
+            
+            item_positions_2d,
+            distances_all_items_2d,
+            remaining_item_times_2d,
+            prioritization_ratios,
+
+            closest_item_2d,
+            distance_closest_item_2d,   
         ])
 
         return obs
-
 
     def get_dnn_obs_one_hot(self) -> np.ndarray:
         """Returns the one-hot encoded observations of the environment."""
@@ -446,88 +448,7 @@ class Environment(object):
 
         return state, free_capacity
     
-    # GRIDOBS - OLD SHIT, DONT NEED IT ANYMORE
-    '''def get_grid_obs(self) -> List[float]:
-        grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
-
-        # Agent position
-        agent_position = np.zeros(grid_shape)
-        agent_position[self.agent_loc] = 1
-
-        # Item positions
-        item_positions = np.zeros(grid_shape)
-        for loc in self.item_locs:
-            item_positions[loc] = 1
-
-        # Remaining times of items (normalized)
-        remaining_times = np.zeros(grid_shape)
-        for loc, time in zip(self.item_locs, self.item_times):
-            remaining_times[loc] = (self.max_response_time - time) / self.max_response_time
-
-        # TODO: evtl. weg weil eigentlich nicht relevant für die entscheidung
-        # Past items (spawn counts at each position)
-        past_items_vector = self.past_items_vector.flatten()
-
-        total_spawns = past_items_vector.sum()
-        if total_spawns > 0:
-            past_items_vector = past_items_vector / total_spawns
-        else:
-            past_items_vector = np.zeros_like(past_items_vector)
-
-        # Target location
-        target_location = np.zeros(grid_shape)
-        target_location[self.target_loc] = 1
-
-        # Free capacity
-        free_capacity = self.agent_capacity - self.agent_load
-
-        # Manhattan distances to items and distance to closest item
-        distance_to_closest_item = 1000
-        remaining_time_closest_item = 1000
-        distance_closest_item_to_target = 1000
-        manhattan_distance_items = np.zeros(grid_shape)
-        for loc in self.item_locs:
-            manhattan_distance_items[loc] = self.manhatten_dist(self.agent_loc, loc)
-
-            if manhattan_distance_items[loc] < distance_to_closest_item:
-                distance_to_closest_item = manhattan_distance_items[loc]
-                remaining_time_closest_item = remaining_times[loc]
-                distance_closest_item_to_target = self.manhatten_dist(loc, self.target_loc)
-
-        # TODO: weg lassen
-        # Manhatten distance to target
-        manhattan_distance_target = np.zeros(grid_shape)
-        manhattan_distance_target[self.target_loc] = self.manhatten_dist(self.agent_loc, self.target_loc)
-
-
-        # Distance to the closest wall
-        distance_to_walls = [
-            self.agent_loc[0],
-            self.vertical_cell_count - 1 - self.agent_loc[0],
-            self.agent_loc[1],
-            self.horizontal_cell_count - 1 - self.agent_loc[1]
-        ]
-
-        # Current number of items on the field
-        num_items = len(self.item_locs)
-
-        state = np.concatenate([
-            np.array(agent_position).flatten(), # Dim 25
-            np.array(item_positions).flatten(), # Dim 25
-            np.array(remaining_times).flatten(), # Dim 25
-            np.array(target_location).flatten(), # Dim 25
-            np.array(free_capacity).flatten(), # Dim 1
-            np.array(manhattan_distance_items).flatten(), # Dim 25
-            np.array(manhattan_distance_target).flatten(),  # Dim 25
-            np.array(distance_to_closest_item).flatten(),  # Dim 1
-            np.array(remaining_time_closest_item).flatten(),  # Dim 1
-            np.array(distance_closest_item_to_target).flatten(),  # Dim 1
-            np.array(distance_to_walls).flatten(), # Dim 4
-            np.array(num_items).flatten(), # Dim 1
-        ])
-
-        return state'''
-
+    #GREEDY OBS
     def get_to_tgt(self, tgt):
         """Determines which action to take to get to tgt coordinates."""
         if self.agent_loc[0] > tgt[0]:
@@ -543,7 +464,6 @@ class Environment(object):
 
         return act
 
-    #GREEDY OBS
     def get_greedy_obs(self):
         """Greedy get_obs. Only works with base variant!"""
 
