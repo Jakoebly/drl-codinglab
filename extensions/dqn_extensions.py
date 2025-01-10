@@ -41,10 +41,11 @@ class DoubleDQNExtension:
         return q_targets
     
 class PrioritizedReplayBuffer:
-    def __init__(self, capacity, alpha = 0.6):
+    def __init__(self, capacity, alpha, beta):
         """Initialize the buffer."""
         self.capacity = capacity
         self.alpha = alpha
+        self.beta = beta
         self.buffer = []
         self.priorities = deque(maxlen=capacity)
         self.pos = 0
@@ -63,7 +64,7 @@ class PrioritizedReplayBuffer:
         self.priorities.append(priority ** self.alpha)
         self.pos = (self.pos + 1) % self.capacity
 
-    def sample(self, batch_size, beta = 0.4):
+    def sample(self, batch_size):
         """Sample a batch of experiences with priorities."""
         if len(self.buffer) == 0:
             raise ValueError("Replay buffer is empty!")
@@ -74,7 +75,7 @@ class PrioritizedReplayBuffer:
         indices = np.random.choice(len(self.buffer), batch_size, p=probs)
         samples = [self.buffer[i] for i in indices]
 
-        weights = (len(self.buffer) * probs[indices]) ** -beta
+        weights = (len(self.buffer) * probs[indices]) ** -self.beta
         weights /= weights.max()
 
         states, actions, rewards, next_states, dones = zip(*samples)
@@ -109,7 +110,9 @@ class PrioritizedReplayExtension:
         Implements Prioritized Experience Replay.
         """
         self.agent = agent
-        self.agent.buffer = PrioritizedReplayBuffer(capacity = agent.buffer.maxlen)
+        self.agent.alpha = self.agent.extensionparameters["replay"]["alpha"]
+        self.agent.beta = self.agent.extensionparameters["replay"]["beta"]
+        self.agent.buffer = PrioritizedReplayBuffer(capacity = agent.buffer.maxlen, alpha = self.agent.alpha, beta = self.agent.beta)
         self.last_sampled_indices = None
 
     def sample_batch(self):
@@ -243,24 +246,20 @@ class DistributionalDQNExtension:
     def __init__(self, agent):
         self.agent = agent
 
-        self.v_min = -10
-        self.v_max = 10
-        self.num_atoms = 51
-
-        self.agent.v_min = self.v_min
-        self.agent.v_max = self.v_max
-        self.agent.num_atoms = self.num_atoms
+        self.agent.v_min = self.agent.extensionparameters["distribution"]["v_min"]
+        self.agent.v_max = self.agent.extensionparameters["distribution"]["v_max"]
+        self.agent.num_atoms = self.agent.extensionparameters["distribution"]["num_atoms"]
 
         self.agent.q_network = neural_nets.convert_to_distributional_network(
             self.agent.q_network,
             action_size=self.agent.action_size,
-            num_atoms=self.num_atoms,
+            num_atoms=self.agent.num_atoms,
         )
 
         self.agent.target_network = neural_nets.convert_to_distributional_network(
             self.agent.target_network,
             action_size=self.agent.action_size,
-            num_atoms=self.num_atoms,
+            num_atoms=self.agent.num_atoms,
         )
 
         self.agent.update_target_weights()
@@ -292,7 +291,7 @@ class DistributionalDQNExtension:
 
             target_probs = self.categorical_projection(
                 selected_probs, rewards, dones, self.agent.gamma,
-                self.num_atoms, self.v_min, self.v_max
+                self.agent.num_atoms, self.agent.v_min, self.agent.v_max
             )
 
         return target_probs
@@ -380,10 +379,10 @@ class MultiStepExtension:
     Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
     allowing for better credit assignment and faster convergence.
     """
-    def __init__(self, agent, n_steps=3):
+    def __init__(self, agent):
         self.agent = agent
-        self.n_steps = n_steps
-        self.n_step_buffer = deque(maxlen=n_steps)
+        self.agent.n_steps = self.agent.extensionparameters["multi_step"]["n_steps"]
+        self.agent.n_step_buffer = deque(maxlen = self.agent.n_steps )
 
         self.previous_record = agent.record
         self.previous_compute_targets = agent.compute_targets
@@ -401,7 +400,7 @@ class MultiStepExtension:
         """
         self.n_step_buffer.append((state, action, reward, next_state, done))
 
-        if len(self.n_step_buffer) == self.n_steps:
+        if len(self.agent.n_step_buffer) == self.agent.n_steps :
             multi_step_reward, (s, a, _, ns, d), multi_step_done = self._get_n_step_transition()
             transition = (s, a, multi_step_reward, ns, multi_step_done)
 
@@ -415,11 +414,11 @@ class MultiStepExtension:
             tuple: (multi-step reward, final transition, multi-step done flag)
         """
         multi_step_reward = 0
-        for idx, (s, a, r, ns, d) in enumerate(self.n_step_buffer):
+        for idx, (s, a, r, ns, d) in enumerate(self.agent.n_step_buffer):
             multi_step_reward += (self.agent.gamma ** idx) * r
             if d:
                 return multi_step_reward, (s, a, r, ns, d), True
-        return multi_step_reward, self.n_step_buffer[-1], False
+        return multi_step_reward, self.agent.n_step_buffer[-1], False
 
     def compute_targets(self, rewards, next_states, dones):
         """
@@ -452,7 +451,7 @@ class MultiStepExtension:
             multi_step_targets[t] = accumulated_reward
 
         # Combine multi-step rewards with baseline targets
-        return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.n_steps) * baseline_targets
+        return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.agent.n_steps) * baseline_targets
 
 EXTENSION_REGISTRY = {
     "double": DoubleDQNExtension,

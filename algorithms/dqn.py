@@ -55,6 +55,7 @@ class DQN_Agent:
 
         extensions = [ext for ext in dqn_extensions.EXTENSION_ORDER if ext in extensions]
 
+        self.extensionparameters = config["extensions"]
         self.extensions = []
         for ext_name in extensions:
             if ext_name not in dqn_extensions.EXTENSION_REGISTRY:

@@ -173,7 +173,7 @@ class Environment(object):
         return rew, next_obs, done
 
     def update_render(self):
-        """Update the render only if enabled."""
+        """Update the render."""
         self.renderer.render(
             agent_loc=self.agent_loc,
             target_loc=self.target_loc,
@@ -199,10 +199,25 @@ class Environment(object):
         
     def manhatten_dist(self, pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
         return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
+    
+    def is_reachable(self, item_loc: Tuple[int, int], remaining_time: int) -> bool:
+        """
+        Check if an item is reachable before its time runs out.
+        
+        Parameters:
+            item_loc (Tuple[int, int]): The location of the item.
+            remaining_time (int): Remaining time for the item.
+            
+        Returns:
+            bool: True if reachable, False otherwise.
+        """
+        distance = self.manhatten_dist(self.agent_loc, item_loc)
+        return distance <= remaining_time
+    
 
     def get_dnn_obs(self) -> np.ndarray:
         """Returns the state of the environment as a flattened 1D array."""
-        grid_size = self.vertical_cell_count * self.horizontal_cell_count
+        grid_size = (self.vertical_cell_count - 2) * (self.horizontal_cell_count - 2)
         # Free Capacity
         free_capacity = [self.agent_capacity - self.agent_load]
         # Agent Position (One-Hot Encoded)
@@ -349,15 +364,6 @@ class Environment(object):
         for loc, time in zip(self.item_locs, self.item_times):
             remaining_times_channel[loc] = (self.max_response_time - time) / self.max_response_time
 
-        # Channel 4: Past items (spawn counts at each position)
-        '''past_items_channel = np.copy(self.past_items)
-
-        total_spawns = past_items_channel.sum()
-        if total_spawns > 0:
-            past_items_channel = past_items_channel / total_spawns
-        else:
-            past_items_channel = np.zeros_like(past_items_channel)'''
-
         # Channel 5: Free capacity
         free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
 
@@ -389,8 +395,6 @@ class Environment(object):
             item_positions_channel,
             #distances_channel,
             remaining_times_channel,
-            #past_items_channel,
-            #target_channel,
             #free_capacity_channel
             ],
             axis=-1,

@@ -16,6 +16,17 @@ DQN:
     target_update_interval: 150
     buffer_size: 80000
 
+  extensionparameters:
+    replay:
+      alpha: 0.6
+      beta: 0.4
+    distribution:
+      v_min: -10
+      v_max: 10
+      num_atoms: 51
+    multi_step:
+      n_steps: 3
+
   nn_architecture:
     structure: "DNN"
     num_layers: 5
