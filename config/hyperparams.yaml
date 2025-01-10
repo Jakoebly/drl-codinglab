@@ -12,9 +12,11 @@ DQN:
     epsilon_min: 0.05
     epsilon_decay: 0.99
     learning_rate: 0.00001
+    learning_rate_min : 0.000005
+    learning_rate_decay: 0.99
     batch_size: 64
-    target_update_interval: 150
-    buffer_size: 80000
+    target_update_interval: 50
+    buffer_size: 60000
 
   extensionparameters:
     replay:

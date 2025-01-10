@@ -1,7 +1,5 @@
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
 from collections import deque
 import random
 import wandb
@@ -44,8 +42,6 @@ class DQN_Agent:
         self.q_network = neural_nets.create_network(nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
         self.target_network = neural_nets.create_network(nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
         self.update_target_weights()
-        self.optimizer = optim.Adam(self.q_network.parameters(), lr = self.learning_rate)
-        self.loss_fn = nn.MSELoss()
       
         """Initialize extensions"""
         if "vanilla" in extensions:
@@ -54,9 +50,9 @@ class DQN_Agent:
             extensions = dqn_extensions.EXTENSION_ORDER
 
         extensions = [ext for ext in dqn_extensions.EXTENSION_ORDER if ext in extensions]
-
-        self.extensionparameters = config["extensions"]
+        self.extensionparameters = config["extensionparameters"]
         self.extensions = []
+
         for ext_name in extensions:
             if ext_name not in dqn_extensions.EXTENSION_REGISTRY:
                 raise ValueError(f"Unknown extension: {ext_name}")
@@ -331,6 +327,7 @@ class DQN_Agent:
 
                 wandb.log({"Losses/Total Loss": loss_episode}, episode)
                 wandb.log({"Hyperparameters/Epsilon": self.epsilon}, episode)
+                wandb.log({"Hyperparameters/Learning Rate": self.learning_rate}, episode)
 
             if not eval:
                 wandb.log({"Charts/Reward per Episode": reward_episode}, episode)

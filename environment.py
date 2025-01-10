@@ -217,7 +217,7 @@ class Environment(object):
 
     def get_dnn_obs(self) -> np.ndarray:
         """Returns the state of the environment as a flattened 1D array."""
-        grid_size = (self.vertical_cell_count - 2) * (self.horizontal_cell_count - 2)
+        grid_size = self.vertical_cell_count * self.horizontal_cell_count
         # Free Capacity
         free_capacity = [self.agent_capacity - self.agent_load]
         # Agent Position (One-Hot Encoded)
