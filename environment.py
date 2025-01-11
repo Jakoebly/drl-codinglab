@@ -185,8 +185,12 @@ class Environment(object):
             return self.reset(mode = "training", structure = structure).shape[0]
         if structure == "CNN":
             # (Height, Width, Channels) i.e. (5, 5, x)
-            state = self.reset(mode = "training", structure = structure).shape
-            return state
+            #state = self.reset(mode = "training", structure = structure).shape
+            # return state
+            grid_state, scalar_state = self.reset(mode="training", structure=structure)
+
+            return grid_state.shape, scalar_state.shape
+            
         
     def manhatten_dist(self, pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
         return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
@@ -395,6 +399,7 @@ class Environment(object):
     def get_cnn_obs(self) -> np.ndarray:
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
+        cumulative_timeout_risk = 0
 
         # Channel 1: Agent position
         agent_channel = np.zeros(grid_shape)
@@ -408,7 +413,9 @@ class Environment(object):
         # Channel 3: Remaining times of items
         remaining_times_channel = np.zeros(grid_shape)
         for loc, time in zip(self.item_locs, self.item_times):
-            remaining_times_channel[loc] = (self.max_response_time - time) / self.max_response_time
+            remaining_time = (self.max_response_time - time) / self.max_response_time
+            remaining_times_channel[loc] = remaining_time
+            cumulative_timeout_risk += remaining_time
 
         # Channel 5: Free capacity
         free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
@@ -434,19 +441,24 @@ class Environment(object):
 
         free_capacity = self.agent_capacity - self.agent_load
 
-        # Stack all channels into a 3D grid
+        # Distance to Target
+        distance_to_target = [
+            self.manhatten_dist(self.agent_loc, self.target_loc)
+        ]
+
         state = np.stack(
             [agent_channel,
             prioritization_channel,
-            item_positions_channel,
+            #item_positions_channel,
             #distances_channel,
             remaining_times_channel,
-            #free_capacity_channel
             ],
             axis=-1,
         )
 
-        return state, free_capacity
+        scalar_state = np.array([free_capacity, distance_to_target[0], cumulative_timeout_risk])
+
+        return state, scalar_state
     
     #GREEDY OBS
     def get_to_tgt(self, tgt):

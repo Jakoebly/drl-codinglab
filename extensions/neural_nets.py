@@ -14,8 +14,6 @@ def create_network(nn_architecture, state_shape, action_size, learning_rate):
     network.optimizer = optim.Adam(network.parameters(), lr = learning_rate)
     network.loss_fn = nn.MSELoss()
 
-    print(f"Created {structure} Network Structure:\n{network}")
-
     return network
 
 class DNN(nn.Module):
@@ -61,12 +59,24 @@ class DNN(nn.Module):
 class CNN(nn.Module):
     def __init__(self, nn_architecture, state_shape, action_size):
         super(CNN, self).__init__()
-        self.conv_layers = self.build_conv_layers(nn_architecture, state_shape)
-        self.fc_layers = self.build_fc_layers(nn_architecture, action_size)
+        grid_state_shape, scalar_state_shape = state_shape
+        self.conv_layers = self.build_conv_layers(nn_architecture, grid_state_shape)
+        fc_input_size = self.fc_input_size + scalar_state_shape[0]
+        self.fc_layers = self.build_fc_layers(nn_architecture, fc_input_size, action_size)
 
-    def build_conv_layers(self, nn_architecture, state_shape):
+    def build_conv_layers(self, nn_architecture, grid_state_shape):
+        """
+        Constructs the convolutional layers.
+
+        Parameters:
+            nn_architecture (dict): Configuration for convolutional layers.
+            grid_state_shape (tuple): Shape of the grid state (Height, Width, Channels).
+
+        Returns:
+            nn.Sequential: Convolutional layers.
+        """
         layers = []
-        height, width, input_channels = state_shape
+        height, width, input_channels = grid_state_shape
 
         num_conv_layers = nn_architecture['num_convolutional_layers']
         num_channels = nn_architecture['num_convolutional_channels']
@@ -83,16 +93,27 @@ class CNN(nn.Module):
             width = (width + 2 * padding - kernel_size) // stride + 1
 
         self.fc_input_size = num_channels * height * width
+
         return nn.Sequential(*layers)
 
-    def build_fc_layers(self, nn_architecture, action_size):
+    def build_fc_layers(self, nn_architecture, fc_input_size, action_size):
+        """
+        Constructs the fully connected layers.
+
+        Parameters:
+            nn_architecture (dict): Configuration for fully connected layers.
+            fc_input_size (int): Input size for the first fully connected layer.
+            action_size (int): Number of actions in the environment.
+
+        Returns:
+            nn.Sequential: Fully connected layers.
+        """
         layers = []
         num_fc_layers = nn_architecture['num_fully_connected_layers']
         num_neurons = nn_architecture['num_neurons_fully_connected']
         activation = nn_architecture['activation_fully_connected_layers']
         activation_output = nn_architecture.get('activation_output', None)
 
-        fc_input_size = self.fc_input_size
         for _ in range(num_fc_layers):
             layers.append(nn.Linear(fc_input_size, num_neurons))
             layers.append(self.get_activation(activation))
@@ -101,13 +122,25 @@ class CNN(nn.Module):
         layers.append(nn.Linear(fc_input_size, action_size))
         if activation_output:
             layers.append(self.get_activation(activation_output))
+
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        x = x.permute(0, 3, 1, 2)
-        x = self.conv_layers(x)
-        x = x.reshape(x.size(0), -1)
-        x = self.fc_layers(x)
+    def forward(self, grid_state, scalar_state):
+        """
+        Forward pass through the CNN.
+
+        Parameters:
+            grid_state (torch.Tensor): Grid state tensor of shape (Batch, Height, Width, Channels).
+            scalar_state (torch.Tensor): Scalar state tensor of shape (Batch, ScalarSize).
+
+        Returns:
+            torch.Tensor: Output of the network.
+        """
+        grid_state = grid_state.permute(0, 3, 1, 2)
+        conv_out = self.conv_layers(grid_state).flatten(1)
+        combined_input = torch.cat((conv_out, scalar_state), dim=1)
+        x = self.fc_layers(combined_input)
+
         return x
     
     @staticmethod
@@ -127,8 +160,18 @@ class CNN(nn.Module):
             raise ValueError(f"Unsupported activation function: {name}")
         
     @staticmethod
-    def get_feature_size(nn_architecture, state_shape):
-        height, width, channels = state_shape
+    def get_feature_size(nn_architecture, grid_state_shape):
+        """
+        Computes the flattened feature size after the convolutional layers.
+
+        Parameters:
+            nn_architecture (dict): Configuration for convolutional layers.
+            grid_state_shape (tuple): Shape of the grid state (Height, Width, Channels).
+
+        Returns:
+            int: Flattened feature size after the convolutional layers.
+        """
+        height, width, channels = grid_state_shape
         num_conv_layers = nn_architecture['num_convolutional_layers']
         kernel_size = nn_architecture['kernel_size']
         stride = nn_architecture['stride']
@@ -139,6 +182,7 @@ class CNN(nn.Module):
             width = (width + 2 * padding - kernel_size) // stride + 1
 
         return height * width * nn_architecture['num_convolutional_channels']
+    
 
 class NoisyAdapter(nn.Module):
     def __init__(self, base_network, action_size):
@@ -302,7 +346,6 @@ def create_dueling_network(base_network, action_size, nn_architecture):
 
     Parameters:
         base_network (nn.Module): The existing Q-network to adapt.
-        state_shape (int or tuple): State size or shape.
         action_size (int): Number of actions.
         nn_architecture (dict): Neural network architecture configuration.
 
@@ -314,7 +357,7 @@ def create_dueling_network(base_network, action_size, nn_architecture):
             super().__init__()
             self.base_network = base_network
             self.action_size = action_size
-            self.num_neurons_stream = nn_architecture["num_neurons"]
+            
 
             self.optimizer = getattr(base_network, "optimizer", None)
             self.loss_fn = getattr(base_network, "loss_fn", None)
@@ -337,22 +380,14 @@ def create_dueling_network(base_network, action_size, nn_architecture):
             input_size = input_layer.in_features
 
             self.value_stream = nn.Sequential(
-                nn.Linear(input_size, 256),
+                nn.Linear(input_size, nn_architecture["num_neurons_fully_connected"]),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 128),
-                nn.ReLU(),
-                nn.Linear(128, 1),
+                nn.Linear(nn_architecture["num_neurons_fully_connected"], 1),
             )
             self.advantage_stream = nn.Sequential(
-             nn.Linear(input_size, 256),
+                nn.Linear(input_size, nn_architecture["num_neurons_fully_connected"]),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 128),
-                nn.ReLU(),
-                nn.Linear(128, action_size),
+                nn.Linear(nn_architecture["num_neurons_fully_connected"], action_size),
             )
 
             print(f"Converted to Dueling Network with updated streams:\n{self}")

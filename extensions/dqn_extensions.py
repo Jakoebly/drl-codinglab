@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from collections import deque
 from extensions import neural_nets
+import random
 
 EXTENSION_ORDER = [
     "double", 
@@ -11,6 +12,46 @@ EXTENSION_ORDER = [
     "dueling",
     "multi_step",
 ]
+
+class CNNBehavior:
+    """
+    Contains CNN-specific methods for tensorizing states, selecting actions,
+    sampling batches, recording transitions, and training steps.
+    These methods are dynamically assigned to the agent if the nn_structure is 'CNN'.
+    """
+    @staticmethod
+    def tensorize_state(agent, state, batch=False):
+        if batch:
+            # Unpack batch of tuples into separate lists for grid and scalar states
+            grid_states, scalar_states = zip(*state)
+            grid_tensor = torch.FloatTensor(grid_states).to(agent.device)
+            scalar_tensor = torch.FloatTensor(scalar_states).to(agent.device)
+        else:
+            # Unpack a single state
+            grid_state, scalar_state = state
+            grid_tensor = torch.FloatTensor(grid_state).unsqueeze(0).to(agent.device)
+            scalar_tensor = torch.FloatTensor(scalar_state).unsqueeze(0).to(agent.device)
+
+        return grid_tensor, scalar_tensor
+
+    @staticmethod
+    def select_action(agent, state, training=True) -> int:
+        grid_state, scalar_state = agent.tensorize_state(state)
+        if training and np.random.rand() < agent.epsilon:
+            return np.random.randint(agent.action_size)
+        else:
+            with torch.no_grad():
+                q_values = agent.q_network(grid_state, scalar_state)
+            return torch.argmax(q_values).item()
+
+    @staticmethod
+    def compute_targets(agent, rewards, next_states, dones):
+        next_grid_states, next_scalar_states = next_states
+        q_targets_next = torch.max(agent.target_network(next_grid_states, next_scalar_states), dim=1)[0]
+
+        q_targets = rewards + (1 - dones) * agent.gamma * q_targets_next
+
+        return q_targets
 
 class DoubleDQNExtension:
     """
@@ -386,7 +427,7 @@ class MultiStepExtension:
     def __init__(self, agent):
         self.agent = agent
         self.agent.n_steps = self.agent.extensionparameters["multi_step"]["n_steps"]
-        self.agent.n_step_buffer = deque(maxlen = self.agent.n_steps )
+        self.agent.n_step_buffer = deque(maxlen = self.agent.n_steps)
 
         self.previous_record = agent.record
         self.previous_compute_targets = agent.compute_targets
@@ -402,7 +443,7 @@ class MultiStepExtension:
             next_state (np.ndarray): Next state after taking the action.
             done (bool): Whether the episode has ended.
         """
-        self.n_step_buffer.append((state, action, reward, next_state, done))
+        self.agent.n_step_buffer.append((state, action, reward, next_state, done))
 
         if len(self.agent.n_step_buffer) == self.agent.n_steps :
             multi_step_reward, (s, a, _, ns, d), multi_step_done = self._get_n_step_transition()
@@ -439,23 +480,20 @@ class MultiStepExtension:
         # Use the saved "current" compute_targets method
         baseline_targets = self.previous_compute_targets(rewards, next_states, dones)
 
-        # Initialize multi-step targets
         multi_step_targets = torch.zeros_like(rewards)
-
-        # Batch size
         num_samples = rewards.size(0)
 
         for t in range(num_samples):
             accumulated_reward = 0
-            for n in range(self.n_steps):
+            for n in range(self.agent.n_steps):
                 if t + n < num_samples:
                     accumulated_reward += (self.agent.gamma ** n) * rewards[t + n]
-                    if dones[t + n]:  # Stop if terminal state is reached
+                    if dones[t + n]:
                         break
             multi_step_targets[t] = accumulated_reward
 
-        # Combine multi-step rewards with baseline targets
-        return multi_step_targets + (1 - dones) * (self.agent.gamma ** self.agent.n_steps) * baseline_targets
+        q_targets = multi_step_targets + (1 - dones) * (self.agent.gamma ** self.agent.n_steps) * baseline_targets
+        return q_targets
 
 EXTENSION_REGISTRY = {
     "double": DoubleDQNExtension,

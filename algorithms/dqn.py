@@ -40,9 +40,14 @@ class DQN_Agent:
         self.evaluation_episodes = eval_settings["evaluation_episodes"]
 
         """Initialize networks"""
-        self.q_network = neural_nets.create_network(nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
-        self.target_network = neural_nets.create_network(nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
+        self.q_network = neural_nets.create_network(self.nn_architecture, self.state_size, self.action_size, config["hyperparameters"]["learning_rate"]).to(self.device)
+        self.target_network = neural_nets.create_network(self.nn_architecture, self.state_size, self.action_size, config["hyperparameters"]["learning_rate"]).to(self.device)
         self.update_target_weights()
+
+        # Assign CNN-specific methods if the structure is CNN
+        if self.nn_structure == "CNN":
+            self._override_with_cnn_behavior()
+            print("Using CNN-specific methods")
       
         """Initialize extensions"""
         if "vanilla" in extensions:
@@ -129,7 +134,7 @@ class DQN_Agent:
     
         elif batch:
             return torch.FloatTensor(state).to(self.device)
-   
+
     def select_action(self, state, training = True) -> int:
         """
         Select an action based on the epsilon-greedy policy.
@@ -253,7 +258,7 @@ class DQN_Agent:
             weights = torch.ones(rewards.size(0), device=self.device)
 
         q_targets = self.compute_targets(rewards, next_states, dones)
-        q_network_output = self.q_network(states)
+        q_network_output = self.q_network(*states) if isinstance(states, tuple) else self.q_network(states)
 
         if any(isinstance(ext, dqn_extensions.DistributionalDQNExtension) for ext in self.extensions):
             batch_indices = torch.arange(q_network_output.size(0), device=self.device)
@@ -361,3 +366,9 @@ class DQN_Agent:
         print(f"--- {mode} finished - average reward after {num_episodes} episodes: {np.mean(rewards)} ---")
 
         return rewards
+
+    def _override_with_cnn_behavior(self):
+        """Override default methods with CNN-specific implementations."""
+        self.tensorize_state = lambda state, batch=False: dqn_extensions.CNNBehavior.tensorize_state(self, state, batch)
+        self.select_action = lambda state, training=True: dqn_extensions.CNNBehavior.select_action(self, state, training)
+        self.compute_targets = lambda rewards, next_states, dones: dqn_extensions.CNNBehavior.compute_targets(self, rewards, next_states, dones)
