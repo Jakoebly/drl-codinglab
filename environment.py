@@ -449,8 +449,8 @@ class Environment(object):
         state = np.stack(
             [agent_channel,
             prioritization_channel,
-            #item_positions_channel,
-            #distances_channel,
+            item_positions_channel,
+            distances_channel,
             remaining_times_channel,
             ],
             axis=-1,

@@ -4,7 +4,7 @@ DQN:
     evaluation_treshold: 0.000
     evaluation_episodes: 100
 
-  extensions: ["vanilla"]
+  extensions: ["dueling"]
 
   hyperparameters:
     gamma: 0.93
@@ -16,12 +16,12 @@ DQN:
     learning_rate_decay: 0.99
     batch_size: 64
     target_update_interval: 50
-    buffer_size: 60000
+    buffer_size: 80000
 
   extensionparameters:
     replay:
-      alpha: 0.65
-      beta: 0.45
+      alpha: 0.6
+      beta: 0.4
     noisy:
       std_init: 0.5
     distribution:
@@ -29,22 +29,16 @@ DQN:
       v_max: 10
       num_atoms: 51
     dueling:
-      num_layers_stream: 3
-      num_neurons_stream: 256
+      num_layers_stream: 2
+      num_neurons_stream: 128
     multi_step:
       n_steps: 3
 
   nn_architecture:
-    structure: "CNN"
-    num_convolutional_layers: 2
-    num_convolutional_channels: 128
-    kernel_size: 3
-    stride: 1
-    padding: 1
-    num_fully_connected_layers: 3
-    num_neurons_fully_connected: 256
-    activation_convolutional_layers: "relu"
-    activation_fully_connected_layers: "relu"
+    structure: "DNN"
+    num_layers: 5
+    num_neurons: 512
+    activation_layers: "relu"
     activation_output:
 
 PPO:

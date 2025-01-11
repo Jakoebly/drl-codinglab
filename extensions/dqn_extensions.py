@@ -33,6 +33,39 @@ class CNNBehavior:
             scalar_tensor = torch.FloatTensor(scalar_state).unsqueeze(0).to(agent.device)
 
         return grid_tensor, scalar_tensor
+    
+    @staticmethod
+    def sample_batch(agent):
+        """
+        Sample a batch of transitions from the replay buffer specifically for CNNs.
+
+        Returns:
+            tuple: A batch containing tensors for states, actions, rewards, next states, and dones.
+                States and next states are tuples of (grid_states_tensor, scalar_states_tensor).
+        """
+        batch = random.sample(agent.buffer, agent.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        grid_states, scalar_states = zip(*states)
+        next_grid_states, next_scalar_states = zip(*next_states)
+        grid_states = np.array(grid_states)
+        scalar_states = np.array(scalar_states)
+        next_grid_states = np.array(next_grid_states)
+        next_scalar_states = np.array(next_scalar_states)
+
+        states_tensor = (
+            torch.FloatTensor(grid_states).to(agent.device),
+            torch.FloatTensor(scalar_states).to(agent.device),
+        )
+        next_states_tensor = (
+            torch.FloatTensor(next_grid_states).to(agent.device),
+            torch.FloatTensor(next_scalar_states).to(agent.device),
+        )
+        actions_tensor = torch.LongTensor(actions).to(agent.device)
+        rewards_tensor = torch.FloatTensor(rewards).to(agent.device)
+        dones_tensor = torch.FloatTensor(dones).to(agent.device)
+
+        return states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor
 
     @staticmethod
     def select_action(agent, state, training=True) -> int:
@@ -372,10 +405,10 @@ class DistributionalDQNExtension:
 
         return m
     
-    def compute_loss(self, q_targets, selected_logits, weights):
+    def compute_loss(self, q_targets, selected_logits):
             # Compute loss using KL divergence for distributional DQN
-            loss = (q_targets * selected_logits.log()).sum(dim=-1)
-            loss = (weights * loss).mean()
+            loss = (q_targets * selected_logits.log()).sum(dim=-1).mean()
+            #loss = (weights * loss).mean()
 
             return loss
 
@@ -402,18 +435,18 @@ class DuelingDQNExtension:
     """
     def __init__(self, agent):
         self.agent = agent
-        nn_architecture = self.agent.nn_architecture
+        extensionparameters = self.agent.extensionparameters
         action_size = self.agent.action_size
 
         self.agent.q_network = neural_nets.create_dueling_network(
-            base_network=self.agent.q_network,
-            action_size=action_size,
-            nn_architecture=nn_architecture,
+            base_network = self.agent.q_network,
+            action_size = action_size,
+            extensionparameters = extensionparameters,
         )
         self.agent.target_network = neural_nets.create_dueling_network(
-            base_network=self.agent.target_network,
-            action_size=action_size,
-            nn_architecture=nn_architecture,
+            base_network = self.agent.target_network,
+            action_size = action_size,
+            extensionparameters = extensionparameters,
         )
         self.agent.update_target_weights()
 

@@ -198,7 +198,7 @@ class DQN_Agent:
                 dones_tensor,
         )
     
-    def compute_loss(self, q_values, q_targets):
+    def compute_loss(self, q_values, q_targets, weights = None):
         """
         Compute the Temporal Difference (TD) loss.
 
@@ -212,7 +212,7 @@ class DQN_Agent:
         """
         loss = self.q_network.loss_fn(q_values, q_targets.detach())
 
-        return loss
+        return loss, None
 
     def update_network(self, loss):
         """
@@ -234,11 +234,6 @@ class DQN_Agent:
         """
         if len(self.buffer) < self.batch_size:
             return
-        
-        '''if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
-            for ext in self.extensions:
-                if isinstance(ext, dqn_extensions.NoisyDQNExtension):
-                    ext.reset_noise()'''
 
         if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
             self.q_network.reset_noise()
@@ -249,6 +244,7 @@ class DQN_Agent:
         actions = actions.to(self.device)
         rewards = rewards.to(self.device)
         dones = dones.to(self.device)
+        # Pfusch am Bau -> Siehe dueling bug (wtf?)
         actions = torch.clamp(actions, 0, self.action_size - 1)
         
         # Handle weights if prioritized replay is active
@@ -263,19 +259,14 @@ class DQN_Agent:
         if any(isinstance(ext, dqn_extensions.DistributionalDQNExtension) for ext in self.extensions):
             batch_indices = torch.arange(q_network_output.size(0), device=self.device)
             selected_logits = q_network_output[batch_indices, actions]
-            loss = self.compute_loss(q_targets, selected_logits, weights)
+            loss = self.compute_loss(q_targets, selected_logits)
 
         else:
             q_values = q_network_output.gather(1, actions.unsqueeze(1)).squeeze()
-
             q_targets.to(self.device)
             q_values.to(self.device)
-
-            if any(isinstance(ext, dqn_extensions.PrioritizedReplayExtension) for ext in self.extensions):
-                loss, td_errors = self.compute_loss(q_values, q_targets, weights)
-
-            else:
-                loss = self.compute_loss(q_values, q_targets)
+            loss, *td_errors_opt = self.compute_loss(q_values, q_targets, weights)
+            td_errors = td_errors_opt[0] if td_errors_opt else None
 
         self.update_network(loss)
 
@@ -371,4 +362,5 @@ class DQN_Agent:
         """Override default methods with CNN-specific implementations."""
         self.tensorize_state = lambda state, batch=False: dqn_extensions.CNNBehavior.tensorize_state(self, state, batch)
         self.select_action = lambda state, training=True: dqn_extensions.CNNBehavior.select_action(self, state, training)
+        self.sample_batch = lambda: dqn_extensions.CNNBehavior.sample_batch(self)
         self.compute_targets = lambda rewards, next_states, dones: dqn_extensions.CNNBehavior.compute_targets(self, rewards, next_states, dones)

@@ -14,6 +14,8 @@ def create_network(nn_architecture, state_shape, action_size, learning_rate):
     network.optimizer = optim.Adam(network.parameters(), lr = learning_rate)
     network.loss_fn = nn.MSELoss()
 
+    print(network)
+
     return network
 
 class DNN(nn.Module):
@@ -340,14 +342,14 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
     return DistributionalAdapter(base_network, action_size, num_atoms)
 
 
-def create_dueling_network(base_network, action_size, nn_architecture):
+def create_dueling_network(base_network, action_size, extensionparameters):
     """
     Converts a base Q-network into a Dueling Q-network.
 
     Parameters:
         base_network (nn.Module): The existing Q-network to adapt.
         action_size (int): Number of actions.
-        nn_architecture (dict): Neural network architecture configuration.
+        extensionparameters (dict): Neural network architecture configuration.
 
     Returns:
         nn.Module: A dueling Q-network.
@@ -358,7 +360,6 @@ def create_dueling_network(base_network, action_size, nn_architecture):
             self.base_network = base_network
             self.action_size = action_size
             
-
             self.optimizer = getattr(base_network, "optimizer", None)
             self.loss_fn = getattr(base_network, "loss_fn", None)
 
@@ -379,18 +380,36 @@ def create_dueling_network(base_network, action_size, nn_architecture):
             self.feature_layer = nn.Sequential(*feature_layer)
             input_size = input_layer.in_features
 
-            self.value_stream = nn.Sequential(
-                nn.Linear(input_size, nn_architecture["num_neurons_fully_connected"]),
-                nn.ReLU(),
-                nn.Linear(nn_architecture["num_neurons_fully_connected"], 1),
-            )
-            self.advantage_stream = nn.Sequential(
-                nn.Linear(input_size, nn_architecture["num_neurons_fully_connected"]),
-                nn.ReLU(),
-                nn.Linear(nn_architecture["num_neurons_fully_connected"], action_size),
-            )
+            num_layers_stream = extensionparameters["dueling"]["num_layers_stream"]
+            num_neurons_stream = extensionparameters["dueling"]["num_neurons_stream"]
+
+            self.value_stream = self._create_stream(input_size, num_neurons_stream, num_layers_stream, 1)
+            self.advantage_stream = self._create_stream(input_size, num_neurons_stream, num_layers_stream, action_size)
 
             print(f"Converted to Dueling Network with updated streams:\n{self}")
+
+        @staticmethod
+        def _create_stream(input_size, num_neurons, num_layers, output_size):
+            """
+            Creates a stream (value or advantage) with the specified number of layers and neurons.
+
+            Parameters:
+                input_size (int): Input size of the first layer.
+                num_neurons (int): Number of neurons in each hidden layer.
+                num_layers (int): Number of hidden layers.
+                output_size (int): Size of the output layer.
+
+            Returns:
+                nn.Sequential: A neural network stream.
+            """
+            layers = []
+            for _ in range(num_layers):
+                layers.append(nn.Linear(input_size, num_neurons))
+                layers.append(nn.ReLU())
+                input_size = num_neurons
+
+            layers.append(nn.Linear(input_size, output_size))
+            return nn.Sequential(*layers)
 
         def forward(self, x):
             """
