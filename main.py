@@ -68,6 +68,9 @@ if __name__ == "__main__":
         wandb_mode = "disabled"
 
     # Initialize wandb run
+
+    wandb.login(a50d29aca6e9f4dda3a4c95947af66a1a922e1a7)
+
     wandb_run = wandb.init(
         entity=args.wandb_entity,
         project=args.wandb_projectname,
