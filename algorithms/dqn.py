@@ -4,7 +4,6 @@ from collections import deque
 import random
 import wandb
 from typing import List, Tuple
-from utils import utils as ut
 
 from extensions import dqn_extensions, neural_nets
    

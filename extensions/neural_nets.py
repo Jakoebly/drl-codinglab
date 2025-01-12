@@ -187,7 +187,7 @@ class CNN(nn.Module):
     
 
 class NoisyAdapter(nn.Module):
-    def __init__(self, base_network, action_size):
+    def __init__(self, base_network, action_size, std_init):
         """
         Adapts a base Q-network into a noisy Q-network by replacing linear layers
         with noisy linear layers.
@@ -202,13 +202,13 @@ class NoisyAdapter(nn.Module):
 
         if isinstance(base_network, DNN):
             noisy_layers = [
-                NoisyLinear(layer.in_features, layer.out_features) if isinstance(layer, nn.Linear) else layer
+                NoisyLinear(layer.in_features, layer.out_features, std_init) if isinstance(layer, nn.Linear) else layer
                 for layer in base_network.model.children()
             ]
             base_network.model = nn.Sequential(*noisy_layers)
         elif isinstance(base_network, CNN):
             noisy_fc_layers = [
-                NoisyLinear(layer.in_features, layer.out_features) if isinstance(layer, nn.Linear) else layer
+                NoisyLinear(layer.in_features, layer.out_features, std_init) if isinstance(layer, nn.Linear) else layer
                 for layer in base_network.fc_layers.children()
             ]
             base_network.fc_layers = nn.Sequential(*noisy_fc_layers)
@@ -224,12 +224,8 @@ class NoisyAdapter(nn.Module):
         """
         Forward method for noisy network, propagating prior logic.
         """
-        x = self.base_network(x)
-
-        # If the previous layer outputs a distribution, retain the format
-        if hasattr(self.base_network, "num_atoms"):
-            return x.view(-1, self.action_size, self.base_network.num_atoms)
-        return x
+        #x = self.base_network(x)
+        return self.base_network.model(x)
 
     def reset_noise(self):
         """
@@ -246,7 +242,7 @@ class NoisyAdapter(nn.Module):
         return f"{self.base_network}"
 
 class NoisyLinear(nn.Module):
-    def __init__(self, in_features, out_features, std_init = 0.4):
+    def __init__(self, in_features, out_features, std_init):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features

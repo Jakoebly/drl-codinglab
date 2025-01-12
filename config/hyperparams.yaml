@@ -4,12 +4,12 @@ DQN:
     evaluation_treshold: 0.000
     evaluation_episodes: 100
 
-  extensions: ["dueling"]
+  extensions: ["noisy"]
 
   hyperparameters:
     gamma: 0.93
     epsilon: 1.0
-    epsilon_min: 0.05
+    epsilon_min: 0.1
     epsilon_decay: 0.99
     learning_rate: 0.00001
     learning_rate_min : 0.000005
@@ -20,17 +20,17 @@ DQN:
 
   extensionparameters:
     replay:
-      alpha: 0.6
-      beta: 0.4
+      alpha: 0.65
+      beta: 0.45
     noisy:
-      std_init: 0.5
+      std_init: 0.2
     distribution:
       v_min: -10
       v_max: 10
       num_atoms: 51
     dueling:
-      num_layers_stream: 2
-      num_neurons_stream: 128
+      num_layers_stream: 1
+      num_neurons_stream: 512
     multi_step:
       n_steps: 3
 
