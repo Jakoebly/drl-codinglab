@@ -4,6 +4,7 @@ from collections import deque
 from extensions import neural_nets
 import random
 
+# TODO: move to settings?
 EXTENSION_ORDER = [
     "double", 
     "priority", 
@@ -20,7 +21,7 @@ class CNNBehavior:
     These methods are dynamically assigned to the agent if the nn_structure is 'CNN'.
     """
     @staticmethod
-    def tensorize_state(agent, state, batch=False):
+    def to_tensor(agent, state, batch=False):
         if batch:
             # Unpack batch of tuples into separate lists for grid and scalar states
             grid_states, scalar_states = zip(*state)
@@ -69,7 +70,7 @@ class CNNBehavior:
 
     @staticmethod
     def select_action(agent, state, training=True) -> int:
-        grid_state, scalar_state = agent.tensorize_state(state)
+        grid_state, scalar_state = agent.to_tensor(state)
         if training and np.random.rand() < agent.epsilon:
             return np.random.randint(agent.action_size)
         else:
@@ -210,8 +211,8 @@ class PrioritizedReplayExtension:
         """
         Add transitions to the prioritized buffer using TD error as priority.
         """
-        state_tensor = self.agent.tensorize_state(state)
-        next_state_tensor = self.agent.tensorize_state(next_state)
+        state_tensor = self.agent.to_tensor(state)
+        next_state_tensor = self.agent.to_tensor(next_state)
 
         rewards_tensor = torch.FloatTensor([reward]).to(self.agent.device)
         dones_tensor = torch.FloatTensor([done]).to(self.agent.device)
@@ -280,7 +281,7 @@ class NoisyDQNExtension:
         Returns:
             int: The selected action.
         """
-        state_tensor = self.agent.tensorize_state(state)
+        state_tensor = self.agent.to_tensor(state)
         with torch.no_grad():
             q_values = self.agent.q_network(state_tensor)
             action = torch.argmax(q_values).item()

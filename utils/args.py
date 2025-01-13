@@ -1,11 +1,10 @@
 import argparse
-from datetime import datetime
 
 def parse_args():
 
     # Specify args
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument("--experiment_name", type=str, default=datetime.now().strftime("%Y%m%d_%H%M"))
+    parser.add_argument("--experiment_name", type=str, help="Name of the experiment")
     parser.add_argument("--algorithm", type=str, help="Algorithm to use, choose from ('dqn', 'ppo', 'sac')")
     parser.add_argument("--variant", type=int, default=0, help="Problem variant to use, choose from (0 = default, 1 = added capacity, 2 = obstacles)")
     parser.add_argument("--mode", type=str, default="train", help="Mode of the run, choose from ('train', 'validate', 'test')")

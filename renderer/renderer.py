@@ -16,7 +16,7 @@ class Renderer:
         self.eligible_cells = eligible_cells
         self.max_response_time = max_response_time
         self.previous_target_count = 0
-        #self.image_dir = "./Renderer/Images/"
+        #self.image_dir = "./renderer/Images/"
         self.image_dir = settings.RENDER_DIR
 
         # Load images

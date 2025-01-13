@@ -11,19 +11,21 @@ class DQN_Agent:
     def __init__(self, env, config, device):
         self.device = device
         self.env = env
+
+        # Unpack config
         hyperparameters = config["hyperparameters"]
         eval_settings = config["eval_settings"]
         nn_architecture = config["nn_architecture"]
         general = config["general"]
         extensions = config.get("extensions", [])
 
-        """NN Architecture"""
+        # NN-Architecture
         self.nn_architecture = nn_architecture
         self.nn_structure = nn_architecture["structure"]
         self.state_size = general["state_size"]
         self.action_size = general["action_size"]
 
-        """Hyperparameters"""
+        # Hyperparameters
         self.gamma = hyperparameters["gamma"]
         self.epsilon = hyperparameters["epsilon"]
         self.epsilon_min = hyperparameters["epsilon_min"]
@@ -33,34 +35,35 @@ class DQN_Agent:
         self.target_update_interval = hyperparameters["target_update_interval"]
         self.buffer = deque(maxlen = hyperparameters["buffer_size"])
 
-        """Evaluation settings"""
+        # Evaluation settings
         self.eval_interval = eval_settings["eval_interval"]
         self.evaluation_treshold = eval_settings["evaluation_treshold"]
         self.evaluation_episodes = eval_settings["evaluation_episodes"]
 
-        """Initialize networks"""
+        # Network Initialization
         self.q_network = neural_nets.create_network(self.nn_architecture, self.state_size, self.action_size, config["hyperparameters"]["learning_rate"]).to(self.device)
         self.target_network = neural_nets.create_network(self.nn_architecture, self.state_size, self.action_size, config["hyperparameters"]["learning_rate"]).to(self.device)
         self.update_target_weights()
 
-        # Assign CNN-specific methods if the structure is CNN
+        # Assign CNN-specific methods if structure is CNN
         if self.nn_structure == "CNN":
             self._override_with_cnn_behavior()
-            print("Using CNN-specific methods")
       
-        """Initialize extensions"""
+        # Initialization of extensions
+        self.extension_parameters = config["extension_parameters"]
+        self.extensions = []
+
         if "vanilla" in extensions:
             extensions = []
         elif "rainbow" in extensions:
             extensions = dqn_extensions.EXTENSION_ORDER
-
-        extensions = [ext for ext in dqn_extensions.EXTENSION_ORDER if ext in extensions]
-        self.extensionparameters = config["extensionparameters"]
-        self.extensions = []
+        else:
+            extensions = [ext for ext in dqn_extensions.EXTENSION_ORDER if ext in extensions]
 
         for ext_name in extensions:
             if ext_name not in dqn_extensions.EXTENSION_REGISTRY:
                 raise ValueError(f"Unknown extension: {ext_name}")
+
             ExtensionClass = dqn_extensions.EXTENSION_REGISTRY[ext_name]
             extension_instance = ExtensionClass(self)
             self.extensions.append(extension_instance)
@@ -71,8 +74,33 @@ class DQN_Agent:
                     continue
                 if hasattr(self, method_name):
                     setattr(self, method_name, getattr(extension_instance, method_name))
- 
-        self.step_count = 0
+
+        # Global step counter for updating the target network
+        self.global_step_count = 0
+
+    def _override_with_cnn_behavior(self):
+        """Override default methods with CNN-specific implementations."""
+        self.to_tensor = lambda state, batch=False: dqn_extensions.CNNBehavior.to_tensor(self, state, batch)
+        self.select_action = lambda state, training=True: dqn_extensions.CNNBehavior.select_action(self, state, training)
+        self.sample_batch = lambda: dqn_extensions.CNNBehavior.sample_batch(self)
+        self.compute_targets = lambda rewards, next_states, dones: dqn_extensions.CNNBehavior.compute_targets(self, rewards, next_states, dones)
+
+    def to_tensor(self, state, batch=False):
+        """
+        Convert a state into a tensor suitable for model input.
+
+        Parameters:
+            state (np.ndarray): State or batch of states to tensorize.
+            batch (bool): Whether the state represents a batch of states.
+
+        Returns:
+            torch.Tensor: Tensorized state(s).
+        """
+        if not batch:
+            return torch.FloatTensor(state).unsqueeze(0).to(self.device)
+
+        elif batch:
+            return torch.FloatTensor(state).to(self.device)
 
     def load_weights(self, path):
         """
@@ -116,25 +144,8 @@ class DQN_Agent:
         q_targets = rewards + (1 - dones) * self.gamma * q_targets_next
 
         return q_targets
-    
-    def tensorize_state(self, state, batch = False):
-        """
-        Convert a state into a tensor suitable for model input.
 
-        Parameters:
-            state (np.ndarray): State or batch of states to tensorize.
-            batch (bool): Whether the state represents a batch of states.
-
-        Returns:
-            torch.Tensor: Tensorized state(s).
-        """
-        if not batch:
-            return torch.FloatTensor(state).unsqueeze(0).to(self.device)
-    
-        elif batch:
-            return torch.FloatTensor(state).to(self.device)
-
-    def select_action(self, state, training = True) -> int:
+    def select_action(self, state, training=True) -> int:
         """
         Select an action based on the epsilon-greedy policy.
 
@@ -146,12 +157,13 @@ class DQN_Agent:
             int: The selected action.
         """
         if training and np.random.rand() < self.epsilon:
-            return np.random.randint(self.action_size)
+            action = np.random.randint(self.action_size)
         else:
-            state = self.tensorize_state(state)
+            state = self.to_tensor(state)
             with torch.no_grad():
                 q_values = self.q_network(state)
-            return torch.argmax(q_values).item()
+            action = torch.argmax(q_values).item()
+        return action
 
     def record(self, state, action, reward, next_state, done):
         """
@@ -179,25 +191,25 @@ class DQN_Agent:
         Returns:
             tuple: A batch containing tensors for states, actions, rewards, next states, dones, and ones.
         """
+        # Sample from buffer
         batch = random.sample(self.buffer, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
         states = np.array(states)
         next_states = np.array(next_states)
 
-        states_tensor = self.tensorize_state(states, batch = True)
-        next_states_tensor = self.tensorize_state(next_states, batch = True)
+        # Transform to tensors
+        states_tensor = self.to_tensor(states, batch=True)
+        next_states_tensor = self.to_tensor(next_states, batch=True)
         actions_tensor = torch.LongTensor(actions).to(self.device)
         rewards_tensor = torch.FloatTensor(rewards).to(self.device)
         dones_tensor = torch.FloatTensor(dones).to(self.device)
 
-        return (states_tensor,
-                actions_tensor,
-                rewards_tensor,
-                next_states_tensor,
-                dones_tensor,
-        )
+        # TODO: ones tensor fehlt bzw. für was ist der?
+        batch = (states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor)
+
+        return batch
     
-    def compute_loss(self, q_values, q_targets, weights = None):
+    def compute_loss(self, q_values, q_targets, weights=None):
         """
         Compute the Temporal Difference (TD) loss.
 
@@ -231,55 +243,61 @@ class DQN_Agent:
         Returns:
             torch.Tensor: The computed loss for this training step.
         """
+        # Buffer size needs to be larger than batch size
         if len(self.buffer) < self.batch_size:
             return
 
+        # Reset noise if extenstion 'Noisy' is active
         if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
             self.q_network.reset_noise()
             self.target_network.reset_noise()
 
+        # TODO: why is clipping of actions needed here?
+        # Unpack batch and clip actions
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, *optional = batch
-        actions = actions.to(self.device)
-        rewards = rewards.to(self.device)
-        dones = dones.to(self.device)
+        # actions = actions.to(self.device)
+        # rewards = rewards.to(self.device)
+        # dones = dones.to(self.device)
         # Pfusch am Bau -> Siehe dueling bug (wtf?)
         actions = torch.clamp(actions, 0, self.action_size - 1)
         
-        # Handle weights if prioritized replay is active
+        # Handle weights if 'Prioritized Replay' is active
         if optional:
             weights = optional[0].to(self.device)
         else:
-            weights = torch.ones(rewards.size(0), device=self.device)
+            weights = torch.ones(rewards.size(0)).to(self.device)
 
-        q_targets = self.compute_targets(rewards, next_states, dones)
+        # Compute targets and q-values
+        q_targets = self.compute_targets(rewards, next_states, dones).to(self.device)
         q_network_output = self.q_network(*states) if isinstance(states, tuple) else self.q_network(states)
+        q_network_output.to(self.device)
 
+        # Conmpute loss
         if any(isinstance(ext, dqn_extensions.DistributionalDQNExtension) for ext in self.extensions):
-            batch_indices = torch.arange(q_network_output.size(0), device=self.device)
+            batch_indices = torch.arange(q_network_output.size(0)).to(self.device)
             selected_logits = q_network_output[batch_indices, actions]
             loss = self.compute_loss(q_targets, selected_logits)
-
         else:
             q_values = q_network_output.gather(1, actions.unsqueeze(1)).squeeze()
-            q_targets.to(self.device)
-            q_values.to(self.device)
             loss, *td_errors_opt = self.compute_loss(q_values, q_targets, weights)
             td_errors = td_errors_opt[0] if td_errors_opt else None
 
+        # Update networks and priorities
         self.update_network(loss)
 
         if any(isinstance(ext, dqn_extensions.PrioritizedReplayBuffer) for ext in self.extensions):
             self.update_priorities(td_errors.detach().abs().cpu().numpy())
 
-        if self.step_count % self.target_update_interval == 0:
+        if self.global_step_count % self.target_update_interval == 0:
             self.update_target_weights()
             
-        self.step_count += 1
+        self.global_step_count += 1
 
         return loss
 
-    def run(self, mode, num_episodes, eval = False) -> List[float]:
+    # TODO: Warum eval? Das macht gar keinen sinn wenn wir den mode und die training var haben
+    def run(self, mode, num_episodes, eval=False) -> List[float]:
         """
         Run the agent in the environment for a specified number of episodes.
 
@@ -299,16 +317,19 @@ class DQN_Agent:
         else:
             training = False
 
+        # Episodes
         for episode in range(num_episodes):
-            state = self.env.reset(mode, structure = self.nn_structure)
+            state = self.env.reset(mode, structure=self.nn_structure)
             reward_episode = 0
             loss_episode = 0
             done = False
 
+            # Environment steps
             while not done:
                 action = self.select_action(state, training)
                 reward, next_state, done = self.env.step(action)
 
+                # Record and update if training
                 if training:
                     self.record(state, action, reward, next_state, done)
                     loss = self.train_step()
@@ -320,9 +341,10 @@ class DQN_Agent:
 
             rewards.append(reward_episode)
 
+            # TODO: was wollen wir bei val/test runs loggen?
+            # Update epsilon and log if training
             if training:
                 self.update_epsilon()
-
                 wandb.log({"Losses/Total Loss": loss_episode}, episode)
                 wandb.log({"Hyperparameters/Epsilon": self.epsilon}, episode)
                 wandb.log({"Hyperparameters/Learning Rate": self.learning_rate}, episode)
@@ -332,10 +354,10 @@ class DQN_Agent:
 
             print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
-            """EVALUATION"""
+            # Evaluation
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
-                print("evaluation started")
-                eval_reward = self.run(mode = "validation", num_episodes = self.evaluation_episodes, eval = True)
+                print("Evaluation Start")
+                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes, eval=True)
                 average_eval_reward = np.mean(eval_reward)
 
                 wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
@@ -357,9 +379,3 @@ class DQN_Agent:
 
         return rewards
 
-    def _override_with_cnn_behavior(self):
-        """Override default methods with CNN-specific implementations."""
-        self.tensorize_state = lambda state, batch=False: dqn_extensions.CNNBehavior.tensorize_state(self, state, batch)
-        self.select_action = lambda state, training=True: dqn_extensions.CNNBehavior.select_action(self, state, training)
-        self.sample_batch = lambda: dqn_extensions.CNNBehavior.sample_batch(self)
-        self.compute_targets = lambda rewards, next_states, dones: dqn_extensions.CNNBehavior.compute_targets(self, rewards, next_states, dones)

@@ -1,11 +1,4 @@
 DQN:
-  eval_settings:
-    eval_interval: 100
-    evaluation_treshold: 0.000
-    evaluation_episodes: 100
-
-  extensions: ["vanilla"]
-
   hyperparameters:
     gamma: 0.93
     epsilon: 1.0
@@ -18,7 +11,9 @@ DQN:
     target_update_interval: 50
     buffer_size: 80000
 
-  extensionparameters:
+  extensions: ["vanilla"]
+
+  extension_parameters:
     replay:
       alpha: 0.65
       beta: 0.45
@@ -40,6 +35,11 @@ DQN:
     num_neurons: 512
     activation_layers: "relu"
     activation_output:
+
+  eval_settings:
+    eval_interval: 100
+    evaluation_treshold: 0.000
+    evaluation_episodes: 100
 
 PPO:
   learning_rate_actor: 0.0001

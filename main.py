@@ -1,5 +1,6 @@
 import os
 import random
+from datetime import datetime
 import numpy as np
 import torch
 import wandb
@@ -11,16 +12,13 @@ from algorithms.ppo import PPO_Agent
 
 # TODO:
 # - get state size abh. von cnn oder normal
-# - bash for execute
-# - implement renderer
-# - outsource memory class / replay buffer
-# - integrate PPO (i.e., translate to Pytorch and bring to new structure)
 # - integrate device handling into DQN
 # - discuss functions in utils
 # - discuss where to store args, utils, settings, renderer and how to name the folders
 
 
 if __name__ == "__main__":
+
     # Get args
     args = args.parse_args()
 
@@ -31,7 +29,9 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # Set run_name
-    run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{args.experiment_name}"
+    run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{datetime.now().strftime('%Y%m%d_%H%M')}"
+    if args.experiment_name is not None:
+        run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{datetime.now().strftime('%Y%m%d_%H%M')}__{args.experiment_name}"
 
     # Load directories from settings
     BEST_DIR = settings.BEST_DIR
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
     # Create environment
-    env = Environment(variant, DATA_DIR, render = render)
+    env = Environment(variant, DATA_DIR, render=render)
 
     # Set config directory to the general config folder in case of training
     CONFIG_DIR = settings.CONFIG_DIR
@@ -61,15 +61,9 @@ if __name__ == "__main__":
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
 
-    wandb_run = None
-    if args.track:
-        wandb_mode = "online"
-    else:
-        wandb_mode = "disabled"
-
     # Initialize wandb run
-
-    wandb.login(a50d29aca6e9f4dda3a4c95947af66a1a922e1a7)
+    wandb.login(key="a50d29aca6e9f4dda3a4c95947af66a1a922e1a7")
+    print("Wandb Login Successful")
 
     wandb_run = wandb.init(
         entity=args.wandb_entity,
@@ -77,7 +71,7 @@ if __name__ == "__main__":
         config=config,
         name=run_name,
         save_code=True,
-        mode = wandb_mode,
+        mode="online" if args.track else "disabled",
         group=algorithm,
         tags=[f"Var_{variant}"],
         job_type=f"{mode}/validate" if mode == "train" else mode
@@ -87,9 +81,9 @@ if __name__ == "__main__":
     if algorithm == "DQN":
         agent = DQN_Agent(env, config, device)
     elif algorithm == "PPO":
-        agent = PPO_Agent(wandb_run, env, config, device)
-    '''elif algorithm == "SAC":
-        agent = SAC_Agent(env, config).to(device)'''
+        agent = PPO_Agent(env, config, device)
+    # elif algorithm == "SAC":
+    #     agent = SAC_Agent(env, config).to(device)
 
     # Load weights if validating/testing
     if mode in ["validate", "test"]:
@@ -101,12 +95,12 @@ if __name__ == "__main__":
     rew_test = None
 
     if mode == "train":
-        rew_train = agent.run(mode = "training", num_episodes = config["general"]["num_episodes_train"])
-        rew_val = agent.run(mode = "validation", num_episodes = config["general"]["num_episodes_validate"])
+        rew_train = agent.run(mode="training", num_episodes=config["general"]["num_episodes_train"])
+        rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])
     if mode == "validate":
-        rew_val = agent.run(mode = "validation", num_episodes = config["general"]["num_episodes_validate"])
+        rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])
     elif mode == "test":
-        rew_test = agent.run(mode = "testing", num_episodes = config["general"]["num_episodes_test"])
+        rew_test = agent.run(mode="testing", num_episodes=config["general"]["num_episodes_test"])
 
     rewards = (rew_train, rew_val, rew_test)
 

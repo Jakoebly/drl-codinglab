@@ -4,8 +4,9 @@ import csv
 import torch
 import yaml
 import numpy as np
-from utils import settings
+import settings
 import matplotlib.pyplot as plt
+import wandb
 
 # Set seeds
 def set_seeds(seed, torch_deterministic):
@@ -28,36 +29,34 @@ def compile_architecture(num_neurons, num_layers, activation):
 def load_config(env, config_dir, algorithm):
 
     # Load config for training run
-    #if config_dir == "./config":
     if config_dir == settings.CONFIG_DIR:
 
         # Open algorithm-specific config and load parameters
         with open(f"{config_dir}/hyperparams.yaml", "r") as file:
             hyperparams = yaml.safe_load(file).get(algorithm, {})
-        
-        nn_structure = hyperparams["nn_architecture"]["structure"]
+
+        # Adjust config with sections 'general' and 'results'
         config = hyperparams
         config["general"] = {}
         config["results"] = {}
 
-        config["general"]["state_size"] = env.get_state_size(nn_structure)
+        config["general"]["state_size"] = env.get_state_size(hyperparams["nn_architecture"]["structure"])
         config["general"]["action_size"] = env.action_size
         config["general"]["num_episodes_train"] = len(env.training_episodes)
         config["general"]["num_episodes_validate"] = len(env.validation_episodes)
         config["general"]["num_episodes_test"] = len(env.test_episodes)
         config["general"]["num_steps_trajectory"] = env.episode_steps
 
-        # Create key/value pairs for reward tracking
         config["results"]["avg_train_reward"] = None
         config["results"]["avg_validation_reward"] = None
         config["results"]["avg_test_reward"] = None
 
-        # Adjust nn_architecture
-        if algorithm == "DQN":
-            pass
-        if algorithm == "PPO":
-            config["nn_architecture_actor"] = compile_architecture(config["num_neurons_actor"], config["num_layers_actor"], config["activation_actor"])
-            config["nn_architecture_critic"] = compile_architecture(config["num_neurons_critic"], config["num_layers_critic"], config["activation_critic"])
+        # # Adjust nn_architecture
+        # if algorithm == "DQN":
+        #     pass
+        # if algorithm == "PPO":
+        #     config["nn_architecture_actor"] = compile_architecture(config["num_neurons_actor"], config["num_layers_actor"], config["activation_actor"])
+        #     config["nn_architecture_critic"] = compile_architecture(config["num_neurons_critic"], config["num_layers_critic"], config["activation_critic"])
 
     # Load existing config for validation/test run
     else:
@@ -89,14 +88,17 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
     # Update relevant key/value pairs and create/reference .csv files for reward tracking
     if rew_train is not None:
         config["results"]["avg_train_reward"] = float(np.mean(rew_train))
+        wandb.config["results"]["avg_train_reward"] = float(np.mean(rew_train))
         eps_dir[0] = f"{model_dir}/train_eps.csv"
 
     if rew_val is not None:
         config["results"]["avg_validation_reward"] = float(np.mean(rew_val))
+        wandb.config["results"]["avg_validation_reward"] = float(np.mean(rew_val))
         eps_dir[1] = f"{model_dir}/val_eps.csv"
 
     if rew_test is not None:
         config["results"]["avg_test_reward"] = float(np.mean(rew_test))
+        wandb.config["results"]["avg_test_reward"] = float(np.mean(rew_test))
         eps_dir[2] = f"{model_dir}/test_eps.csv"
 
 
