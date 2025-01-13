@@ -7,7 +7,7 @@ import wandb
 from environment import Environment
 from utils import utils as ut, args, settings
 from algorithms.dqn import DQN_Agent
-from algorithms.ppo import PPO_Agent
+from algorithms.ppo2 import PPO_Agent
 # from algorithms.sac import SAC_Agent
 
 # TODO:

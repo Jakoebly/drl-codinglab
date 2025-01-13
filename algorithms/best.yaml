@@ -3,8 +3,8 @@ Variant_0:
     model_name: CL__DQN__Var0__[dnn_vanila]
     avg_validation_reward: 221.85
   PPO:
-    model_name: CL__PPO__Var0__20250113_1758
-    avg_validation_reward: -1.51
+    model_name: CL__PPO__Var0__20250113_1934
+    avg_validation_reward: 56.84
   SAC:
     model_name: null
     avg_validation_reward: -10000
