@@ -5,18 +5,20 @@ import random
 import wandb
 from typing import List, Tuple
 
-from extensions import dqn_extensions, neural_nets
-   
+from utils import neural_nets as nnets
+from algorithms import dqn_extensions as dqn_ext
+
+
 class DQN_Agent:
     def __init__(self, env, config, device):
         self.device = device
         self.env = env
 
         # Unpack config
+        general = config["general"]
+        nn_architecture = config["nn_architecture"]
         hyperparameters = config["hyperparameters"]
         eval_settings = config["eval_settings"]
-        nn_architecture = config["nn_architecture"]
-        general = config["general"]
         extensions = config.get("extensions", [])
 
         # NN-Architecture
@@ -41,8 +43,8 @@ class DQN_Agent:
         self.evaluation_episodes = eval_settings["evaluation_episodes"]
 
         # Network Initialization
-        self.q_network = neural_nets.create_network(self.nn_architecture, self.state_size, self.action_size, config["hyperparameters"]["learning_rate"]).to(self.device)
-        self.target_network = neural_nets.create_network(self.nn_architecture, self.state_size, self.action_size, config["hyperparameters"]["learning_rate"]).to(self.device)
+        self.q_network = nnets.build_network(self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
+        self.target_network = nnets.build_network(self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
         self.update_target_weights()
 
         # Assign CNN-specific methods if structure is CNN
@@ -56,15 +58,15 @@ class DQN_Agent:
         if "vanilla" in extensions:
             extensions = []
         elif "rainbow" in extensions:
-            extensions = dqn_extensions.EXTENSION_ORDER
+            extensions = dqn_ext.EXTENSION_ORDER
         else:
-            extensions = [ext for ext in dqn_extensions.EXTENSION_ORDER if ext in extensions]
+            extensions = [ext for ext in dqn_ext.EXTENSION_ORDER if ext in extensions]
 
         for ext_name in extensions:
-            if ext_name not in dqn_extensions.EXTENSION_REGISTRY:
+            if ext_name not in dqn_ext.EXTENSION_REGISTRY:
                 raise ValueError(f"Unknown extension: {ext_name}")
 
-            ExtensionClass = dqn_extensions.EXTENSION_REGISTRY[ext_name]
+            ExtensionClass = dqn_ext.EXTENSION_REGISTRY[ext_name]
             extension_instance = ExtensionClass(self)
             self.extensions.append(extension_instance)
             print(f"Initialized {ext_name} extension")
@@ -80,10 +82,10 @@ class DQN_Agent:
 
     def _override_with_cnn_behavior(self):
         """Override default methods with CNN-specific implementations."""
-        self.to_tensor = lambda state, batch=False: dqn_extensions.CNNBehavior.to_tensor(self, state, batch)
-        self.select_action = lambda state, training=True: dqn_extensions.CNNBehavior.select_action(self, state, training)
-        self.sample_batch = lambda: dqn_extensions.CNNBehavior.sample_batch(self)
-        self.compute_targets = lambda rewards, next_states, dones: dqn_extensions.CNNBehavior.compute_targets(self, rewards, next_states, dones)
+        self.to_tensor = lambda state, batch=False: dqn_ext.CNNBehavior.to_tensor(self, state, batch)
+        self.select_action = lambda state, training=True: dqn_ext.CNNBehavior.select_action(self, state, training)
+        self.sample_batch = lambda: dqn_ext.CNNBehavior.sample_batch(self)
+        self.compute_targets = lambda rewards, next_states, dones: dqn_ext.CNNBehavior.compute_targets(self, rewards, next_states, dones)
 
     def to_tensor(self, state, batch=False):
         """
@@ -248,7 +250,7 @@ class DQN_Agent:
             return
 
         # Reset noise if extenstion 'Noisy' is active
-        if any(isinstance(ext, dqn_extensions.NoisyDQNExtension) for ext in self.extensions):
+        if any(isinstance(ext, dqn_ext.NoisyDQNExtension) for ext in self.extensions):
             self.q_network.reset_noise()
             self.target_network.reset_noise()
 
@@ -274,7 +276,7 @@ class DQN_Agent:
         q_network_output.to(self.device)
 
         # Conmpute loss
-        if any(isinstance(ext, dqn_extensions.DistributionalDQNExtension) for ext in self.extensions):
+        if any(isinstance(ext, dqn_ext.DistributionalDQNExtension) for ext in self.extensions):
             batch_indices = torch.arange(q_network_output.size(0)).to(self.device)
             selected_logits = q_network_output[batch_indices, actions]
             loss = self.compute_loss(q_targets, selected_logits)
@@ -286,7 +288,7 @@ class DQN_Agent:
         # Update networks and priorities
         self.update_network(loss)
 
-        if any(isinstance(ext, dqn_extensions.PrioritizedReplayBuffer) for ext in self.extensions):
+        if any(isinstance(ext, dqn_ext.PrioritizedReplayBuffer) for ext in self.extensions):
             self.update_priorities(td_errors.detach().abs().cpu().numpy())
 
         if self.global_step_count % self.target_update_interval == 0:

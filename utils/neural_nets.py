@@ -2,35 +2,34 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-def create_network(nn_architecture, state_shape, action_size, learning_rate):
+def build_network(nn_architecture, state_size, action_size, learning_rate):
     structure = nn_architecture['structure']
     if structure == 'DNN':
-        network = DNN(nn_architecture, state_shape, action_size)
+        network = DNN(nn_architecture, state_size, action_size)
     elif structure == 'CNN':
-        network = CNN(nn_architecture, state_shape, action_size)
+        network = CNN(nn_architecture, state_size, action_size)
     else:
         raise ValueError(f"Unsupported structure: {structure}")
 
-    network.optimizer = optim.Adam(network.parameters(), lr = learning_rate)
+    network.optimizer = optim.Adam(network.parameters(), lr=learning_rate)
     network.loss_fn = nn.MSELoss()
-
-    print(network)
 
     return network
 
 class DNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size):
+    def __init__(self, nn_architecture, state_size, action_size):
         super(DNN, self).__init__()
+
         layers = []
-        input_size = state_shape
+        input_size = state_size
         num_layers = nn_architecture['num_layers']
         num_neurons = nn_architecture['num_neurons']
-        activation = nn_architecture['activation_layers']
+        activation_layers = nn_architecture['activation_layers']
         activation_output = nn_architecture['activation_output']
 
         for _ in range(num_layers):
             layers.append(nn.Linear(input_size, num_neurons))
-            layers.append(self.get_activation(activation))
+            layers.append(self.get_activation(activation_layers))
             input_size = num_neurons
 
         layers.append(nn.Linear(input_size, action_size))
@@ -45,40 +44,44 @@ class DNN(nn.Module):
 
     @staticmethod
     def get_activation(name):
-        if name == 'relu':
-            return nn.ReLU()
-        elif name == 'sigmoid':
-            return nn.Sigmoid()
-        elif name == 'tanh':
-            return nn.Tanh()
-        elif name == 'linear':
-            return nn.Identity()
-        elif name == 'softmax':
-            return nn.Softmax(dim=1)
-        else:
+        """
+        Return the activation function based on its name.
+        """
+        activations = {
+            'relu': nn.ReLU(),
+            'sigmoid': nn.Sigmoid(),
+            'tanh': nn.Tanh(),
+            'linear': nn.Identity(),
+            'softmax': nn.Softmax(dim=1)
+        }
+
+        if name not in activations:
             raise ValueError(f"Unsupported activation function: {name}")
 
+        return activations[name]
+
 class CNN(nn.Module):
-    def __init__(self, nn_architecture, state_shape, action_size):
+    def __init__(self, nn_architecture, state_size, action_size):
         super(CNN, self).__init__()
-        grid_state_shape, scalar_state_shape = state_shape
-        self.conv_layers = self.build_conv_layers(nn_architecture, grid_state_shape)
-        fc_input_size = self.fc_input_size + scalar_state_shape[0]
+
+        grid_state_size, scalar_state_size = state_size
+        self.conv_layers = self.build_conv_layers(nn_architecture, grid_state_size)
+        fc_input_size = self.fc_input_size + scalar_state_size[0]
         self.fc_layers = self.build_fc_layers(nn_architecture, fc_input_size, action_size)
 
-    def build_conv_layers(self, nn_architecture, grid_state_shape):
+    def build_conv_layers(self, nn_architecture, grid_state_size):
         """
         Constructs the convolutional layers.
 
         Parameters:
             nn_architecture (dict): Configuration for convolutional layers.
-            grid_state_shape (tuple): Shape of the grid state (Height, Width, Channels).
+            grid_state_size (tuple): Shape of the grid state (Height, Width, Channels).
 
         Returns:
             nn.Sequential: Convolutional layers.
         """
         layers = []
-        height, width, input_channels = grid_state_shape
+        height, width, input_channels = grid_state_size
 
         num_conv_layers = nn_architecture['num_convolutional_layers']
         num_channels = nn_architecture['num_convolutional_channels']
@@ -147,33 +150,35 @@ class CNN(nn.Module):
     
     @staticmethod
     def get_activation(name):
-        """Return the activation function based on its name."""
-        if name == 'relu':
-            return nn.ReLU()
-        elif name == 'sigmoid':
-            return nn.Sigmoid()
-        elif name == 'tanh':
-            return nn.Tanh()
-        elif name == 'linear':
-            return nn.Identity()
-        elif name == 'softmax':
-            return nn.Softmax(dim=1)
-        else:
+        """
+        Return the activation function based on its name.
+        """
+        activations = {
+            'relu': nn.ReLU(),
+            'sigmoid': nn.Sigmoid(),
+            'tanh': nn.Tanh(),
+            'linear': nn.Identity(),
+            'softmax': nn.Softmax(dim=1)
+        }
+
+        if name not in activations:
             raise ValueError(f"Unsupported activation function: {name}")
+
+        return activations[name]
         
     @staticmethod
-    def get_feature_size(nn_architecture, grid_state_shape):
+    def get_feature_size(nn_architecture, grid_state_size):
         """
         Computes the flattened feature size after the convolutional layers.
 
         Parameters:
             nn_architecture (dict): Configuration for convolutional layers.
-            grid_state_shape (tuple): Shape of the grid state (Height, Width, Channels).
+            grid_state_size (tuple): Shape of the grid state (Height, Width, Channels).
 
         Returns:
             int: Flattened feature size after the convolutional layers.
         """
-        height, width, channels = grid_state_shape
+        height, width, channels = grid_state_size
         num_conv_layers = nn_architecture['num_convolutional_layers']
         kernel_size = nn_architecture['kernel_size']
         stride = nn_architecture['stride']

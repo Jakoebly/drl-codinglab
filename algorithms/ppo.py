@@ -7,6 +7,8 @@ import torch.optim as optim
 from torch.distributions.categorical import Categorical
 import wandb
 
+from utils import neural_nets as nnets
+
 # TODO:
 # - see how performance differs if actor and critic loss are separated
 # - try out value loss clipping: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/ point 9
@@ -254,39 +256,46 @@ class PPO_Agent():
         self.device = device
         self.env = env
 
+        # Unpack config
+        general = config["general"]
+        nn_architecture_actor = config["nn_architecture_actor"]
+        nn_architecture_critic = config["nn_architecture_critic"]
+        hyperparameters = config["hyperparameters"]
+        eval_settings = config["eval_settings"]
+
         # General
-        self.state_size = config["state_size"]
-        self.num_actions = config["num_actions"]
-        self.num_episodes_train = config["num_episodes_train"]
-        self.num_episodes_validate = config["num_episodes_validate"]
-        self.num_episodes_test = config["num_episodes_test"]
-        self.num_trajectories = config["num_trajectories"]
-        self.num_steps_trajectory = config["num_steps_trajectory"]
-        self.num_epochs = config["num_epochs"]
+        self.state_size = general["state_size"]
+        self.action_size = general["action_size"]
+        self.num_trajectories = hyperparameters["num_trajectories"]
+        self.num_steps_trajectory = general["num_steps_trajectory"]
+        self.num_epochs = hyperparameters["num_epochs"]
         self.batch_size = self.num_trajectories * self.num_steps_trajectory
-        self.num_minibatches = config["num_minibatches"]
+        self.num_minibatches = hyperparameters["num_minibatches"]
         self.minibatch_size = self.batch_size // self.num_minibatches
 
+        # NN-Architecture
+        self.nn_architecture_actor = nn_architecture_actor
+        self.nn_structure_actor = nn_architecture_actor["structure"]
+        self.nn_architecture_critic = nn_architecture_critic
+        self.nn_structure_critic = nn_architecture_critic["structure"]
+
         # Hyperparameters
-        self.nn_architecture_actor = config["nn_architecture_actor"]
-        self.nn_architecture_critic = config["nn_architecture_critic"]
-        self.learning_rate_actor = config["learning_rate_actor"]
-        self.learning_rate_critic = config["learning_rate_critic"]
-        self.gamma = config["gamma"]
-        self.lam = config["lam"]
-        self.clip_ratio = config["clip_ratio"]
-        self.entropy_coef = config["entropy_coef"]
-        self.value_coef = config["value_coef"]
-        self.entropy_coef_min = config["entropy_coef_min"]
-        self.entropy_coef_decay = config["entropy_coef_decay"]
-        self.max_grad_norm = config["max_grad_norm"]
+        self.learning_rate_actor = hyperparameters["learning_rate_actor"]
+        self.learning_rate_critic = hyperparameters["learning_rate_critic"]
+        self.gamma = hyperparameters["gamma"]
+        self.lam = hyperparameters["lam"]
+        self.clip_ratio = hyperparameters["clip_ratio"]
+        self.value_coef = hyperparameters["value_coef"]
+        self.entropy_coef = hyperparameters["entropy_coef"]
+        self.max_grad_norm = hyperparameters["max_grad_norm"]
 
         # Memory Initialization
         self.memory = PPOMemory(self.batch_size, self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
 
         # Network Initialization
-        self.actor = BuildNetwork(self.nn_architecture_actor, self.state_size, self.num_actions, self.learning_rate_actor, self.device)
-        self.critic = BuildNetwork(self.nn_architecture_critic, self.state_size, 1, self.learning_rate_critic, self.device)
+        self.actor = nnets.build_network(self.nn_architecture_actor, self.state_size, self.action_size, self.learning_rate_actor).to(self.device)
+        self.critic = nnets.build_network(self.nn_architecture_critic, self.state_size, 1, self.learning_rate_critic).to(self.device)
+
 
     def load_weights(self, path):
         self.actor.load_state_dict(torch.load(path))
@@ -295,7 +304,7 @@ class PPO_Agent():
     def save_weights(self, path):
         torch.save(self.actor.state_dict(), path)
 
-    def get_action(self, state):
+    def select_action(self, state):
 
         # Output logits given a state
         logits = self.actor(state)
@@ -331,12 +340,12 @@ class PPO_Agent():
                 # Mask for terminal states
                 mask = 1.0 - dones[:, t]
                 if t == self.num_steps_trajectory - 1:
-                    next_values = self.get_value(next_states[:, t])
+                    next_values = self.get_value(next_states[:, t]).view(-1)
                 else:
                     next_values = values[:, t + 1]
 
                 # Compute delta/TD-error
-                delta = rewards[:, t] + self.gamma * next_values.view(-1) * mask - values[:, t]
+                delta = rewards[:, t] + self.gamma * next_values * mask - values[:, t]
 
                 # Recursive GAE
                 advantage = delta + self.gamma * self.lam * mask * advantage
@@ -363,14 +372,14 @@ class PPO_Agent():
         entropy_loss = entropy.mean()
 
         # Compute PPO objective function
-        actor_loss = -(torch.min(advantages_norm_mb * prob_ratio, advantages_norm_mb * clipped_prob_ratio).mean())
+        actor_loss = -(torch.min(advantages_norm_mb * prob_ratio, advantages_norm_mb * clipped_prob_ratio).mean() + self.entropy_coef * entropy_loss)
 
         # Compute value loss
         critic_values = self.critic(states_mb)
         critic_loss = ((critic_values - returns_mb) ** 2).mean()
 
         # Compute total loss
-        total_loss = actor_loss + self.value_coef * critic_loss - self.entropy_coef * entropy_loss
+        total_loss = actor_loss + self.value_coef * critic_loss
 
         return total_loss, actor_loss, critic_loss, entropy_loss
 
@@ -407,7 +416,8 @@ class PPO_Agent():
                 # Perform updates
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
-                total_loss.backward()
+                actor_loss.backward()
+                critic_loss.backward()
                 nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
                 nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
                 self.actor.optimizer.step()
@@ -445,7 +455,7 @@ class PPO_Agent():
 
                 # Perform one environment step
                 with torch.no_grad():
-                    action, log_prob = self.get_action(state)
+                    action, log_prob = self.select_action(state)
                     value = self.get_value(state).squeeze()
                     reward, next_state, done = self.env.step(action)
                 reward_episode += reward

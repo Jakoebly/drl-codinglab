@@ -4,9 +4,10 @@ import csv
 import torch
 import yaml
 import numpy as np
-import settings
 import matplotlib.pyplot as plt
 import wandb
+
+from utils import settings
 
 # Set seeds
 def set_seeds(seed, torch_deterministic):
@@ -40,7 +41,13 @@ def load_config(env, config_dir, algorithm):
         config["general"] = {}
         config["results"] = {}
 
-        config["general"]["state_size"] = env.get_state_size(hyperparams["nn_architecture"]["structure"])
+        if algorithm == "DQN":
+            config["general"]["state_size"] = env.get_state_size(hyperparams["nn_architecture"]["structure"])
+        elif algorithm == "PPO":
+            config["general"]["state_size"] = env.get_state_size(hyperparams["nn_architecture_actor"]["structure"])
+        elif algorithm == "SAC":
+            pass
+
         config["general"]["action_size"] = env.action_size
         config["general"]["num_episodes_train"] = len(env.training_episodes)
         config["general"]["num_episodes_validate"] = len(env.validation_episodes)
@@ -50,13 +57,6 @@ def load_config(env, config_dir, algorithm):
         config["results"]["avg_train_reward"] = None
         config["results"]["avg_validation_reward"] = None
         config["results"]["avg_test_reward"] = None
-
-        # # Adjust nn_architecture
-        # if algorithm == "DQN":
-        #     pass
-        # if algorithm == "PPO":
-        #     config["nn_architecture_actor"] = compile_architecture(config["num_neurons_actor"], config["num_layers_actor"], config["activation_actor"])
-        #     config["nn_architecture_critic"] = compile_architecture(config["num_neurons_critic"], config["num_layers_critic"], config["activation_critic"])
 
     # Load existing config for validation/test run
     else:

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from collections import deque
-from extensions import neural_nets
+from utils import neural_nets
 import random
 
 # TODO: move to settings?
