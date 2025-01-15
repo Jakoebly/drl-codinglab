@@ -98,7 +98,7 @@ class Environment(object):
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
         # return self.get_new_obs()
-        return self.get_obs_ppo_test()
+        return self.get_dnn_obs_2d()
 
     # take one environment step based on the action act
     def step(self, act):
@@ -158,7 +158,7 @@ class Environment(object):
 
         # get new observation
         #next_obs = self.get_new_obs()
-        next_obs = self.get_obs_ppo_test()
+        next_obs = self.get_dnn_obs_2d()
 
         if self.render_enabled:
             self.update_render()

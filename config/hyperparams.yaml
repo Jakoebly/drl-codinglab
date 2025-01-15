@@ -49,11 +49,13 @@ PPO:
     lam: 0.95
     clip_ratio: 0.2
     value_coef: 0.5
-    entropy_coef: 0.02
+    entropy_coef: 0.01
     max_grad_norm: 0.5
     num_trajectories: 10
     num_epochs: 10
     num_minibatches: 32
+    target_kl: 0.015
+    warm_up_period: 400
 
   nn_architecture_actor:
     structure: "DNN"

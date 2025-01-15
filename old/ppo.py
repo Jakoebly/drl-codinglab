@@ -318,7 +318,6 @@ class PPO_Agent:
 
         # tf.print("Updated Critic")
 
-    @tf.function
     def update_epsilon(self):
         # self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         self.epsilon.assign(tf.maximum(self.epsilon_min, self.epsilon * self.epsilon_decay))
