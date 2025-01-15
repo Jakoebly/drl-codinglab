@@ -392,32 +392,34 @@ class PPO_Agent():
 
             # Append episodic reward
             rewards.append(reward_episode)
-            average_reward = np.mean(rewards)
 
             print("Episode: ", episode, "Reward: ", reward_episode)
 
             # Perform update step with rollout data and clear memory afterwards for new rollout phase
-            if training and trajectory == self.num_trajectories - 1:
+            if training:
+                if trajectory == self.num_trajectories - 1:
 
-               # if episode > self.warm_up_period:
-               #     self.update_learning_rate(update_ctr)
-               #     self.update_entropy_coef(update_ctr)
-               #     update_ctr += 1
+                   # if episode > self.warm_up_period:
+                   #     self.update_learning_rate(update_ctr)
+                   #     self.update_entropy_coef(update_ctr)
+                   #     update_ctr += 1
 
-                total_loss, actor_loss, critic_loss, entropy_loss = self.update_networks()
+                    total_loss, actor_loss, critic_loss, entropy_loss = self.update_networks()
 
-                self.memory.clear(self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
+                    self.memory.clear(self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
 
-            # Log relevant data
-            wandb.log({"Charts/Average Reward": average_reward}, episode)
-            wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
-            wandb.log({"Losses/Total Loss": total_loss}, episode)
-            wandb.log({"Losses/Actor Loss": actor_loss}, episode)
-            wandb.log({"Losses/Critic Loss": critic_loss}, episode)
-            wandb.log({"Losses/Entropy": entropy_loss}, episode)
-            wandb.log({"Parameters/Actor Learning Rate": self.actor.optimizer.param_groups[0]['lr']}, episode)
-            wandb.log({"Parameters/Critic Learning Rate": self.critic.optimizer.param_groups[0]['lr']}, episode)
-            wandb.log({"Parameters/Entropy Coef": self.entropy_coef}, episode)
+                # Log relevant data
+                log_dict = {
+                    "Charts/Reward per Episode": reward_episode,
+                    "Losses/Total Loss": total_loss,
+                    "Losses/Actor Loss": actor_loss,
+                    "Losses/Critic Loss": critic_loss,
+                    "Losses/Entropy": entropy_loss,
+                    "Parameters/Actor Learning Rate": self.actor.optimizer.param_groups[0]['lr'],
+                    "Parameters/Critic Learning Rate": self.critic.optimizer.param_groups[0]['lr'],
+                    "Parameters/Entropy Coef": self.entropy_coef,
+                }
+                wandb.log(log_dict)
 
         print("Avg. Rewards: ", np.mean(rewards))
 

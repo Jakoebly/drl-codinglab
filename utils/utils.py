@@ -58,6 +58,7 @@ def load_config(env, config_dir, algorithm):
         config["results"]["avg_validation_reward"] = None
         config["results"]["avg_test_reward"] = None
 
+
     # Load existing config for validation/test run
     else:
         # Open existing run_info config and load parameters
@@ -75,7 +76,7 @@ def load_sweep_config(config_dir, sweep_name):
     return sweep_config
 
 # Update run_info.yaml after a run
-def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, run_name):
+def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, run_name, wandb_run):
 
     # If training: create new subfolder and save weights
     if mode == "train":
@@ -91,23 +92,21 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
 
     eps_dir = [None, None, None]
 
-
     # Update relevant key/value pairs and create/reference .csv files for reward tracking
+
     if rew_train is not None:
         config["results"]["avg_train_reward"] = float(np.mean(rew_train))
-        wandb.config["results"]["avg_train_reward"] = float(np.mean(rew_train))
         eps_dir[0] = f"{model_dir}/train_eps.csv"
 
     if rew_val is not None:
         config["results"]["avg_validation_reward"] = float(np.mean(rew_val))
-        wandb.config["results"]["avg_validation_reward"] = float(np.mean(rew_val))
         eps_dir[1] = f"{model_dir}/val_eps.csv"
 
     if rew_test is not None:
         config["results"]["avg_test_reward"] = float(np.mean(rew_test))
-        wandb.config["results"]["avg_test_reward"] = float(np.mean(rew_test))
         eps_dir[2] = f"{model_dir}/test_eps.csv"
 
+    wandb_run.config.update(config, allow_val_change=True)
 
     # Write run info into the corresponding .yaml file
     with open(f"{model_dir}/run_info.yaml", 'w') as file:
