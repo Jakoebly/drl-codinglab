@@ -68,7 +68,7 @@ if __name__ == "__main__":
     # Setup sweep if sweep flag is toggled
     if args.sweep:
         sweep_name = f"Sweep__{run_name}"
-        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name)
+        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, algorithm.lower())
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
 

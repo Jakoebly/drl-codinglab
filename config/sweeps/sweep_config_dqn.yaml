@@ -16,17 +16,18 @@ parameters:
           min: 0.8
           max: 1
         epsilon:
-          min: 1
-          max: 0.75
+          min: 0.75
+          max: 1
         epsilon_min:
           min: 0
           max: 0.25
         epsilon_decay:
-          min: 0.999
-          max: 0.9
+          min: 0.9
+          max: 0.999
         learning_rate:
-          min: 0.000005
-          max: 0.0001
+          distribution: normal
+          mu: 0.00001
+          sigma: 1
         batch_size:
           values: [16, 32, 64, 128, 256, 512]
         target_update_interval:
@@ -34,25 +35,14 @@ parameters:
         buffer_size:
           values: [1000, 60000, 80000, 100000, 150000, 300000]
 
-    nn_architecture_actor:
-      parameters:
-        structure:
-          ["DNN"]
-        num_layers:
-          min: 1
-          max: 8
-        num_neurons:
-          values: [64, 128, 256, 512]
-        activation_layers:
-          values: [ "relu", "tanh", "sigmoid"]
-
 command:
-  - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe
+  - python
   - ${program}
   - "--algorithm"
-  - "ppo"
+  - "dqn"
   - "--variant"
   - "0"
   - "--mode"
   - "train"
   - "--track"
+  - "--save"
