@@ -23,45 +23,6 @@ import yaml
 # - validate sweep arg
 # - integrate running of sweep from file
 
-def model_pipeline(config):
-
-    # Initialize agent depending on the algorithm
-    if algorithm == "DQN":
-        agent = DQN_Agent(env, config, device)
-    elif algorithm == "PPO":
-        agent = PPO_Agent(env, config, device)
-    elif algorithm == "SAC":
-        agent = SAC_Agent(env, config).to(device)
-
-    # Load weights if validating/testing
-    if mode in ["validate", "test"]:
-        agent.load_weights(f"{MODEL_DIR}/model.pt")
-
-    # Perform training, validation or testing
-    rew_train = None
-    rew_val = None
-    rew_test = None
-
-    if mode == "train" and not args.sweep:
-        rew_train = agent.run("training", config["general"]["num_episodes_train"])
-        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
-    elif mode == "train" and args.sweep:
-        rew_train = agent.run("training", config["general"]["num_episodes_train"])
-    elif mode == "validate":
-        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
-    elif mode == "test":
-        rew_test = agent.run("testing", config["general"]["num_episodes_test"])
-
-    rewards = (rew_train, rew_val, rew_test)
-
-
-    # Update best model
-    ut.update_best(algorithm, variant, rewards, model_name, run_name, BEST_DIR)
-
-    # Log the run locally
-    if args.save:
-        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name)
-
 if __name__ == "__main__":
     # Get args
     args = args.parse_args()
@@ -106,7 +67,7 @@ if __name__ == "__main__":
 
     # Setup sweep if sweep flag is toggled
     if args.sweep:
-        sweep_name = f"{run_name}__Sweep"
+        sweep_name = f"Sweep__{run_name}"
         sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name)
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
@@ -147,12 +108,9 @@ if __name__ == "__main__":
     rew_val = None
     rew_test = None
 
-    # TODO: for sweeping only training or not?
-    if mode == "train" and not args.sweep:
-        rew_train = agent.run("training", config["general"]["num_episodes_train"])
+    if mode == "train":
+        rew_train = agent.run("training", 300)
         rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
-    elif mode == "train" and args.sweep:
-        rew_train = agent.run("training", config["general"]["num_episodes_train"])
     elif mode == "validate":
         rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
     elif mode == "test":

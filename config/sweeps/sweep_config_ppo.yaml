@@ -1,0 +1,73 @@
+program: main_sweeps.py
+
+entity: gowiththetensorflow
+project: Coding_Lab
+
+method: bayes
+
+metric:
+  goal: maximize
+  name: Charts/Average Reward
+
+parameters:
+    hyperparameters:
+      parameters:
+        learning_rate_actor:
+          min: 0.00005
+          max: 0.01
+        learning_rate_critic:
+          min: 0.00005
+          max: 0.01
+        gamma:
+          min: 0.8
+          max: 0.9997
+        lam:
+          min: 0.9
+          max: 1.0
+        clip_ratio:
+          values: [ 0.1, 0.2, 0.3 ]
+        value_coef:
+          min: 0.5
+          max: 1.0
+        entropy_coef:
+          min: 0.0
+          max: 0.3
+        num_trajectories:
+          min: 1
+          max: 30
+        num_epochs:
+          min: 2
+          max: 20
+        num_minibatches:
+          min: 5
+          max: 40
+    nn_architecture_actor:
+      parameters:
+        num_layers:
+          min: 1
+          max: 8
+        num_neurons:
+          values: [64, 128, 256, 512 ]
+        activation_layers:
+          values: [ "relu", "tanh", "sigmoid" ]
+    nn_architecture_critic:
+      parameters:
+        num_layers:
+          min: 1
+          max: 8
+        num_neurons:
+          values: [ 64, 128, 256, 512 ]
+        activation_layers:
+          values: [ "relu", "tanh", "sigmoid" ]
+
+
+command:
+  - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe
+  - ${program}
+  - "--algorithm"
+  - "ppo"
+  - "--variant"
+  - "0"
+  - "--mode"
+  - "train"
+  - "--track"

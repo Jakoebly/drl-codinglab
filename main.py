@@ -95,7 +95,7 @@ if __name__ == "__main__":
     rew_test = None
 
     if mode == "train":
-        rew_train = agent.run(mode="training", num_episodes=config["general"]["num_episodes_train"])
+        rew_train = agent.run(mode="training", num_episodes=config["general"]["num_episodes_train"]*2)
         rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])
     if mode == "validate":
         rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])

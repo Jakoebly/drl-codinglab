@@ -84,7 +84,6 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
 
         agent.save_weights(f"{model_dir}/model.pt")
 
-
     # Extract rewards
     rew_train = rewards[0]
     rew_val = rewards[1]
