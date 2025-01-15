@@ -10,50 +10,27 @@ metric:
   name: Charts/Reward per Episode
 
 parameters:
-  learning_rate_actor:
-    min: 0.000005
-    max: 0.01
-  learning_rate_critic:
-    min: 0.000005
-    max: 0.01
   gamma:
     min: 0.8
-    max: 0.9997
-  lam:
-    min: 0.9
-    max: 1.0
-  clip_ratio:
-    values: [0.1, 0.2, 0.3]
-  value_coef:
-    min: 0.5
-    max: 1.0
-  entropy_coef:
-    min: 0.0
-    max: 0.3
-  num_trajectories:
+    max: 1
+  epsilon:
     min: 1
-    max: 50
-  num_epochs:
+    max: 0.75
+  epsilon_min:
     min: 0
-    max: 20
-  num_minibatches:
-    min: 1
-    max: 20
-  num_neurons_actor:
+    max: 0.25
+  epsilon_decay:
+    min: 0.999
+    max: 0.9
+  learning_rate:
+    min: 0.000005
+    max: 0.0001
+  batch_size:
     values: [16, 32, 64, 128, 256, 512]
-  num_neurons_critic:
-    values: [16, 32, 64, 128, 256, 512]
-  num_layers_actor:
-    min: 1
-    max: 8
-  num_layers_critic:
-    min: 1
-    max: 8
-  activation_actor:
-    values: ["relu", "tanh", "sigmoid", "linear"]
-  activation_critic:
-    values: ["relu", "tanh", "sigmoid", "linear"]
-
+  target_update_interval:
+    values: [5, 10, 25, 50, 75, 100, 125, 150, 175]
+  buffer_size:
+    values: [1000, 60000, 80000, 100000, 150000, 300000]
 
 command:
   - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe

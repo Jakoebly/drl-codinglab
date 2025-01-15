@@ -12,7 +12,9 @@ def build_network(nn_architecture, state_size, action_size, learning_rate):
         raise ValueError(f"Unsupported structure: {structure}")
 
     network.optimizer = optim.Adam(network.parameters(), lr=learning_rate)
-    # network.loss_fn = nn.MSELoss()
+    network.loss_fn = nn.MSELoss()
+
+    print(network)
 
     return network
 

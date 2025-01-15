@@ -257,7 +257,7 @@ class NoisyDQNExtension:
     def __init__(self, agent):
         self.agent = agent
         action_size = self.agent.action_size
-        self.agent.std_init = self.agent.extensionparameters["noisy"]["std_init"]
+        self.agent.std_init = self.agent.extension_parameters["noisy"]["std_init"]
 
         self.agent.q_network = neural_nets.NoisyAdapter(
             base_network = self.agent.q_network,

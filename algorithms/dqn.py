@@ -82,8 +82,8 @@ class DQN_Agent:
 
     def _override_with_cnn_behavior(self):
         """Override default methods with CNN-specific implementations."""
-        self.to_tensor = lambda state, batch=False: dqn_ext.CNNBehavior.to_tensor(self, state, batch)
-        self.select_action = lambda state, training=True: dqn_ext.CNNBehavior.select_action(self, state, training)
+        self.to_tensor = lambda state, batch = False: dqn_ext.CNNBehavior.to_tensor(self, state, batch)
+        self.select_action = lambda state, training = True: dqn_ext.CNNBehavior.select_action(self, state, training)
         self.sample_batch = lambda: dqn_ext.CNNBehavior.sample_batch(self)
         self.compute_targets = lambda rewards, next_states, dones: dqn_ext.CNNBehavior.compute_targets(self, rewards, next_states, dones)
 
