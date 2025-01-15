@@ -1,7 +1,7 @@
 import os
 import random
 from email import parser
-
+from datetime import datetime
 import numpy as np
 import torch
 import wandb
@@ -9,6 +9,7 @@ from environment import Environment
 from utils import utils as ut, args, settings
 from algorithms.dqn import DQN_Agent
 from algorithms.ppo import PPO_Agent
+import yaml
 # from algorithms.sac import SAC_Agent
 
 # TODO:
@@ -42,14 +43,14 @@ def model_pipeline(config):
     rew_test = None
 
     if mode == "train" and not args.sweep:
-        rew_train = agent.run("training", config.num_episodes_train)
-        rew_val = agent.run("validation", config.num_episodes_validate)
+        rew_train = agent.run("training", config["general"]["num_episodes_train"])
+        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
     elif mode == "train" and args.sweep:
-        rew_train = agent.run("training", config.num_episodes_train)
+        rew_train = agent.run("training", config["general"]["num_episodes_train"])
     elif mode == "validate":
-        rew_val = agent.run("validation", config.num_episodes_validate)
+        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
     elif mode == "test":
-        rew_test = agent.run("testing", config.num_episodes_test)
+        rew_test = agent.run("testing", config["general"]["num_episodes_test"])
 
     rewards = (rew_train, rew_val, rew_test)
 
@@ -72,7 +73,9 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # Set run_name
-    run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{args.experiment_name}"
+    run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{datetime.now().strftime('%Y%m%d_%H%M')}"
+    if args.experiment_name is not None:
+        run_name = f"CL__{args.algorithm.upper()}__Var{args.variant}__{datetime.now().strftime('%Y%m%d_%H%M')}__{args.experiment_name}"
 
     # Load directories from settings
     BEST_DIR = settings.BEST_DIR
@@ -101,20 +104,71 @@ if __name__ == "__main__":
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
 
+    # Setup sweep if sweep flag is toggled
+    if args.sweep:
+        sweep_name = f"{run_name}__Sweep"
+        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name)
+        sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
+        wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
+
+
+    # Login to wandb
+    wandb.login(key="a50d29aca6e9f4dda3a4c95947af66a1a922e1a7")
+    print("Wandb Login Successful")
+
     # Initialize wandb run
-    if args.track:
-        run = wandb.init(entity=args.wandb_entity,
-                         project=args.wandb_projectname,
-                         config=config,
-                         name=run_name,
-                         save_code=True,
-                         group=algorithm,
-                         tags=[f"Var_{variant}"],
-                         job_type="Sweep" if args.sweep else (f"{mode}/validate" if mode == "train" else mode)
-                         )
-        with run:
-            config = wandb.config
-            model_pipeline(config)
-    else:
-        model_pipeline(config)
+    run = wandb.init(entity=args.wandb_entity,
+                     project=args.wandb_projectname,
+                     config=config,
+                     name=run_name,
+                     save_code=True,
+                     mode="online" if args.track else "disabled",
+                     group=algorithm,
+                     tags=[f"Var_{variant}"],
+                     job_type="Sweep" if args.sweep else (f"{mode}/validate" if mode == "train" else mode)
+                     )
+
+    config = wandb.config
+
+    # Initialize agent depending on the algorithm
+    if algorithm == "DQN":
+        agent = DQN_Agent(env, config, device)
+    elif algorithm == "PPO":
+        agent = PPO_Agent(env, config, device)
+    elif algorithm == "SAC":
+        agent = SAC_Agent(env, config).to(device)
+
+    # Load weights if validating/testing
+    if mode in ["validate", "test"]:
+        agent.load_weights(f"{MODEL_DIR}/model.pt")
+
+    # Perform training, validation or testing
+    rew_train = None
+    rew_val = None
+    rew_test = None
+
+    # TODO: for sweeping only training or not?
+    if mode == "train" and not args.sweep:
+        rew_train = agent.run("training", config["general"]["num_episodes_train"])
+        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
+    elif mode == "train" and args.sweep:
+        rew_train = agent.run("training", config["general"]["num_episodes_train"])
+    elif mode == "validate":
+        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
+    elif mode == "test":
+        rew_test = agent.run("testing", config["general"]["num_episodes_test"])
+
+    rewards = (rew_train, rew_val, rew_test)
+
+    # Update best model
+    ut.update_best(algorithm, variant, rewards, model_name, run_name, BEST_DIR)
+
+    # Log the run locally
+    if args.save:
+        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name)
+
+
+
+
+
 

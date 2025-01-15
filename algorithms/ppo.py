@@ -4,6 +4,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import wandb
 from torch.distributions.categorical import Categorical
 from environment import Environment
 from torch.utils.data import Dataset, DataLoader
@@ -268,7 +269,6 @@ class PPO_Agent():
         # Compute total loss
         total_loss = actor_loss + self.value_coef * critic_loss
 
-
         return total_loss, actor_loss, critic_loss, entropy_loss
 
 
@@ -322,6 +322,8 @@ class PPO_Agent():
         else:
             training = False
 
+        total_loss, actor_loss, critic_loss, entropy_loss = 0, 0, 0, 0
+
         for episode in range(num_episodes):
 
             # Initialize reward to zero
@@ -359,6 +361,7 @@ class PPO_Agent():
 
             # Append episodic reward
             rewards.append(reward_episode)
+            average_reward = np.mean(rewards)
 
             print("Episode: ", episode, "Reward: ", reward_episode)
 
@@ -368,6 +371,14 @@ class PPO_Agent():
                 total_loss, actor_loss, critic_loss, entropy_loss = self.update_networks()
 
                 self.memory.clear(self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
+
+            # Log relevant data
+            wandb.log({"Charts/Average Reward": average_reward}, episode)
+            wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
+            wandb.log({"Losses/Total Loss": total_loss}, episode)
+            wandb.log({"Losses/Actor Loss": actor_loss}, episode)
+            wandb.log({"Losses/Critic Loss": critic_loss}, episode)
+            wandb.log({"Losses/Entropy": entropy_loss}, episode)
 
         print("Avg. Rewards: ", np.mean(rewards))
 

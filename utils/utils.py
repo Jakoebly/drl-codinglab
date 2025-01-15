@@ -66,6 +66,14 @@ def load_config(env, config_dir, algorithm):
 
     return config
 
+def load_sweep_config(config_dir, sweep_name):
+
+    with open(f"{config_dir}/sweeps/sweep_config.yaml", "r+") as file:
+        sweep_config = yaml.safe_load(file)
+        sweep_config["name"] = sweep_name
+
+    return sweep_config
+
 # Update run_info.yaml after a run
 def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, run_name):
 
