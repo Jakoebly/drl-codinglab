@@ -69,6 +69,7 @@ if __name__ == "__main__":
     if args.sweep:
         sweep_name = f"Sweep__{run_name}"
         sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, algorithm.lower())
+        print(sweep_config)
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
 
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     rew_test = None
 
     if mode == "train":
-        rew_train = agent.run("training", 300)
+        rew_train = agent.run("training", config["general"]["num_episodes_train"])
         rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
     elif mode == "validate":
         rew_val = agent.run("validation", config["general"]["num_episodes_validate"])

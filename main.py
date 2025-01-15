@@ -95,7 +95,7 @@ if __name__ == "__main__":
     rew_test = None
 
     if mode == "train":
-        rew_train = agent.run(mode="training", num_episodes=config["general"]["num_episodes_train"]*2)
+        rew_train = agent.run(mode="training", num_episodes=config["general"]["num_episodes_train"])
         rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])
     if mode == "validate":
         rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     # Log the run
     if args.save:
-        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name)
+        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name, wandb_run)
 
     # Finish wandb run
     wandb_run.finish()

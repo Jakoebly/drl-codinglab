@@ -10,33 +10,41 @@ metric:
   name: Charts/Average Reward
 
 parameters:
-    hyperparameters:
-      parameters:
-        gamma:
-          min: 0.8
-          max: 1
-        epsilon:
-          min: 0.75
-          max: 1
-        epsilon_min:
-          min: 0
-          max: 0.25
-        epsilon_decay:
-          min: 0.9
-          max: 0.999
-        learning_rate:
-          distribution: normal
-          mu: 0.00001
-          sigma: 1
-        batch_size:
-          values: [16, 32, 64, 128, 256, 512]
-        target_update_interval:
-          values: [5, 10, 25, 50, 75, 100, 125, 150, 175]
-        buffer_size:
-          values: [1000, 60000, 80000, 100000, 150000, 300000]
+  hyperparameters:
+    parameters:
+      learning_rate:
+        distribution: log_normal
+        mu: -10
+        sigma: 0.01
+      gamma:
+        min: 0.8
+        max: 0.9997
+      epsilon:
+        min: 0.75
+        max: 1.0
+      epsilon_min:
+        min: 0.0
+        max: 0.25
+      epsilon_decay:
+        min: 0.9
+        max: 0.999
+      batch_size:
+        values: [16, 32, 64, 128, 256, 512]
+      buffer_size:
+        values: [1000, 60000, 80000, 100000, 150000, 300000]
+  nn_architecture:
+    parameters:
+      num_layers:
+        min: 1
+        max: 8
+      num_neurons:
+        values: [128, 256, 512]
+      activation_layers:
+        values: ["relu", "tanh"]
+
 
 command:
-  - python
+  - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe
   - ${program}
   - "--algorithm"
   - "dqn"
@@ -45,4 +53,3 @@ command:
   - "--mode"
   - "train"
   - "--track"
-  - "--save"

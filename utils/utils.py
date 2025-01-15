@@ -66,9 +66,9 @@ def load_config(env, config_dir, algorithm):
 
     return config
 
-def load_sweep_config(config_dir, sweep_name, algo_name):
+def load_sweep_config(config_dir, sweep_name, algorithm):
 
-    with open(f"{config_dir}/sweeps/sweep_config_{algo_name}.yaml", "r+") as file:
+    with open(f"{config_dir}/sweeps/sweep_config_{algorithm.lower()}.yaml", "r+") as file:
         sweep_config = yaml.safe_load(file)
         sweep_config["name"] = sweep_name
 
