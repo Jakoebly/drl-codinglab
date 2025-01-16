@@ -17,8 +17,8 @@ parameters:
         mu: -10
         sigma: 0.01
       gamma:
-        min: 0.8
-        max: 0.9997
+        min: 0.9
+        max: 0.99
       epsilon:
         min: 0.75
         max: 1.0
@@ -31,11 +31,11 @@ parameters:
       batch_size:
         values: [16, 32, 64, 128, 256, 512]
       buffer_size:
-        values: [1000, 60000, 80000, 100000, 150000, 300000]
+        values: [5000, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000]
   nn_architecture:
     parameters:
       num_layers:
-        min: 1
+        min: 2
         max: 8
       num_neurons:
         values: [128, 256, 512]

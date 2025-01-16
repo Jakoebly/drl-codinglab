@@ -62,7 +62,7 @@ if __name__ == "__main__":
     config = ut.load_config(env, CONFIG_DIR, algorithm)
 
     # Initialize wandb run
-    wandb.login(key="a50d29aca6e9f4dda3a4c95947af66a1a922e1a7")
+    wandb.login(key = settings.WAND_API_KEY)
     print("Wandb Login Successful")
 
     wandb_run = wandb.init(
