@@ -117,6 +117,13 @@ if __name__ == "__main__":
     elif mode == "test":
         rew_test = agent.run("testing", config["general"]["num_episodes_test"])
 
+    if rew_train is not None:
+        wandb.log({"Charts/Avg. Train Reward": np.mean(rew_train)})
+    if rew_val is not None:
+        wandb.log({"Charts/Avg. Validation Reward": np.mean(rew_val)})
+    if rew_test is not None:
+        wandb.log({"Charts/Avg. Test Reward": np.mean(rew_test)})
+
     rewards = (rew_train, rew_val, rew_test)
 
     # Update best model

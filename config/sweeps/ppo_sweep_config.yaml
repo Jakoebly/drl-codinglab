@@ -7,7 +7,7 @@ method: bayes
 
 metric:
   goal: maximize
-  name: Charts/Average Reward
+  name: Charts/Avg. Validation Reward
 
 parameters:
   hyperparameters:
@@ -30,7 +30,6 @@ parameters:
         min: 0.5
         max: 1.0
       entropy_coef:
-        distribution:
         min: 0.0
         max: 0.3
       num_trajectories:
@@ -48,9 +47,9 @@ parameters:
         min: 1
         max: 8
       num_neurons:
-        values: [64, 128, 256, 512 ]
+        values: [64, 128, 256, 512]
       activation_layers:
-        values: [ "relu", "tanh", "sigmoid" ]
+        values: ["relu", "tanh", "sigmoid"]
   nn_architecture_critic:
     parameters:
       num_layers:
@@ -60,7 +59,6 @@ parameters:
         values: [ 64, 128, 256, 512 ]
       activation_layers:
         values: [ "relu", "tanh", "sigmoid" ]
-
 
 command:
   - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe
