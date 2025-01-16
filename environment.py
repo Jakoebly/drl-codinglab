@@ -224,7 +224,7 @@ class Environment(object):
     def get_dnn_obs_2d(self) -> np.ndarray:
         """Returns the 2D encoded observations of the environment."""
         grid_size = self.vertical_cell_count * self.horizontal_cell_count
-        observation_tuple_size = 10
+        observation_tuple_size = 20
         pad_value = -1
 
         # Free capacity of agent
@@ -240,6 +240,9 @@ class Environment(object):
         distance_agent_to_items = []
         distances_target_to_items = []
         proximity_scores = []
+        manhatten_distance_agent_to_items = []
+        manhatten_distance_target_to_items = []
+
         cumulative_timeout_risk = 0
 
         filtered_item_locs = []
@@ -267,11 +270,17 @@ class Environment(object):
             prioritization_ratio_items.append(prioritization_ratio)
 
             distance_agent_to_items.extend([
-                abs(self.agent_loc[0] - loc[0]),
-                abs(self.agent_loc[1] - loc[1]),
+                self.agent_loc[0] - loc[0],
+                self.agent_loc[1] - loc[1],
             ])
 
-            distances_target_to_items.append(d_target)
+            distances_target_to_items.extend([
+                self.agent_loc[0] - loc[0],
+                self.agent_loc[1] - loc[1],
+            ])
+
+            manhatten_distance_agent_to_items.append(d_agent)
+            manhatten_distance_target_to_items.append(d_target)
 
             proximity_score = 1
             for other_loc in filtered_item_locs:
@@ -280,7 +289,7 @@ class Environment(object):
                     proximity_score *= distance_to_other
             proximity_scores.append(proximity_score)
 
-        # Pad _2d observations
+        # Pad 2d observations
         while len(position_items) < observation_tuple_size:
             position_items.extend([pad_value, pad_value])
         while len(remaining_time_items) < observation_tuple_size:
@@ -294,8 +303,13 @@ class Environment(object):
         while len(proximity_scores) < observation_tuple_size:
             proximity_scores.append(pad_value)
 
+        while len(manhatten_distance_agent_to_items) < observation_tuple_size:
+            manhatten_distance_agent_to_items.append(pad_value)
+        while len(manhatten_distance_target_to_items) < observation_tuple_size:
+            manhatten_distance_target_to_items.append(pad_value)
+
         # Distance to Target - Manhatten
-        '''distance_to_target = [
+        '''manhatten_distance_to_target = [
             self.manhatten_dist(self.agent_loc, self.target_loc)
         ]'''
 
@@ -323,23 +337,23 @@ class Environment(object):
         obs = np.concatenate([
             position_agent,
             free_capacity_agent,
+            remaining_episode_time,
+            #[cumulative_timeout_risk],
+
+            position_items,
+            distance_agent_to_items,
+            manhatten_distance_target_to_items,
+            manhatten_distance_agent_to_items,
+            remaining_time_items,
+            #prioritization_ratio_items,
+            #proximity_scores
 
             distance_to_target,
             distance_to_walls,
-            
-            position_items,
-            remaining_time_items,
-            distance_agent_to_items,
-            distances_target_to_items,
-
-            remaining_episode_time
-            
-            #prioritization_ratio_items,
-            #[cumulative_timeout_risk],
-            #proximity_scores
         ])
 
         return obs
+
 
     '''def get_dnn_obs_one_hot(self) -> np.ndarray:
         """Returns the one-hot encoded observations of the environment."""
