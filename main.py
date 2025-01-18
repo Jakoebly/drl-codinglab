@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
     # Log the run locally
     if args.save:
-        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name)
+        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name, run)
 
 
 
