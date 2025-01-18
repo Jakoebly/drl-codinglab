@@ -5,7 +5,7 @@ import random
 import wandb
 from typing import List, Tuple
 
-from utils import neural_nets as nnets
+from src import neural_nets as nnets
 from algorithms import dqn_extensions as dqn_ext
 
 
@@ -35,7 +35,7 @@ class DQN_Agent:
         self.learning_rate = hyperparameters["learning_rate"]
         self.batch_size = hyperparameters["batch_size"]
         self.target_update_interval = hyperparameters["target_update_interval"]
-        self.buffer = deque(maxlen = hyperparameters["buffer_size"])
+        self.buffer = deque(maxlen=hyperparameters["buffer_size"])
 
         # Evaluation settings
         self.eval_interval = eval_settings["eval_interval"]
@@ -275,7 +275,7 @@ class DQN_Agent:
         q_network_output = self.q_network(*states) if isinstance(states, tuple) else self.q_network(states)
         q_network_output.to(self.device)
 
-        # Conmpute loss
+        # Compute loss
         if any(isinstance(ext, dqn_ext.DistributionalDQNExtension) for ext in self.extensions):
             batch_indices = torch.arange(q_network_output.size(0)).to(self.device)
             selected_logits = q_network_output[batch_indices, actions]
@@ -298,8 +298,7 @@ class DQN_Agent:
 
         return loss
 
-    # TODO: Warum eval? Das macht gar keinen sinn wenn wir den mode und die training var haben
-    def run(self, mode, num_episodes, eval=False) -> List[float]:
+    def run(self, mode, num_episodes) -> List[float]:
         """
         Run the agent in the environment for a specified number of episodes.
 
@@ -343,23 +342,27 @@ class DQN_Agent:
 
             rewards.append(reward_episode)
 
-            # TODO: was wollen wir bei val/test runs loggen?
             # Update epsilon and log if training
             if training:
                 self.update_epsilon()
-                wandb.log({"Losses/Total Loss": loss_episode}, episode)
-                wandb.log({"Hyperparameters/Epsilon": self.epsilon}, episode)
-                wandb.log({"Hyperparameters/Learning Rate": self.learning_rate}, episode)
 
-            if not eval:
-                wandb.log({"Charts/Reward per Episode": reward_episode}, episode)
+                # Log relevant data
+                log_dict = {
+                    "Charts/Reward per Episode": reward_episode,
+                    "Losses/Loss per Episode": loss,
+                    "Losses/Cumulative Loss": loss_episode,
+                    "Hyperparameters/Learning Rate": self.learning_rate,
+                    "Hyperparameters/Epsilon": self.epsilon,
+                }
+                wandb.log(log_dict, episode)
+
 
             print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
             # Evaluation
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
                 print("Evaluation Start")
-                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes, eval=True)
+                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes)
                 average_eval_reward = np.mean(eval_reward)
 
                 wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
@@ -373,10 +376,6 @@ class DQN_Agent:
 
                 last_evaluation_reward = average_eval_reward
 
-        if training:
-            test_rewards = self.run(mode = "testing", num_episodes = 100)
-            wandb.log({"Charts/Testing Rewards": np.mean(test_rewards)}, episode)
-            
         print(f"--- {mode} finished - average reward after {num_episodes} episodes: {np.mean(rewards)} ---")
 
         return rewards

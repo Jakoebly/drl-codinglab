@@ -20,9 +20,9 @@ def parse_args():
 
     # WandB args
     parser.add_argument("--track", type=bool, default=False, nargs="?", const=True, help="If toggled, the run will be tracked with WandB")
-    # TODO: validate arg
     parser.add_argument("--wandb_projectname", type=str, default="Coding_Lab", help="WandB's project name")
     parser.add_argument("--wandb_entity", type=str, default="gowiththetensorflow", help="Entity (team) of WandB's project")
+
     # TODO: check if this works with the renderer
     #parser.add_argument("--capture-video", type=bool, default=False, nargs="?", const=True, help="If toggled, a video of the agent's performance will be captured")
     parser.add_argument("--visualize", type=bool, default=False, nargs="?", const=True, help="Toggle Render")

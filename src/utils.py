@@ -6,7 +6,7 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import settings
+from src import settings
 
 # Set seeds
 def set_seeds(seed, torch_deterministic):

@@ -9,13 +9,13 @@
 # it is not picked up (if agent wants to pick it up, it has to stay in the cell in the next time step)
 
 import random
-from typing import List, Tuple
+from typing import Tuple
 import pandas as pd
 from copy import deepcopy
 from itertools import compress
 import numpy as np
 
-from renderer.renderer import Renderer
+from src.renderer.renderer import Renderer
 
 class Environment(object):
     def __init__(self, variant, data_dir, render = False):
