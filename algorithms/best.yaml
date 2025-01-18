@@ -1,7 +1,7 @@
 Variant_0:
   DQN:
-    model_name: CL__DQN__Var0__[dnn_vanila]
-    avg_validation_reward: 221.85
+    model_name: CL__DQN__Var0__20250118_1624__[state_test_new]
+    avg_validation_reward: 222.245
   PPO:
     model_name: CL__PPO__Var0__20250115_1303
     avg_validation_reward: 152.31
