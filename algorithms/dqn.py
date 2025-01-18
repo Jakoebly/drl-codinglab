@@ -200,8 +200,8 @@ class DQN_Agent:
         next_states = np.array(next_states)
 
         # Transform to tensors
-        states_tensor = self.to_tensor(states, batch=True)
-        next_states_tensor = self.to_tensor(next_states, batch=True)
+        states_tensor = self.to_tensor(states, batch = True)
+        next_states_tensor = self.to_tensor(next_states, batch = True)
         actions_tensor = torch.LongTensor(actions).to(self.device)
         rewards_tensor = torch.FloatTensor(rewards).to(self.device)
         dones_tensor = torch.FloatTensor(dones).to(self.device)

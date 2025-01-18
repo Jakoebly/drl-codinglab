@@ -1,13 +1,13 @@
 DQN:
   hyperparameters:
-    gamma: 0.9
+    gamma: 0.95
     epsilon: 1.0
     epsilon_min: 0.075
     epsilon_decay: 0.99
     learning_rate: 0.000005
     batch_size: 128
-    target_update_interval: 150
-    buffer_size: 125000
+    target_update_interval: 50
+    buffer_size: 80000
 
   extensions: ["vanilla"]
 
