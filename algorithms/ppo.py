@@ -1,27 +1,10 @@
-import random
 import numpy as np
-import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import wandb
 from torch.distributions.categorical import Categorical
-from environment import Environment
-from torch.utils.data import Dataset, DataLoader
-
-from utils import neural_nets as nnets
-
-# TODO:
-# - vectorize implementation (i.e., collect data from multiple envs during rollout)
-
-# DEBUG IDEAS
-# - Self Imitation Learning for exploration
-# - Adversarially Guided Actor-Critic (AGAC)
-# - Reward Normalization
-# - value loss clipping (not implemented)
-# - learning rate annealing (not implemented)
-# - entropy coeffcient annealing (not implemented)
-
+from src import neural_nets as nnets
 
 class PPOMemory:
     def __init__(self, batch_size, num_trajectories, num_steps_trajectory, state_size, device):
@@ -59,7 +42,6 @@ class PPOMemory:
         self.returns = torch.zeros((num_trajectories, num_steps_trajectory)).to(device)
 
     def flatten(self, state_size):
-        # Flatten data
         states_flat = self.states.reshape((-1,) + (state_size,))
         actions_flat = self.actions.reshape((-1,))
         logprobs_flat = self.logprobs.reshape((-1,))
@@ -70,15 +52,12 @@ class PPOMemory:
         return states_flat, actions_flat, logprobs_flat, advantages_flat, returns_flat, values_flat
 
     def generate_batches(self, batch_size, minibatch_size):
-
-        # Generate batch indices
         indices = np.arange(batch_size)
         batch_start_ind = np.arange(0, batch_size, minibatch_size)
         np.random.shuffle(indices)
         batches = [indices[i:i + minibatch_size] for i in batch_start_ind]
 
         return batches
-
 
 class BuildNetwork(nn.Module):
     def __init__(self, nn_architecture, input_size, output_size, learning_rate, device):
@@ -191,7 +170,6 @@ class PPO_Agent():
         torch.save(self.actor.state_dict(), path)
 
     def update_learning_rate(self, update_ctr):
-
         learning_rate_decay = 1.0 - (update_ctr / (self.num_updates - 1))
         lr_actor_new = learning_rate_decay * self.learning_rate_actor
         lr_critic_new = learning_rate_decay * self.learning_rate_critic
@@ -199,13 +177,11 @@ class PPO_Agent():
         self.critic.optimizer.param_groups[0]['lr'] = lr_critic_new
 
     def update_entropy_coef(self, update_ctr):
-
         entropy_coef_decay = 1.0 - (update_ctr / (self.num_updates - 1))
         entropy_coef_new = entropy_coef_decay * self.entropy_coef
         self.entropy_coef = entropy_coef_new
 
     def get_action(self, state):
-
         # Output logits given a state
         logits = self.actor(state)
 
@@ -219,7 +195,6 @@ class PPO_Agent():
         return action, log_prob
 
     def get_value(self, state):
-
         # Output value give a state
         value = self.critic(state)
 
@@ -227,7 +202,6 @@ class PPO_Agent():
 
     def calc_advantage(self, values, next_states, rewards, dones, device):
         with torch.no_grad():
-
             # Initialize advantages and returns
             advantages = torch.zeros_like(values).to(device)
             returns = torch.zeros_like(values).to(device)
@@ -259,7 +233,6 @@ class PPO_Agent():
         return advantages, returns
 
     def compute_loss(self, states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb):
-
         # Compute prob_ratio
         logits = self.actor(states_mb)
 
@@ -277,23 +250,21 @@ class PPO_Agent():
         # Compute PPO objective function
         actor_loss = -(torch.min(advantages_norm_mb * prob_ratio, advantages_norm_mb * clipped_prob_ratio).mean() + self.entropy_coef * entropy_loss)
 
-        # Compute critic loss
+        # Compute clipped critic loss
         critic_values = self.critic(states_mb)
-        critic_loss_unclipped = (critic_values - returns_mb) ** 2
-        values_clipped = values_mb + torch.clamp(critic_values - values_mb, -self.clip_ratio, self.clip_ratio)
-        critic_loss_clipped = (values_clipped - returns_mb) ** 2
-        critic_loss_max = torch.max(critic_loss_unclipped, critic_loss_clipped)
-        critic_loss = 0.5 * critic_loss_max.mean()
+        # critic_loss_unclipped = (critic_values - returns_mb) ** 2
+        # values_clipped = values_mb + torch.clamp(critic_values - values_mb, -self.clip_ratio, self.clip_ratio)
+        # critic_loss_clipped = (values_clipped - returns_mb) ** 2
+        # critic_loss_max = torch.max(critic_loss_unclipped, critic_loss_clipped)
+        # critic_loss = 0.5 * critic_loss_max.mean()
+
+        # Compute unclipped critic loss
         critic_loss = 0.5 * ((critic_values - returns_mb) ** 2).mean()
 
         # Compute total loss
         total_loss = actor_loss + self.value_coef * critic_loss
 
-        # Compute approximate kl-divergence (http://joschu.net/blog/kl-approx.html)
-        with torch.no_grad():
-            approx_kl = ((prob_ratio - 1) - log_ratio).mean()
-
-        return total_loss, actor_loss, critic_loss, entropy_loss, approx_kl
+        return total_loss, actor_loss, critic_loss, entropy_loss
 
     def update_networks(self):
 
@@ -310,8 +281,6 @@ class PPO_Agent():
             # Generate batches
             batches = self.memory.generate_batches(self.batch_size, self.minibatch_size)
 
-            minibatch_ctr = 0
-
             for minibatch in batches:
 
                 # States, logprobs, action, returns for the current minibatch
@@ -325,7 +294,7 @@ class PPO_Agent():
                 advantages_mb = advantages[minibatch]
                 advantages_norm_mb = (advantages_mb - advantages_mb.mean()) / (advantages_mb.std() + 1e-8)
 
-                total_loss, actor_loss, critic_loss, entropy_loss, approx_kl = self.compute_loss(states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb)
+                total_loss, actor_loss, critic_loss, entropy_loss = self.compute_loss(states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb)
 
                 # Perform updates
                 self.actor.optimizer.zero_grad()
@@ -336,10 +305,6 @@ class PPO_Agent():
                 nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
-
-            # if approx_kl > self.target_kl:
-            #     print("exiting after epoch ", epoch, " out of ", self.num_epochs, " epochs")
-            #     break
 
         return total_loss, actor_loss, critic_loss, entropy_loss
 
@@ -399,10 +364,11 @@ class PPO_Agent():
             if training:
                 if trajectory == self.num_trajectories - 1:
 
-                   # if episode > self.warm_up_period:
-                   #     self.update_learning_rate(update_ctr)
-                   #     self.update_entropy_coef(update_ctr)
-                   #     update_ctr += 1
+                    # LR & entropy annealing
+                    # if episode > self.warm_up_period:
+                    #     self.update_learning_rate(update_ctr)
+                    #     self.update_entropy_coef(update_ctr)
+                    #     update_ctr += 1
 
                     total_loss, actor_loss, critic_loss, entropy_loss = self.update_networks()
 

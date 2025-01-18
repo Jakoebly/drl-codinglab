@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import os
-from utils import settings
+from src import settings
 
 
 class Renderer:

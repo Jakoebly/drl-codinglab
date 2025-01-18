@@ -145,7 +145,7 @@ def train_cnn_dqn(env, episodes=800):
 # Usage
 if __name__ == "__main__":
     from environment import Environment  # Assuming the provided environment script is named environment.py
-    from utils import utils as ut
+    from src import utils as ut
 
     env = Environment(variant=0, data_dir="drl-codinglab/data/", render=False)
     train_rewards = train_cnn_dqn(env)

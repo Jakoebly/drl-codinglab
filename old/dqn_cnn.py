@@ -6,7 +6,7 @@ from collections import deque
 import random
 
 from environment import Environment
-from utils import utils as ut
+from src import utils as ut
 
 
 class QNetwork(nn.Module):

@@ -1,29 +1,24 @@
 import os
 import random
-from email import parser
 from datetime import datetime
 import numpy as np
 import torch
 import wandb
 from environment import Environment
-from utils import utils as ut, args, settings
+from src import utils as ut, args, settings
 from algorithms.dqn import DQN_Agent
 from algorithms.ppo import PPO_Agent
-import yaml
 # from algorithms.sac import SAC_Agent
 
 # TODO:
 # - get state size abh. von cnn oder normal
-# - bash for execute
-# - implement renderer
-# - outsource memory class / replay buffer
 # - integrate device handling into DQN
-# - discuss functions in utils
-# - discuss where to store args, utils, settings, renderer and how to name the folders#
-# - validate sweep arg
-# - integrate running of sweep from file
+# - discuss functions in src
+# - discuss where to store args, src, settings, renderer and how to name the folders
+
 
 if __name__ == "__main__":
+
     # Get args
     args = args.parse_args()
 
@@ -48,11 +43,12 @@ if __name__ == "__main__":
     mode = args.mode.lower()
     best = args.best
     model_name = args.model_name
+    render = args.visualize
     if best:
         model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
     # Create environment
-    env = Environment(variant, DATA_DIR, render=False)
+    env = Environment(variant, DATA_DIR, render=render)
 
     # Set config directory to the general config folder in case of training
     CONFIG_DIR = settings.CONFIG_DIR
@@ -65,40 +61,29 @@ if __name__ == "__main__":
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
 
-    # Setup sweep if sweep flag is toggled
-    if args.sweep:
-        sweep_name = f"Sweep__{run_name}"
-        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, algorithm.lower())
-        print(sweep_config)
-        sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
-        wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
-
-
-    # Login to wandb
+    # Initialize wandb run
     wandb.login(key = settings.WAND_API_KEY)
     print("Wandb Login Successful")
 
-    # Initialize wandb run
-    run = wandb.init(entity=args.wandb_entity,
-                     project=args.wandb_projectname,
-                     config=config,
-                     name=run_name,
-                     save_code=True,
-                     mode="online" if args.track else "disabled",
-                     group=algorithm,
-                     tags=[f"Var_{variant}"],
-                     job_type="Sweep" if args.sweep else (f"{mode}/validate" if mode == "train" else mode)
-                     )
-
-    config = wandb.config
+    wandb_run = wandb.init(
+        entity=args.wandb_entity,
+        project=args.wandb_projectname,
+        config=config,
+        name=run_name,
+        save_code=True,
+        mode="online" if args.track else "disabled",
+        group=algorithm,
+        tags=[f"Var_{variant}"],
+        job_type=f"{mode}/validate" if mode == "train" else mode
+    )
 
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":
         agent = DQN_Agent(env, config, device)
     elif algorithm == "PPO":
         agent = PPO_Agent(env, config, device)
-    elif algorithm == "SAC":
-        agent = SAC_Agent(env, config).to(device)
+    # elif algorithm == "SAC":
+    #     agent = SAC_Agent(env, config).to(device)
 
     # Load weights if validating/testing
     if mode in ["validate", "test"]:
@@ -110,31 +95,21 @@ if __name__ == "__main__":
     rew_test = None
 
     if mode == "train":
-        rew_train = agent.run("training", config["general"]["num_episodes_train"])
-        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
-    elif mode == "validate":
-        rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
+        rew_train = agent.run(mode="training", num_episodes=config["general"]["num_episodes_train"])
+        rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])
+    if mode == "validate":
+        rew_val = agent.run(mode="validation", num_episodes=config["general"]["num_episodes_validate"])
     elif mode == "test":
-        rew_test = agent.run("testing", config["general"]["num_episodes_test"])
-
-    if rew_train is not None:
-        wandb.log({"Charts/Avg. Train Reward": np.mean(rew_train)})
-    if rew_val is not None:
-        wandb.log({"Charts/Avg. Validation Reward": np.mean(rew_val)})
-    if rew_test is not None:
-        wandb.log({"Charts/Avg. Test Reward": np.mean(rew_test)})
+        rew_test = agent.run(mode="testing", num_episodes=config["general"]["num_episodes_test"])
 
     rewards = (rew_train, rew_val, rew_test)
 
     # Update best model
     ut.update_best(algorithm, variant, rewards, model_name, run_name, BEST_DIR)
 
-    # Log the run locally
+    # Log the run
     if args.save:
-        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name)
+        ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name, wandb_run)
 
-
-
-
-
-
+    # Finish wandb run
+    wandb_run.finish()

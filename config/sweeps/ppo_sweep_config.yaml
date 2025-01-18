@@ -1,4 +1,4 @@
-program: main_sweeps.py
+program: main.py
 
 entity: gowiththetensorflow
 project: Coding_Lab
