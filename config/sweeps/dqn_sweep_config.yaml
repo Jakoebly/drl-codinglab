@@ -12,22 +12,27 @@ metric:
 parameters:
   hyperparameters:
     parameters:
-      learning_rate:
-        min: 0.000001
-        max: 0.0001
-      gamma:
-        min: 0.90
-        max: 1.00
+
       epsilon_min:
         min: 0.01
         max: 0.25
       epsilon_decay:
         min: 0.900
         max: 0.999
+      learning_rate:
+        min: 0.000001
+        max: 0.0001
+      gamma:
+        min: 0.90
+        max: 1.00
+
       batch_size:
         values: [16, 32, 64, 128, 256, 512]
       buffer_size:
         values: [5000, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000]
+      target_update_interval:
+        values: [10, 25, 50, 75, 100, 150, 200, 250, 300, 500]
+
   nn_architecture:
     parameters:
       num_layers:
