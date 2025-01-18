@@ -350,7 +350,7 @@ class Environment(object):
             vector_to_target, # (x,y)
             vector_distance_to_walls, #(a,b,c,d)
             [free_capacity_agent], #z (normalized)
-            [cumulative_timeout_risk], #z (normalized)
+            #[cumulative_timeout_risk], #z (normalized)
                   
             position_items, #((x,y), (x,y),...)
             #vector_agent_to_items, #((x,y), (x,y),...)
@@ -363,7 +363,7 @@ class Environment(object):
             distance_closest,
 
             #proximity_scores,
-            #[remaining_episode_time], #z (normalized)
+            [remaining_episode_time], #z (normalized)
         ])
 
         return obs
