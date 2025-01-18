@@ -215,7 +215,6 @@ class Environment(object):
 
     def get_dnn_obs(self) -> np.ndarray:
         """Returns the 2D encoded observations of the environment."""
-        grid_size = self.vertical_cell_count * self.horizontal_cell_count
         observation_tuple_size = 8
         pad_value = 0
         cumulative_items_time = 0
