@@ -288,12 +288,15 @@ class Environment(object):
             item_positions_2d.extend([0, 0])
         while len(remaining_item_times_2d) < grid_size:
             remaining_item_times_2d.append(0)
-        #while len(remaining_item_times_2d) < grid_size:
-        #    remaining_item_times_2d.append(0)
-        #while len(remaining_item_times_2d) < grid_size:
-        #    remaining_item_times_2d.append(0)
+            
         while len(distances_all_items_2d) < grid_size:
             distances_all_items_2d.extend([0, 0])
+
+        while len(manhatten_distance_agent_to_items) < grid_size:
+            manhatten_distance_agent_to_items.append(0)
+
+        while len(manhatten_distance_target_to_items) < grid_size:
+            manhatten_distance_target_to_items.append(0)
 
         # Distance to Target
         distance_to_target = [
