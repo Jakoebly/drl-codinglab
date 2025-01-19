@@ -14,4 +14,4 @@ obs:
   closest_item: True
   vector_closest: True
   proximity_scores: False
-  remaining_episode_time: True
+  remaining_episode_time: False

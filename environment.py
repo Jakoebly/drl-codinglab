@@ -221,7 +221,6 @@ class Environment(object):
 
     def get_dnn_obs(self) -> np.ndarray:
         """Returns the 2D encoded observations of the environment."""
-        grid_length = self.vertical_cell_count - 1
         observation_tuple_size = 8
         pad_value = 0
         cumulative_items_time = 0
@@ -230,28 +229,28 @@ class Environment(object):
         free_capacity_agent = (self.agent_capacity - self.agent_load) / self.agent_capacity
 
         # Agent Position
-        position_agent = [self.agent_loc[0] / grid_length, self.agent_loc[1] / grid_length]
+        position_agent = [self.agent_loc[0], self.agent_loc[1]]
 
         # Remaining Episode Time (normalized)
         remaining_episode_time = (self.episode_steps - self.step_count) / self.episode_steps
 
         # Manhatten Distance to Target (normalized)
         distance_to_target = [
-            self.manhatten_dist(self.agent_loc, self.target_loc) / ((grid_length + 1) * 2)
+            self.manhatten_dist(self.agent_loc, self.target_loc) / (self.vertical_cell_count * 2)
         ]
 
         # Vector Distance to Target - 2D
         vector_to_target = [
-            (self.target_loc[0] - self.agent_loc[0]) / grid_length,
-            (self.target_loc[1] - self.agent_loc[1]) / grid_length,
+            self.target_loc[0] - self.agent_loc[0],
+            self.target_loc[1] - self.agent_loc[1],
         ]
 
         # Vector Distance to Walls
         vector_to_walls = [
-            self.agent_loc[0] / grid_length,
-            (self.vertical_cell_count - 1 - self.agent_loc[0]) / grid_length,
-            self.agent_loc[1] / grid_length,
-            (self.horizontal_cell_count - 1 - self.agent_loc[1]) / grid_length,
+            self.agent_loc[0],
+            self.vertical_cell_count - 1 - self.agent_loc[0],
+            self.agent_loc[1],
+            self.horizontal_cell_count - 1 - self.agent_loc[1],
         ]
 
         # Initialize item-based observations
@@ -266,7 +265,7 @@ class Environment(object):
         filtered_item_locs = []
         filtered_item_times = []
         closest_item = [pad_value, pad_value]
-        vector_closest = [pad_value, pad_value]
+        distance_closest = [pad_value, pad_value]
 
         # Filter reachable items and limit to observation_tuple_size
         for loc, time in zip(self.item_locs, self.item_times):
@@ -285,15 +284,15 @@ class Environment(object):
 
         # Distance to Closest Item
         if closest_idx != -1:
-            vector_closest = [
-                (self.agent_loc[0] - filtered_item_locs[closest_idx][0]) / grid_length,
-                (self.agent_loc[1] - filtered_item_locs[closest_idx][1]) / grid_length,
+            distance_closest = [
+                self.agent_loc[0] - filtered_item_locs[closest_idx][0],
+                self.agent_loc[1] - filtered_item_locs[closest_idx][1],
             ]
 
         # Process filtered items for observations
         #for loc, time in zip(filtered_item_locs[:observation_tuple_size], filtered_item_times[:observation_tuple_size]):
         for loc, time in zip(filtered_item_locs, filtered_item_times):
-            position_items.extend([loc[0] / grid_length, loc[1] / grid_length])
+            position_items.extend([loc[0], loc[1]])
 
             # Normalized item time
             remaining_time = (self.max_response_time - time) / self.max_response_time
@@ -303,27 +302,27 @@ class Environment(object):
             d_agent = self.manhatten_dist(self.agent_loc, loc) 
             d_target = self.manhatten_dist(loc, self.target_loc)
 
-            manhatten_distance_agent_to_items.append(d_agent / grid_length)
-            manhatten_distance_target_to_items.append(d_target / grid_length)
+            manhatten_distance_agent_to_items.append(d_agent / (self.vertical_cell_count * 2))
+            manhatten_distance_target_to_items.append(d_target / (self.vertical_cell_count * 2))
        
-            prioritization_ratio = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * remaining_time
+            prioritization_ratio = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
             prioritization_ratio_items.append(prioritization_ratio)
 
             vector_agent_to_items.extend([
-                (self.agent_loc[0] - loc[0]) / grid_length,
-                (self.agent_loc[1] - loc[1]) / grid_length,
+                self.agent_loc[0] - loc[0],
+                self.agent_loc[1] - loc[1],
             ])
 
             distances_target_to_items.extend([
-                (self.target_loc[0] - loc[0]) / grid_length,
-                (self.target_loc[1] - loc[1]) / grid_length,
+                self.target_loc[0] - loc[0],
+                self.target_loc[1] - loc[1],
             ])
 
             # Proximity/density score
             proximity_score = 1
             for other_loc in filtered_item_locs:
                 if loc != other_loc:
-                    distance_to_other = self.manhatten_dist(loc, other_loc) / grid_length
+                    distance_to_other = self.manhatten_dist(loc, other_loc) / (self.vertical_cell_count * 2)
                     proximity_score *= distance_to_other
             proximity_scores.append(proximity_score)
 
@@ -367,7 +366,7 @@ class Environment(object):
             prioritization_ratio_items if self.obs_config.get("prioritization_ratio_items", True) else [],
             
             closest_item if self.obs_config.get("closest_item", True) else [],
-            vector_closest if self.obs_config.get("distance_closest", True) else [],
+            distance_closest if self.obs_config.get("distance_closest", True) else [],
 
             proximity_scores if self.obs_config.get("proximity_scores", True) else [],
             [remaining_episode_time] if self.obs_config.get("remaining_episode_time", True) else [], #z (normalized)
