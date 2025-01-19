@@ -185,8 +185,8 @@ class PrioritizedReplayExtension:
         Implements Prioritized Experience Replay.
         """
         self.agent = agent
-        self.agent.alpha = self.agent.extensionparameters["replay"]["alpha"]
-        self.agent.beta = self.agent.extensionparameters["replay"]["beta"]
+        self.agent.alpha = self.agent.extension_parameters["replay"]["alpha"]
+        self.agent.beta = self.agent.extension_parameters["replay"]["beta"]
         self.agent.buffer = PrioritizedReplayBuffer(capacity = agent.buffer.maxlen, alpha = self.agent.alpha, beta = self.agent.beta)
         self.last_sampled_indices = None
 

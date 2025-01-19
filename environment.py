@@ -16,7 +16,6 @@ from itertools import compress
 import numpy as np
 
 import yaml
-from config import feature_config
 from src.renderer.renderer import Renderer
 
 class Environment(object):
@@ -68,7 +67,7 @@ class Environment(object):
         
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
-        with open("config.yaml", "r") as file:
+        with open("drl-codinglab/config/feature_config.yaml", "r") as file:
             yaml_config = yaml.safe_load(file)
             self.obs_config = yaml_config.get("obs", {})
 
