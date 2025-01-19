@@ -2,12 +2,12 @@ DQN:
   hyperparameters:
     gamma: 0.95
     epsilon: 1.0
-    epsilon_min: 0.075
-    epsilon_decay: 0.99
-    learning_rate: 0.000005
-    batch_size: 128
-    target_update_interval: 50
-    buffer_size: 80000
+    epsilon_min: 0.118
+    epsilon_decay: 0.985
+    learning_rate: 0.0000105
+    batch_size: 256
+    target_update_interval: 150
+    buffer_size: 200000
 
   extensions: ["vanilla"]
 
@@ -31,7 +31,7 @@ DQN:
     structure: "DNN"
     num_layers: 5
     num_neurons: 512
-    activation_layers: "relu"
+    activation_layers: "tanh"
     activation_output:
 
   eval_settings:

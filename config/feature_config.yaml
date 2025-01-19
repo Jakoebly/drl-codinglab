@@ -1,0 +1,17 @@
+obs:
+  position_agent: 1
+  distance_to_target: 1
+  vector_to_target: 1
+  vector_to_walls: 1
+  free_capacity_agent: 1
+  cumulative_timeout_risk: 1
+  position_items: 1
+  vector_agent_to_items: 0
+  remaining_time_items: 1
+  manhatten_distance_target_to_items: 1
+  manhatten_distance_agent_to_items: 1
+  prioritization_ratio_items: 0
+  closest_item: 1
+  distance_closest: 1
+  proximity_scores: 0
+  remaining_episode_time: 0

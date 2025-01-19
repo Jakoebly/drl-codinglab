@@ -15,6 +15,8 @@ from copy import deepcopy
 from itertools import compress
 import numpy as np
 
+import yaml
+from config import feature_config
 from src.renderer.renderer import Renderer
 
 class Environment(object):
@@ -65,6 +67,10 @@ class Environment(object):
             self.renderer = Renderer(grid_size =(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
         
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
+
+        with open("config.yaml", "r") as file:
+            yaml_config = yaml.safe_load(file)
+            self.obs_config = yaml_config.get("obs", {})
 
     # Initializing new episode (specify if training, validation, or testing via the mode argument)
     def reset(self, mode, structure = "DNN"):
@@ -240,7 +246,7 @@ class Environment(object):
         ]
 
         # Vector Distance to Walls
-        vector_distance_to_walls = [
+        vector_to_walls = [
             self.agent_loc[0],
             self.vertical_cell_count - 1 - self.agent_loc[0],
             self.agent_loc[1],
@@ -345,25 +351,25 @@ class Environment(object):
             cumulative_timeout_risk = 1
             
         obs = np.concatenate([
-            position_agent, #(x,y)
-            distance_to_target, # z
-            vector_to_target, # (x,y)
-            vector_distance_to_walls, #(a,b,c,d)
-            [free_capacity_agent], #z (normalized)
-            #[cumulative_timeout_risk], #z (normalized)
+            position_agent if self.obs_config.get("position_agent", 1) else [], #(x,y) 
+            distance_to_target if self.obs_config.get("distance_to_target", 1) else [], # z
+            vector_to_target if self.obs_config.get("vector_to_target", 1) else [], # (x,y)
+            vector_to_walls if self.obs_config.get("vector_to_walls", 1) else [], #(a,b,c,d)
+            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", 1) else [], #z (normalized)
+            [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", 1) else [], #z (normalized)
                   
-            position_items, #((x,y), (x,y),...)
-            #vector_agent_to_items, #((x,y), (x,y),...)
-            remaining_time_items,  #z (normalized)
-            manhatten_distance_target_to_items, #z (normalized)
-            manhatten_distance_agent_to_items, #z (normalized)
-            #prioritization_ratio_items,
+            position_items if self.obs_config.get("position_items", 1) else [], #((x,y), (x,y),...)
+            vector_agent_to_items if self.obs_config.get("vector_agent_to_items", 1) else [], #((x,y), (x,y),...)
+            remaining_time_items if self.obs_config.get("remaining_time_items", 1) else [],  #z (normalized)
+            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", 1) else [], #z (normalized)
+            manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", 1) else [], #z (normalized)
+            prioritization_ratio_items if self.obs_config.get("prioritization_ratio_items", 1) else [],
             
-            closest_item,
-            distance_closest,
+            closest_item if self.obs_config.get("closest_item", 1) else [],
+            distance_closest if self.obs_config.get("distance_closest", 1) else [],
 
-            #proximity_scores,
-            [remaining_episode_time], #z (normalized)
+            proximity_scores if self.obs_config.get("proximity_scores", 1) else [],
+            [remaining_episode_time] if self.obs_config.get("remaining_episode_time", 1) else [], #z (normalized)
         ])
 
         return obs

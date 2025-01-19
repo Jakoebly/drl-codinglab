@@ -1,4 +1,4 @@
-program: main.py
+program: drl-codinglab\main.py
 
 entity: gowiththetensorflow
 project: Coding_Lab
@@ -10,42 +10,41 @@ metric:
   name: Charts/Avg. Validation Reward
 
 parameters:
-  hyperparameters:
+  #hyperparameters:
+    # parameters:
+
+    #   epsilon_min:
+    #     min: 0.01
+    #     max: 0.25
+    #   epsilon_decay:
+    #     min: 0.98
+    #     max: 0.999
+    #   learning_rate:
+    #     min: 0.000001
+    #     max: 0.0001
+    #   gamma:
+    #     min: 0.90
+    #     max: 1.00
+
+    # batch_size:
+    #     values: [16, 32, 64, 128, 256, 512]
+    #   buffer_size:
+    #     values: [5000, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000]
+    #   target_update_interval:
+    #     values: [10, 25, 50, 75, 100, 150, 200, 250, 300, 500]
+
+  nn_architecture:
     parameters:
-      batch_size:
-          values: [16, 32, 64, 128, 256, 512]
-      buffer_size:
-        values: [5000, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000]
-      target_update_interval:
-        values: [10, 25, 50, 75, 100, 150, 200, 250, 300, 500]
-
-#      epsilon_min:
-#        min: 0.01
-#        max: 0.25
-#      epsilon_decay:
-#        min: 0.900
-#        max: 0.999
-#      learning_rate:
-#        min: 0.000001
-#        max: 0.0001
-#      gamma:
-#        min: 0.90
-#        max: 1.00
-
-
-
-  # nn_architecture:
-  #   parameters:
-  #     num_layers:
-  #       min: 2
-  #       max: 8
-  #     num_neurons:
-  #       values: [128, 256, 512]
-  #     activation_layers:
-  #       values: ["relu", "tanh"]
+      num_layers:
+        min: 2
+        max: 6
+      num_neurons:
+        values: [128, 256, 512]
+      activation_layers:
+        values: ["relu", "tanh"]
 
 command:
-  - python
+  - C:\Users\Marc\coding-lab\drl-codinglab\.venv\Scripts\python.exe
   - ${program}
   - "--algorithm"
   - "dqn"

@@ -254,7 +254,6 @@ class DQN_Agent:
             self.q_network.reset_noise()
             self.target_network.reset_noise()
 
-        # TODO: why is clipping of actions needed here?
         # Unpack batch and clip actions
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, *optional = batch
