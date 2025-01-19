@@ -69,7 +69,6 @@ if __name__ == "__main__":
     if args.sweep:
         sweep_name = f"Sweep__{run_name}"
         sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, algorithm.lower())
-        print(sweep_config)
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
 

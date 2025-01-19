@@ -17,14 +17,6 @@ def set_seeds(seed, torch_deterministic):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
 
-def compile_architecture(num_neurons, num_layers, activation):
-    architecture = []
-
-    for i in range(num_layers):
-        architecture.append((num_neurons, activation))
-
-    return architecture
-
 # Load new or existing config depending on training or validation/testing
 def load_config(env, config_dir, algorithm):
 
@@ -89,23 +81,25 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
     rew_val = rewards[1]
     rew_test = rewards[2]
 
+
     eps_dir = [None, None, None]
 
     # Update relevant key/value pairs and create/reference .csv files for reward tracking
-
     if rew_train is not None:
-        config["results"]["avg_train_reward"] = float(np.mean(rew_train))
         eps_dir[0] = f"{model_dir}/train_eps.csv"
-
     if rew_val is not None:
-        config["results"]["avg_validation_reward"] = float(np.mean(rew_val))
         eps_dir[1] = f"{model_dir}/val_eps.csv"
-
     if rew_test is not None:
-        config["results"]["avg_test_reward"] = float(np.mean(rew_test))
         eps_dir[2] = f"{model_dir}/test_eps.csv"
 
-    wandb_run.config.update(config, allow_val_change=True)
+    wandb_run.config.update({
+        "results": {
+            "avg_train_reward": float(np.mean(rew_train)) if rew_train else None,
+            "avg_validation_reward": float(np.mean(rew_val)) if rew_val else None,
+            "avg_test_reward": float(np.mean(rew_test)) if rew_test else None
+        }
+    }, allow_val_change=True)
+
 
     # Write run info into the corresponding .yaml file
     with open(f"{model_dir}/run_info.yaml", 'w') as file:
