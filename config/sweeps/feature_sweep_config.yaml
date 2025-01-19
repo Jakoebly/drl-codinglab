@@ -30,7 +30,7 @@ parameters:
         values: [True, False]
       closest_item:
         values: [True, False]
-      distance_closest:
+      vector_closest:
         values: [True, False]
       proximity_scores:
         values: [True, False]

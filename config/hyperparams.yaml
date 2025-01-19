@@ -4,7 +4,7 @@ DQN:
     epsilon: 1.0
     epsilon_min: 0.118
     epsilon_decay: 0.985
-    learning_rate: 0.000003 #0.0000105
+    learning_rate: 0.0000105 #0.0000105
     batch_size: 256
     target_update_interval: 150
     buffer_size: 200000

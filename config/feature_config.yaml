@@ -6,12 +6,12 @@ obs:
   free_capacity_agent: True
   cumulative_timeout_risk: True
   position_items: True
-  vector_agent_to_items: True
+  vector_agent_to_items: False
   remaining_time_items: True
   manhatten_distance_target_to_items: True
   manhatten_distance_agent_to_items: True
-  prioritization_ratio_items: True
+  prioritization_ratio_items: False
   closest_item: True
-  distance_closest: True
-  proximity_scores: True
+  vector_closest: True
+  proximity_scores: False
   remaining_episode_time: True
