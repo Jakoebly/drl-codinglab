@@ -51,9 +51,6 @@ if __name__ == "__main__":
     if best:
         model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
-    # Create environment
-    env = Environment(variant, DATA_DIR, render=False)
-
     # Set config directory to the general config folder in case of training
     CONFIG_DIR = settings.CONFIG_DIR
 
@@ -62,13 +59,18 @@ if __name__ == "__main__":
         MODEL_DIR = f"./logs/Variant_{variant}/{algorithm}/{model_name}"
         CONFIG_DIR = MODEL_DIR
 
+    # Create environment
+    env = Environment(variant, DATA_DIR, render=False)
+
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
 
     # Setup sweep if sweep flag is toggled
     if args.sweep:
         sweep_name = f"Sweep__{run_name}"
-        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, algorithm.lower())
+        # spec = algorithm.lower()
+        spec = "feature"
+        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, spec)
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
 

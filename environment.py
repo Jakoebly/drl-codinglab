@@ -17,6 +17,7 @@ import numpy as np
 
 import yaml
 from src.renderer.renderer import Renderer
+import src.settings as settings
 
 class Environment(object):
     def __init__(self, variant, data_dir, render = False):
@@ -67,7 +68,7 @@ class Environment(object):
         
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
-        with open("drl-codinglab/config/feature_config.yaml", "r") as file:
+        with open(f"{settings.CONFIG_DIR}/feature_config.yaml", "r") as file:
             yaml_config = yaml.safe_load(file)
             self.obs_config = yaml_config.get("obs", {})
 
@@ -350,25 +351,25 @@ class Environment(object):
             cumulative_timeout_risk = 1
             
         obs = np.concatenate([
-            position_agent if self.obs_config.get("position_agent", 1) else [], #(x,y) 
-            distance_to_target if self.obs_config.get("distance_to_target", 1) else [], # z
-            vector_to_target if self.obs_config.get("vector_to_target", 1) else [], # (x,y)
-            vector_to_walls if self.obs_config.get("vector_to_walls", 1) else [], #(a,b,c,d)
-            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", 1) else [], #z (normalized)
-            [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", 1) else [], #z (normalized)
+            position_agent if self.obs_config.get("position_agent", True) else [], #(x,y)
+            distance_to_target if self.obs_config.get("distance_to_target", True) else [], # z
+            vector_to_target if self.obs_config.get("vector_to_target", True) else [], # (x,y)
+            vector_to_walls if self.obs_config.get("vector_to_walls", True) else [], #(a,b,c,d)
+            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", True) else [], #z (normalized)
+            [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", True) else [], #z (normalized)
                   
-            position_items if self.obs_config.get("position_items", 1) else [], #((x,y), (x,y),...)
-            vector_agent_to_items if self.obs_config.get("vector_agent_to_items", 1) else [], #((x,y), (x,y),...)
-            remaining_time_items if self.obs_config.get("remaining_time_items", 1) else [],  #z (normalized)
-            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", 1) else [], #z (normalized)
-            manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", 1) else [], #z (normalized)
-            prioritization_ratio_items if self.obs_config.get("prioritization_ratio_items", 1) else [],
+            position_items if self.obs_config.get("position_items", True) else [], #((x,y), (x,y),...)
+            vector_agent_to_items if self.obs_config.get("vector_agent_to_items", True) else [], #((x,y), (x,y),...)
+            remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  #z (normalized)
+            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", True) else [], #z (normalized)
+            manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [], #z (normalized)
+            prioritization_ratio_items if self.obs_config.get("prioritization_ratio_items", True) else [],
             
-            closest_item if self.obs_config.get("closest_item", 1) else [],
-            distance_closest if self.obs_config.get("distance_closest", 1) else [],
+            closest_item if self.obs_config.get("closest_item", True) else [],
+            distance_closest if self.obs_config.get("distance_closest", True) else [],
 
-            proximity_scores if self.obs_config.get("proximity_scores", 1) else [],
-            [remaining_episode_time] if self.obs_config.get("remaining_episode_time", 1) else [], #z (normalized)
+            proximity_scores if self.obs_config.get("proximity_scores", True) else [],
+            [remaining_episode_time] if self.obs_config.get("remaining_episode_time", True) else [], #z (normalized)
         ])
 
         return obs
