@@ -68,9 +68,7 @@ class Environment(object):
         
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
-        with open(f"{settings.CONFIG_DIR}/feature_config.yaml", "r") as file:
-            yaml_config = yaml.safe_load(file)
-            self.obs_config = yaml_config.get("obs", {})
+        self.obs_config = {}
 
     # Initializing new episode (specify if training, validation, or testing via the mode argument)
     def reset(self, mode, structure = "DNN"):
@@ -308,11 +306,12 @@ class Environment(object):
             manhatten_distance_target_to_items.append(d_target / (self.vertical_cell_count * 2))
        
             prioritization_ratio_1 = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
-            prioritization_ratio_2 = (15 - remaining_time) / (d_agent + d_target)
-            prioritization_ratio_3 = (15 - (d_agent + d_target)) / remaining_time
+            prioritization_ratio_2 = (self.max_response_time - remaining_time) / (d_agent + d_target)
+            prioritization_ratio_3 = (self.max_response_time - (d_agent + d_target)) / remaining_time
             prioritization_ratio_items_1.append(prioritization_ratio_1)
             prioritization_ratio_items_2.append(prioritization_ratio_2)
             prioritization_ratio_items_3.append(prioritization_ratio_3)
+
 
             vector_agent_to_items.extend([
                 self.agent_loc[0] - loc[0],
@@ -331,6 +330,7 @@ class Environment(object):
                     distance_to_other = self.manhatten_dist(loc, other_loc) / (self.vertical_cell_count * 2)
                     proximity_score *= distance_to_other
             proximity_scores.append(proximity_score)
+
 
         # Pad 2d observations
         while len(position_items) < observation_tuple_size * 2:
@@ -359,7 +359,7 @@ class Environment(object):
             cumulative_timeout_risk = cumulative_items_time / len(filtered_item_locs)
         else:
             cumulative_timeout_risk = 1
-            
+
         obs = np.concatenate([
             position_agent if self.obs_config.get("position_agent", True) else [], #(x,y)
             distance_to_target if self.obs_config.get("distance_to_target", True) else [], # z
@@ -373,9 +373,9 @@ class Environment(object):
             remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  #z (normalized)
             manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", True) else [], #z (normalized)
             manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [], #z (normalized)
-            prioritization_ratio_items_1 if self.obs_config.get("prioritization_ratio_items_1", 1) == 1 else [],
-            prioritization_ratio_items_2 if self.obs_config.get("prioritization_ratio_items_2", 2) == 2 else [],
-            prioritization_ratio_items_3 if self.obs_config.get("prioritization_ratio_items_3", 3) == 3 else [],
+            prioritization_ratio_items_1 if self.obs_config.get("prioritization_ratio_items", 1) == 1 else [],
+            prioritization_ratio_items_2 if self.obs_config.get("prioritization_ratio_items", 2) == 2 else [],
+            prioritization_ratio_items_3 if self.obs_config.get("prioritization_ratio_items", 3) == 3 else [],
             
             closest_item if self.obs_config.get("closest_item", True) else [],
             distance_closest if self.obs_config.get("distance_closest", True) else [],

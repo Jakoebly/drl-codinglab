@@ -238,10 +238,7 @@ class PPO_Agent():
 
     def compute_loss(self, states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb):
         # Compute prob_ratio
-        print("states_mb shape", states_mb.shape)
         logits = self.actor(states_mb)
-
-        print("logits shape", logits.shape)
 
         dist = Categorical(logits=logits)
 
@@ -285,14 +282,11 @@ class PPO_Agent():
 
         for epoch in range(self.num_epochs):
 
-            print("Epoch", epoch)
             minibatch_ctr = 0
             # Generate batches
             batches = self.memory.generate_batches(self.batch_size, self.minibatch_size)
 
             for minibatch in batches:
-
-                print("Minibatch", minibatch_ctr)
 
                 # States, logprobs, action, returns for the current minibatch
                 states_mb = states[minibatch]

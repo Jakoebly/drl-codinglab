@@ -72,6 +72,16 @@ def load_sweep_config(config_dir, sweep_name, algorithm):
 
     return sweep_config
 
+def update_env_features(env, config, algorithm):
+
+    env.obs_config = config["features"]
+    if algorithm == "DQN":
+        config["general"]["state_size"] = env.get_state_size(config["nn_architecture"]["structure"])
+    elif algorithm == "PPO":
+        config["general"]["state_size"] = env.get_state_size(config["nn_architecture_actor"]["structure"])
+    elif algorithm == "SAC":
+        pass
+
 # Update run_info.yaml after a run
 def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, run_name, wandb_run):
 

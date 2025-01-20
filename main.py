@@ -92,6 +92,7 @@ if __name__ == "__main__":
                      )
 
     config = wandb.config
+    ut.update_env_features(env, config, algorithm)
 
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":
