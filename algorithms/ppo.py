@@ -52,8 +52,12 @@ class PPOMemory:
         return states_flat, actions_flat, logprobs_flat, advantages_flat, returns_flat, values_flat
 
     def generate_batches(self, batch_size, minibatch_size):
+        dif = batch_size % minibatch_size
         indices = np.arange(batch_size)
-        batch_start_ind = np.arange(0, batch_size, minibatch_size)
+        if dif > 0:
+            indices_to_remove = np.random.choice(indices, dif, replace=False)
+            indices = np.setdiff1d(indices, indices_to_remove)
+        batch_start_ind = np.arange(0, batch_size - dif, minibatch_size)
         np.random.shuffle(indices)
         batches = [indices[i:i + minibatch_size] for i in batch_start_ind]
 
@@ -234,7 +238,10 @@ class PPO_Agent():
 
     def compute_loss(self, states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb):
         # Compute prob_ratio
+        print("states_mb shape", states_mb.shape)
         logits = self.actor(states_mb)
+
+        print("logits shape", logits.shape)
 
         dist = Categorical(logits=logits)
 
@@ -278,10 +285,14 @@ class PPO_Agent():
 
         for epoch in range(self.num_epochs):
 
+            print("Epoch", epoch)
+            minibatch_ctr = 0
             # Generate batches
             batches = self.memory.generate_batches(self.batch_size, self.minibatch_size)
 
             for minibatch in batches:
+
+                print("Minibatch", minibatch_ctr)
 
                 # States, logprobs, action, returns for the current minibatch
                 states_mb = states[minibatch]
@@ -305,6 +316,8 @@ class PPO_Agent():
                 nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
+
+                minibatch_ctr += 1
 
         return total_loss, actor_loss, critic_loss, entropy_loss
 
