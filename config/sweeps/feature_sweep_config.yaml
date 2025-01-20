@@ -41,7 +41,7 @@ command:
   - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe
   - ${program}
   - "--algorithm"
-  - "ppo"
+  - "dqn"
   - "--variant"
   - "0"
   - "--mode"
