@@ -27,7 +27,7 @@ parameters:
       manhatten_distance_agent_to_items:
         values: [True, False]
       prioritization_ratio_items:
-        values: [True, False]
+        values: [0,1,2,3]
       closest_item:
         values: [True, False]
       vector_closest:

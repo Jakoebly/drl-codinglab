@@ -10,7 +10,7 @@ obs:
   remaining_time_items: True
   manhatten_distance_target_to_items: True
   manhatten_distance_agent_to_items: True
-  prioritization_ratio_items: False
+  prioritization_ratio_items: 2
   closest_item: True
   vector_closest: True
   proximity_scores: False

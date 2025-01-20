@@ -256,7 +256,9 @@ class Environment(object):
         # Initialize item-based observations
         position_items = []
         remaining_time_items = []
-        prioritization_ratio_items = []
+        prioritization_ratio_items_1 = []
+        prioritization_ratio_items_2 = []
+        prioritization_ratio_items_3 = []
         vector_agent_to_items = []
         distances_target_to_items = []
         proximity_scores = []
@@ -305,8 +307,12 @@ class Environment(object):
             manhatten_distance_agent_to_items.append(d_agent / (self.vertical_cell_count * 2))
             manhatten_distance_target_to_items.append(d_target / (self.vertical_cell_count * 2))
        
-            prioritization_ratio = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
-            prioritization_ratio_items.append(prioritization_ratio)
+            prioritization_ratio_1 = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
+            prioritization_ratio_2 = (15 - remaining_time) / (d_agent + d_target)
+            prioritization_ratio_3 = (15 - (d_agent + d_target)) / remaining_time
+            prioritization_ratio_items_1.append(prioritization_ratio_1)
+            prioritization_ratio_items_2.append(prioritization_ratio_2)
+            prioritization_ratio_items_3.append(prioritization_ratio_3)
 
             vector_agent_to_items.extend([
                 self.agent_loc[0] - loc[0],
@@ -335,8 +341,12 @@ class Environment(object):
             vector_agent_to_items.extend([pad_value, pad_value])
         while len(distances_target_to_items) < observation_tuple_size:
             distances_target_to_items.append(pad_value)
-        while len(prioritization_ratio_items) < observation_tuple_size:
-            prioritization_ratio_items.append(pad_value)
+        while len(prioritization_ratio_items_1) < observation_tuple_size:
+            prioritization_ratio_items_1.append(pad_value)
+        while len(prioritization_ratio_items_2) < observation_tuple_size:
+            prioritization_ratio_items_2.append(pad_value)
+        while len(prioritization_ratio_items_3) < observation_tuple_size:
+            prioritization_ratio_items_3.append(pad_value)
         while len(proximity_scores) < observation_tuple_size:
             proximity_scores.append(pad_value)
         while len(manhatten_distance_agent_to_items) < observation_tuple_size:
@@ -363,7 +373,9 @@ class Environment(object):
             remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  #z (normalized)
             manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", True) else [], #z (normalized)
             manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [], #z (normalized)
-            prioritization_ratio_items if self.obs_config.get("prioritization_ratio_items", True) else [],
+            prioritization_ratio_items_1 if self.obs_config.get("prioritization_ratio_items_1", 1) == 1 else [],
+            prioritization_ratio_items_2 if self.obs_config.get("prioritization_ratio_items_2", 2) == 2 else [],
+            prioritization_ratio_items_3 if self.obs_config.get("prioritization_ratio_items_3", 3) == 3 else [],
             
             closest_item if self.obs_config.get("closest_item", True) else [],
             distance_closest if self.obs_config.get("distance_closest", True) else [],
