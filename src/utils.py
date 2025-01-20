@@ -33,6 +33,11 @@ def load_config(env, config_dir, algorithm):
         config["results"] = {}
         config["features"] = {}
 
+        # Open feature-specific config and load parameters
+        with open(f"{config_dir}/feature_config.yaml", "r") as file:
+            feature_config = yaml.safe_load(file).get("obs", {})
+            config["features"] = feature_config
+            env.obs_config = feature_config
 
         if algorithm == "DQN":
             config["general"]["state_size"] = env.get_state_size(hyperparams["nn_architecture"]["structure"])
@@ -50,11 +55,6 @@ def load_config(env, config_dir, algorithm):
         config["results"]["avg_train_reward"] = None
         config["results"]["avg_validation_reward"] = None
         config["results"]["avg_test_reward"] = None
-
-        # Open feature-specific config and load parameters
-        with open(f"{config_dir}/feature_config.yaml", "r") as file:
-            feature_config = yaml.safe_load(file).get("obs", {})
-            config["features"] = feature_config
 
     # Load existing config for validation/test run
     else:
