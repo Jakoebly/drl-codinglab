@@ -200,23 +200,23 @@ class NoisyAdapter(nn.Module):
         self.action_size = action_size
 
         if isinstance(base_network, DNN):
-            new_layers = self.base_network.model.children()
+            new_layers = [layer for layer in self.base_network.model.children()]
 
             for i in range(1, 2 * noisy_layers):  # every second layer is an actual NN layer
                 if isinstance(new_layers[-i], nn.Linear):  # start with last layer
-                    new_layers[-i] = NoisyLinear(new_layers[-i].in_features, new_layers[-i].out_features, std_init)
+                    new_layers[-i] = NoisyLinear(new_layers[-i].in_features, new_layers[-i].out_features, std_init=std_init)
 
-            self.base_network.model = nn.Sequential(*new_layers)
+            base_network.model = nn.Sequential(*new_layers)
 
         elif isinstance(base_network, CNN):
-            new_fc_layers = base_network.fc_layers.children()
+            new_fc_layers = [layer for layer in self.base_network.fc_layers.children()]
 
             # TODO: not tested yet!!!
             for i in range(1, 2 * noisy_layers):  # every second layer is an actual NN layer
                 if isinstance(new_layers[-i], nn.Linear):  # start with last layer
-                    new_fc_layers[-i] = NoisyLinear(new_fc_layers[-i].in_features, new_fc_layers[-i].out_features, std_init)
+                    new_fc_layers[-i] = NoisyLinear(new_fc_layers[-i].in_features, new_fc_layers[-i].out_features, std_init=std_init)
 
-            self.base_network.fc_layers = nn.Sequential(*new_fc_layers)
+            base_network.fc_layers = nn.Sequential(*new_fc_layers)
 
         else:
             raise ValueError("Unsupported network type for noisy conversion.")
