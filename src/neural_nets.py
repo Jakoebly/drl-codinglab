@@ -1,12 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torchrl.modules import NoisyLinear
+
 
 def build_network(nn_architecture, state_size, action_size, learning_rate):
-    structure = nn_architecture['structure']
-    if structure == 'DNN':
+    structure = nn_architecture["structure"]
+    if structure == "DNN":
         network = DNN(nn_architecture, state_size, action_size)
-    elif structure == 'CNN':
+    elif structure == "CNN":
         network = CNN(nn_architecture, state_size, action_size)
     else:
         raise ValueError(f"Unsupported structure: {structure}")
@@ -18,16 +20,17 @@ def build_network(nn_architecture, state_size, action_size, learning_rate):
 
     return network
 
+
 class DNN(nn.Module):
     def __init__(self, nn_architecture, state_size, action_size):
         super(DNN, self).__init__()
 
         layers = []
         input_size = state_size
-        num_layers = nn_architecture['num_layers']
-        num_neurons = nn_architecture['num_neurons']
-        activation_layers = nn_architecture['activation_layers']
-        activation_output = nn_architecture['activation_output']
+        num_layers = nn_architecture["num_layers"]
+        num_neurons = nn_architecture["num_neurons"]
+        activation_layers = nn_architecture["activation_layers"]
+        activation_output = nn_architecture["activation_output"]
 
         for _ in range(num_layers):
             layers.append(nn.Linear(input_size, num_neurons))
@@ -49,18 +52,13 @@ class DNN(nn.Module):
         """
         Return the activation function based on its name.
         """
-        activations = {
-            'relu': nn.ReLU(),
-            'sigmoid': nn.Sigmoid(),
-            'tanh': nn.Tanh(),
-            'linear': nn.Identity(),
-            'softmax': nn.Softmax(dim=1)
-        }
+        activations = {"relu": nn.ReLU(), "sigmoid": nn.Sigmoid(), "tanh": nn.Tanh(), "linear": nn.Identity(), "softmax": nn.Softmax(dim=1)}
 
         if name not in activations:
             raise ValueError(f"Unsupported activation function: {name}")
 
         return activations[name]
+
 
 class CNN(nn.Module):
     def __init__(self, nn_architecture, state_size, action_size):
@@ -85,12 +83,12 @@ class CNN(nn.Module):
         layers = []
         height, width, input_channels = grid_state_size
 
-        num_conv_layers = nn_architecture['num_convolutional_layers']
-        num_channels = nn_architecture['num_convolutional_channels']
-        kernel_size = nn_architecture['kernel_size']
-        stride = nn_architecture['stride']
-        padding = nn_architecture['padding']
-        activation = nn_architecture['activation_convolutional_layers']
+        num_conv_layers = nn_architecture["num_convolutional_layers"]
+        num_channels = nn_architecture["num_convolutional_channels"]
+        kernel_size = nn_architecture["kernel_size"]
+        stride = nn_architecture["stride"]
+        padding = nn_architecture["padding"]
+        activation = nn_architecture["activation_convolutional_layers"]
 
         for _ in range(num_conv_layers):
             layers.append(nn.Conv2d(input_channels, num_channels, kernel_size, stride, padding))
@@ -116,10 +114,10 @@ class CNN(nn.Module):
             nn.Sequential: Fully connected layers.
         """
         layers = []
-        num_fc_layers = nn_architecture['num_fully_connected_layers']
-        num_neurons = nn_architecture['num_neurons_fully_connected']
-        activation = nn_architecture['activation_fully_connected_layers']
-        activation_output = nn_architecture.get('activation_output', None)
+        num_fc_layers = nn_architecture["num_fully_connected_layers"]
+        num_neurons = nn_architecture["num_neurons_fully_connected"]
+        activation = nn_architecture["activation_fully_connected_layers"]
+        activation_output = nn_architecture.get("activation_output", None)
 
         for _ in range(num_fc_layers):
             layers.append(nn.Linear(fc_input_size, num_neurons))
@@ -149,25 +147,19 @@ class CNN(nn.Module):
         x = self.fc_layers(combined_input)
 
         return x
-    
+
     @staticmethod
     def get_activation(name):
         """
         Return the activation function based on its name.
         """
-        activations = {
-            'relu': nn.ReLU(),
-            'sigmoid': nn.Sigmoid(),
-            'tanh': nn.Tanh(),
-            'linear': nn.Identity(),
-            'softmax': nn.Softmax(dim=1)
-        }
+        activations = {"relu": nn.ReLU(), "sigmoid": nn.Sigmoid(), "tanh": nn.Tanh(), "linear": nn.Identity(), "softmax": nn.Softmax(dim=1)}
 
         if name not in activations:
             raise ValueError(f"Unsupported activation function: {name}")
 
         return activations[name]
-        
+
     @staticmethod
     def get_feature_size(nn_architecture, grid_state_size):
         """
@@ -181,20 +173,20 @@ class CNN(nn.Module):
             int: Flattened feature size after the convolutional layers.
         """
         height, width, channels = grid_state_size
-        num_conv_layers = nn_architecture['num_convolutional_layers']
-        kernel_size = nn_architecture['kernel_size']
-        stride = nn_architecture['stride']
-        padding = nn_architecture['padding']
+        num_conv_layers = nn_architecture["num_convolutional_layers"]
+        kernel_size = nn_architecture["kernel_size"]
+        stride = nn_architecture["stride"]
+        padding = nn_architecture["padding"]
 
         for _ in range(num_conv_layers):
             height = (height + 2 * padding - kernel_size) // stride + 1
             width = (width + 2 * padding - kernel_size) // stride + 1
 
-        return height * width * nn_architecture['num_convolutional_channels']
-    
+        return height * width * nn_architecture["num_convolutional_channels"]
+
 
 class NoisyAdapter(nn.Module):
-    def __init__(self, base_network, action_size, std_init):
+    def __init__(self, base_network, action_size, std_init, noisy_layers):
         """
         Adapts a base Q-network into a noisy Q-network by replacing linear layers
         with noisy linear layers.
@@ -208,17 +200,22 @@ class NoisyAdapter(nn.Module):
         self.action_size = action_size
 
         if isinstance(base_network, DNN):
-            noisy_layers = [
-                NoisyLinear(layer.in_features, layer.out_features, std_init) if isinstance(layer, nn.Linear) else layer
-                for layer in base_network.model.children()
-            ]
-            base_network.model = nn.Sequential(*noisy_layers)
+            new_layers = self.base_network.model.children()
+
+            for i in range(1, 2 * noisy_layers, 2):  # every second layer is an actual NN layer
+                new_layers[-i] = NoisyLinear(new_layers[-i].in_features, new_layers[-i].out_features, std_init)  # start with last layer
+
+            self.base_network.model = nn.Sequential(*new_layers)
+
         elif isinstance(base_network, CNN):
-            noisy_fc_layers = [
-                NoisyLinear(layer.in_features, layer.out_features, std_init) if isinstance(layer, nn.Linear) else layer
-                for layer in base_network.fc_layers.children()
-            ]
-            base_network.fc_layers = nn.Sequential(*noisy_fc_layers)
+            new_fc_layers = base_network.fc_layers.children()
+
+            # TODO: not tested yet!!!
+            for i in range(1, 2 * noisy_layers, 2):  # every second layer is an actual NN layer
+                new_fc_layers[-i] = NoisyLinear(new_fc_layers[-i].in_features, new_fc_layers[-i].out_features, std_init)  # start with last layer
+
+            self.base_network.fc_layers = nn.Sequential(*new_fc_layers)
+
         else:
             raise ValueError("Unsupported network type for noisy conversion.")
 
@@ -231,16 +228,16 @@ class NoisyAdapter(nn.Module):
         """
         Forward method for noisy network, propagating prior logic.
         """
-        #x = self.base_network(x)
+        # x = self.base_network(x)
         return self.base_network.model(x)
 
     def reset_noise(self):
         """
         Reset noise in all noisy layers.
         """
-        for module in self.modules():
-            if isinstance(module, NoisyLinear):
-                module.reset_noise()
+        for layer in self.base_network.model.children():
+            if isinstance(layer, NoisyLinear):
+                layer.reset_noise()
 
     def __str__(self):
         """
@@ -248,48 +245,7 @@ class NoisyAdapter(nn.Module):
         """
         return f"{self.base_network}"
 
-class NoisyLinear(nn.Module):
-    def __init__(self, in_features, out_features, std_init):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.std_init = std_init
 
-        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
-        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
-
-
-        self.bias_mu = nn.Parameter(torch.empty(out_features))
-        self.bias_sigma = nn.Parameter(torch.empty(out_features))
-
-        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
-        self.register_buffer('bias_epsilon', torch.empty(out_features))
-
-        self.reset_parameters()
-        self.reset_noise()
-
-    def reset_parameters(self):
-        bound = 1 / (self.in_features**0.5)
-        self.weight_mu.data.uniform_(-bound, bound)
-        self.weight_sigma.data.fill_(self.std_init / (self.in_features**0.5))
-        self.bias_mu.data.uniform_(-bound, bound)
-        self.bias_sigma.data.fill_(self.std_init / (self.out_features**0.5))
-
-    def reset_noise(self):
-        epsilon_in = torch.randn(self.in_features)
-        epsilon_out = torch.randn(self.out_features)
-        self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
-        self.bias_epsilon.copy_(epsilon_out)
-
-    def forward(self, x):
-        if self.training:
-            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
-            bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
-        else:
-            weight = self.weight_mu
-            bias = self.bias_mu
-        return nn.functional.linear(x, weight, bias)
-    
 def convert_to_distributional_network(base_network, action_size, num_atoms):
     """
     Converts a base Q-network into a Distributional Q-network.
@@ -304,6 +260,7 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
     Returns:
         nn.Module: A distributional Q-network.
     """
+
     class DistributionalAdapter(nn.Module):
         def __init__(self, base_network, action_size, num_atoms):
             super().__init__()
@@ -335,7 +292,7 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
             features = self.feature_layer(x)
             logits = self.output_layer(features).view(-1, self.action_size, self.num_atoms)
             return torch.softmax(logits, dim=-1)
-        
+
         def __str__(self):
             """
             Override the string representation to print the updated noisy network structure.
@@ -357,12 +314,13 @@ def create_dueling_network(base_network, action_size, extensionparameters):
     Returns:
         nn.Module: A dueling Q-network.
     """
+
     class DuelingAdapter(nn.Module):
         def __init__(self, base_network, action_size):
             super().__init__()
             self.base_network = base_network
             self.action_size = action_size
-            
+
             self.optimizer = getattr(base_network, "optimizer", None)
             self.loss_fn = getattr(base_network, "loss_fn", None)
 
@@ -376,9 +334,7 @@ def create_dueling_network(base_network, action_size, extensionparameters):
                 raise ValueError("Unsupported base_network structure.")
 
             if not isinstance(input_layer, nn.Linear):
-                raise ValueError(
-                    "The base network's last layer must be a linear layer for dueling network adaptation."
-                )
+                raise ValueError("The base network's last layer must be a linear layer for dueling network adaptation.")
 
             self.feature_layer = nn.Sequential(*feature_layer)
             input_size = input_layer.in_features
@@ -421,9 +377,7 @@ def create_dueling_network(base_network, action_size, extensionparameters):
             features = self.feature_layer(x)
 
             if features.size(-1) != self.value_stream[0].in_features:
-                raise RuntimeError(
-                    f"Feature size mismatch: expected {self.value_stream[0].in_features}, got {features.size(-1)}"
-                )
+                raise RuntimeError(f"Feature size mismatch: expected {self.value_stream[0].in_features}, got {features.size(-1)}")
 
             value = self.value_stream(features)
             advantages = self.advantage_stream(features)
@@ -440,11 +394,6 @@ def create_dueling_network(base_network, action_size, extensionparameters):
             """
             Override the string representation to print the updated dueling network structure.
             """
-            return (
-                f"Feature Layer: {self.feature_layer}\n"
-                f"Value Stream: {self.value_stream}\n"
-                f"Advantage Stream: {self.advantage_stream}\n"
-            )
+            return f"Feature Layer: {self.feature_layer}\n" f"Value Stream: {self.value_stream}\n" f"Advantage Stream: {self.advantage_stream}\n"
 
     return DuelingAdapter(base_network, action_size)
-    

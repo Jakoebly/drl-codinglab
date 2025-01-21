@@ -50,7 +50,7 @@ class DQN_Agent:
         # Assign CNN-specific methods if structure is CNN
         if self.nn_structure == "CNN":
             self._override_with_cnn_behavior()
-      
+
         # Initialization of extensions
         self.extension_parameters = config["extension_parameters"]
         self.extensions = []
@@ -82,8 +82,8 @@ class DQN_Agent:
 
     def _override_with_cnn_behavior(self):
         """Override default methods with CNN-specific implementations."""
-        self.to_tensor = lambda state, batch = False: dqn_ext.CNNBehavior.to_tensor(self, state, batch)
-        self.select_action = lambda state, training = True: dqn_ext.CNNBehavior.select_action(self, state, training)
+        self.to_tensor = lambda state, batch=False: dqn_ext.CNNBehavior.to_tensor(self, state, batch)
+        self.select_action = lambda state, training=True: dqn_ext.CNNBehavior.select_action(self, state, training)
         self.sample_batch = lambda: dqn_ext.CNNBehavior.sample_batch(self)
         self.compute_targets = lambda rewards, next_states, dones: dqn_ext.CNNBehavior.compute_targets(self, rewards, next_states, dones)
 
@@ -185,7 +185,7 @@ class DQN_Agent:
         Decay the exploration rate (epsilon) based on the decay factor.
         """
         self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
-       
+
     def sample_batch(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Sample a batch of transitions from the replay buffer.
@@ -200,8 +200,8 @@ class DQN_Agent:
         next_states = np.array(next_states)
 
         # Transform to tensors
-        states_tensor = self.to_tensor(states, batch = True)
-        next_states_tensor = self.to_tensor(next_states, batch = True)
+        states_tensor = self.to_tensor(states, batch=True)
+        next_states_tensor = self.to_tensor(next_states, batch=True)
         actions_tensor = torch.LongTensor(actions).to(self.device)
         rewards_tensor = torch.FloatTensor(rewards).to(self.device)
         dones_tensor = torch.FloatTensor(dones).to(self.device)
@@ -210,7 +210,7 @@ class DQN_Agent:
         batch = (states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor)
 
         return batch
-    
+
     def compute_loss(self, q_values, q_targets, weights=None):
         """
         Compute the Temporal Difference (TD) loss.
@@ -238,6 +238,11 @@ class DQN_Agent:
         loss.backward()
         self.q_network.optimizer.step()
 
+        # Reset noise if extenstion 'Noisy' is active
+        if any(isinstance(ext, dqn_ext.NoisyDQNExtension) for ext in self.extensions):
+            self.q_network.reset_noise()
+            self.target_network.reset_noise()
+
     def train_step(self):
         """
         Perform one training step: sample a batch, compute loss, and update the network.
@@ -249,11 +254,6 @@ class DQN_Agent:
         if len(self.buffer) < self.batch_size:
             return
 
-        # Reset noise if extenstion 'Noisy' is active
-        if any(isinstance(ext, dqn_ext.NoisyDQNExtension) for ext in self.extensions):
-            self.q_network.reset_noise()
-            self.target_network.reset_noise()
-
         # Unpack batch and clip actions
         batch = self.sample_batch()
         states, actions, rewards, next_states, dones, *optional = batch
@@ -262,7 +262,7 @@ class DQN_Agent:
         # dones = dones.to(self.device)
         # Pfusch am Bau -> Siehe dueling bug (wtf?)
         actions = torch.clamp(actions, 0, self.action_size - 1)
-        
+
         # Handle weights if 'Prioritized Replay' is active
         if optional:
             weights = optional[0].to(self.device)
@@ -292,7 +292,7 @@ class DQN_Agent:
 
         if self.global_step_count % self.target_update_interval == 0:
             self.update_target_weights()
-            
+
         self.global_step_count += 1
 
         return loss
@@ -308,7 +308,7 @@ class DQN_Agent:
 
         Returns:
             list: Total rewards collected in each episode.
-        """       
+        """
         rewards = []
         last_evaluation_reward = -100
 
@@ -355,7 +355,6 @@ class DQN_Agent:
                 }
                 wandb.log(log_dict, episode)
 
-
             print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
             # Evaluation
@@ -370,7 +369,7 @@ class DQN_Agent:
 
                 if difference < last_evaluation_reward * self.evaluation_treshold and self.evaluation_treshold != 0:
                     print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
-                    rewards = rewards[:episode + 1]
+                    rewards = rewards[: episode + 1]
                     break
 
                 last_evaluation_reward = average_eval_reward
@@ -378,4 +377,3 @@ class DQN_Agent:
         print(f"--- {mode} finished - average reward after {num_episodes} episodes: {np.mean(rewards)} ---")
 
         return rewards
-

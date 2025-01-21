@@ -258,15 +258,18 @@ class NoisyDQNExtension:
         self.agent = agent
         action_size = self.agent.action_size
         self.agent.std_init = self.agent.extension_parameters["noisy"]["std_init"]
+        self.agent.noisy_layers = self.agent.extension_parameters["noisy"]["noisy_layers"]
 
         self.agent.q_network = neural_nets.NoisyAdapter(
             base_network = self.agent.q_network,
             action_size = action_size,
-            std_init = self.agent.std_init)
+            std_init = self.agent.std_init,
+            noisy_layers=self.agent.noisy_layers)
         self.agent.target_network = neural_nets.NoisyAdapter(
             base_network = self.agent.target_network,
             action_size = action_size,
-            std_init = self.agent.std_init)
+            std_init = self.agent.std_init,
+            noisy_layers=self.agent.noisy_layers)
 
         self.agent.update_target_weights()
 

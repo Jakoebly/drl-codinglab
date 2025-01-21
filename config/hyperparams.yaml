@@ -17,6 +17,7 @@ DQN:
       beta: 0.45
     noisy:
       std_init: 0.05
+      noisy_layers: 2
     distribution:
       v_min: -10
       v_max: 10
