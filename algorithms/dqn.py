@@ -271,8 +271,12 @@ class DQN_Agent:
 
         # Compute targets and q-values
         q_targets = self.compute_targets(rewards, next_states, dones).to(self.device)
-        q_network_output = self.q_network(*states) if isinstance(states, tuple) else self.q_network(states)
-        q_network_output.to(self.device)
+        if any(isinstance(ext, dqn_ext.DistributionalDQNExtension) for ext in self.extensions):
+            q_network_output = self.q_network.create_dist(*states) if isinstance(states, tuple) else self.q_network.create_dist(states)
+            q_network_output.to(self.device)
+        else:
+            q_network_output = self.q_network(*states) if isinstance(states, tuple) else self.q_network(states)
+            q_network_output.to(self.device)
 
         # Compute loss
         if any(isinstance(ext, dqn_ext.DistributionalDQNExtension) for ext in self.extensions):

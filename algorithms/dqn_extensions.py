@@ -6,13 +6,14 @@ import random
 
 # TODO: move to settings?
 EXTENSION_ORDER = [
-    "double", 
-    "priority", 
+    "double",
+    "priority",
     "noisy",
     "distribution",
     "dueling",
     "multi_step",
 ]
+
 
 class CNNBehavior:
     """
@@ -20,6 +21,7 @@ class CNNBehavior:
     sampling batches, recording transitions, and training steps.
     These methods are dynamically assigned to the agent if the nn_structure is 'CNN'.
     """
+
     @staticmethod
     def to_tensor(agent, state, batch=False):
         if batch:
@@ -34,7 +36,7 @@ class CNNBehavior:
             scalar_tensor = torch.FloatTensor(scalar_state).unsqueeze(0).to(agent.device)
 
         return grid_tensor, scalar_tensor
-    
+
     @staticmethod
     def sample_batch(agent):
         """
@@ -87,6 +89,7 @@ class CNNBehavior:
 
         return q_targets
 
+
 class DoubleDQNExtension:
     """
     Implements Double Deep Q-Learning (Double DQN) to reduce overestimation bias in Q-value estimation.
@@ -98,9 +101,10 @@ class DoubleDQNExtension:
       and the target network (target_network) to estimate the Q-value for this action:
           Q_target(next_state, next_action).
     - **Reduced Overestimation Bias**:
-      By separating action selection and target estimation, Double DQN improves stability and 
+      By separating action selection and target estimation, Double DQN improves stability and
       performance, especially in noisy environments.
     """
+
     def __init__(self, agent):
         self.agent = agent
 
@@ -114,7 +118,8 @@ class DoubleDQNExtension:
         q_targets = rewards + (1 - dones) * self.agent.gamma * q_targets_next
 
         return q_targets
-    
+
+
 class PrioritizedReplayBuffer:
     def __init__(self, capacity, alpha, beta):
         """Initialize the buffer."""
@@ -136,7 +141,7 @@ class PrioritizedReplayBuffer:
             self.buffer[self.pos] = transition
 
         # Storing priority
-        self.priorities.append(priority ** self.alpha)
+        self.priorities.append(priority**self.alpha)
         self.pos = (self.pos + 1) % self.capacity
 
     def sample(self, batch_size):
@@ -177,7 +182,8 @@ class PrioritizedReplayBuffer:
     def update_priorities(self, indices, priorities):
         """Update priorities for sampled experiences."""
         for idx, priority in zip(indices, priorities):
-            self.priorities[idx] = priority ** self.alpha
+            self.priorities[idx] = priority**self.alpha
+
 
 class PrioritizedReplayExtension:
     def __init__(self, agent):
@@ -187,7 +193,7 @@ class PrioritizedReplayExtension:
         self.agent = agent
         self.agent.alpha = self.agent.extension_parameters["replay"]["alpha"]
         self.agent.beta = self.agent.extension_parameters["replay"]["beta"]
-        self.agent.buffer = PrioritizedReplayBuffer(capacity = agent.buffer.maxlen, alpha = self.agent.alpha, beta = self.agent.beta)
+        self.agent.buffer = PrioritizedReplayBuffer(capacity=agent.buffer.maxlen, alpha=self.agent.alpha, beta=self.agent.beta)
         self.last_sampled_indices = None
 
     def sample_batch(self):
@@ -249,10 +255,11 @@ class PrioritizedReplayExtension:
 
     def compute_loss(self, q_values, q_targets, weights):
         td_errors = self.compute_td_errors(q_values, q_targets)
-        loss = (weights * td_errors ** 2).mean()
+        loss = (weights * td_errors**2).mean()
 
         return loss, td_errors
-    
+
+
 class NoisyDQNExtension:
     def __init__(self, agent):
         self.agent = agent
@@ -260,16 +267,8 @@ class NoisyDQNExtension:
         self.agent.std_init = self.agent.extension_parameters["noisy"]["std_init"]
         self.agent.noisy_layers = self.agent.extension_parameters["noisy"]["noisy_layers"]
 
-        self.agent.q_network = neural_nets.NoisyAdapter(
-            base_network = self.agent.q_network,
-            action_size = action_size,
-            std_init = self.agent.std_init,
-            noisy_layers=self.agent.noisy_layers)
-        self.agent.target_network = neural_nets.NoisyAdapter(
-            base_network = self.agent.target_network,
-            action_size = action_size,
-            std_init = self.agent.std_init,
-            noisy_layers=self.agent.noisy_layers)
+        self.agent.q_network = neural_nets.NoisyAdapter(base_network=self.agent.q_network, action_size=action_size, std_init=self.agent.std_init, noisy_layers=self.agent.noisy_layers)
+        self.agent.target_network = neural_nets.NoisyAdapter(base_network=self.agent.target_network, action_size=action_size, std_init=self.agent.std_init, noisy_layers=self.agent.noisy_layers)
 
         self.agent.update_target_weights()
 
@@ -297,6 +296,7 @@ class NoisyDQNExtension:
         """
         self.agent.q_network.reset_noise()
         self.agent.target_network.reset_noise()
+
 
 class DistributionalDQNExtension:
     """
@@ -328,23 +328,20 @@ class DistributionalDQNExtension:
     Methods:
     - `compute_targets`: Computes the target distribution using categorical projection.
     """
+
     def __init__(self, agent):
         self.agent = agent
 
-        self.agent.v_min = self.agent.extensionparameters["distribution"]["v_min"]
-        self.agent.v_max = self.agent.extensionparameters["distribution"]["v_max"]
-        self.agent.num_atoms = self.agent.extensionparameters["distribution"]["num_atoms"]
+        self.agent.v_min = self.agent.extension_parameters["distribution"]["v_min"]
+        self.agent.v_max = self.agent.extension_parameters["distribution"]["v_max"]
+        self.agent.num_atoms = self.agent.extension_parameters["distribution"]["num_atoms"]
 
         self.agent.q_network = neural_nets.convert_to_distributional_network(
-            self.agent.q_network,
-            action_size=self.agent.action_size,
-            num_atoms=self.agent.num_atoms,
+            self.agent.q_network, action_size=self.agent.action_size, num_atoms=self.agent.num_atoms, v_min=self.agent.v_min, v_max=self.agent.v_max
         )
 
         self.agent.target_network = neural_nets.convert_to_distributional_network(
-            self.agent.target_network,
-            action_size=self.agent.action_size,
-            num_atoms=self.agent.num_atoms,
+            self.agent.target_network, action_size=self.agent.action_size, num_atoms=self.agent.num_atoms, v_min=self.agent.v_min, v_max=self.agent.v_max
         )
 
         self.agent.update_target_weights()
@@ -364,7 +361,7 @@ class DistributionalDQNExtension:
             torch.Tensor: Projected target distribution.
         """
         with torch.no_grad():
-            next_probs = self.agent.target_network(next_states)
+            next_probs = self.agent.target_network.create_dist(next_states)
 
             if any(isinstance(ext, DoubleDQNExtension) for ext in self.agent.extensions):
                 next_actions = torch.argmax(self.agent.q_network(next_states).sum(dim=-1), dim=1)
@@ -374,10 +371,7 @@ class DistributionalDQNExtension:
             batch_indices = torch.arange(next_probs.size(0), device=next_probs.device)
             selected_probs = next_probs[batch_indices, next_actions]
 
-            target_probs = self.categorical_projection(
-                selected_probs, rewards, dones, self.agent.gamma,
-                self.agent.num_atoms, self.agent.v_min, self.agent.v_max
-            )
+            target_probs = self.categorical_projection(selected_probs, rewards, dones, self.agent.gamma, self.agent.num_atoms, self.agent.v_min, self.agent.v_max)
 
         return target_probs
 
@@ -411,17 +405,18 @@ class DistributionalDQNExtension:
         for i in range(num_atoms):
             l_idx = torch.clamp(l[:, i], 0, num_atoms - 1)
             u_idx = torch.clamp(u[:, i], 0, num_atoms - 1)
-            m.scatter_add_(1, l_idx.unsqueeze(1), next_probs[:, i:i+1] * (u[:, i] - b[:, i]).unsqueeze(1))
-            m.scatter_add_(1, u_idx.unsqueeze(1), next_probs[:, i:i+1] * (b[:, i] - l[:, i]).unsqueeze(1))
+            m.scatter_add_(1, l_idx.unsqueeze(1), next_probs[:, i : i + 1] * (u[:, i] - b[:, i]).unsqueeze(1))
+            m.scatter_add_(1, u_idx.unsqueeze(1), next_probs[:, i : i + 1] * (b[:, i] - l[:, i]).unsqueeze(1))
 
         return m
-    
-    def compute_loss(self, q_targets, selected_logits):
-            # Compute loss using KL divergence for distributional DQN
-            loss = (q_targets * selected_logits.log()).sum(dim=-1).mean()
-            #loss = (weights * loss).mean()
 
-            return loss
+    def compute_loss(self, q_targets, selected_logits):
+        # Compute loss using KL divergence for distributional DQN
+        loss = -(q_targets * selected_logits.log()).sum(dim=1).mean()
+        # loss = (weights * loss).mean()
+
+        return loss
+
 
 class DuelingDQNExtension:
     """
@@ -444,22 +439,24 @@ class DuelingDQNExtension:
     - Initializes the dueling network architecture (`DuelingQNetwork`).
     - Replaces the agent's Q-network and target network with the dueling architecture.
     """
+
     def __init__(self, agent):
         self.agent = agent
         extensionparameters = self.agent.extensionparameters
         action_size = self.agent.action_size
 
         self.agent.q_network = neural_nets.create_dueling_network(
-            base_network = self.agent.q_network,
-            action_size = action_size,
-            extensionparameters = extensionparameters,
+            base_network=self.agent.q_network,
+            action_size=action_size,
+            extensionparameters=extensionparameters,
         )
         self.agent.target_network = neural_nets.create_dueling_network(
-            base_network = self.agent.target_network,
-            action_size = action_size,
-            extensionparameters = extensionparameters,
+            base_network=self.agent.target_network,
+            action_size=action_size,
+            extensionparameters=extensionparameters,
         )
         self.agent.update_target_weights()
+
 
 class MultiStepExtension:
     """
@@ -468,10 +465,11 @@ class MultiStepExtension:
     Multi-step learning uses the cumulative reward over `n` steps instead of a single-step reward,
     allowing for better credit assignment and faster convergence.
     """
+
     def __init__(self, agent):
         self.agent = agent
         self.agent.n_steps = self.agent.extensionparameters["multi_step"]["n_steps"]
-        self.agent.n_step_buffer = deque(maxlen = self.agent.n_steps)
+        self.agent.n_step_buffer = deque(maxlen=self.agent.n_steps)
 
         self.previous_record = agent.record
         self.previous_compute_targets = agent.compute_targets
@@ -489,7 +487,7 @@ class MultiStepExtension:
         """
         self.agent.n_step_buffer.append((state, action, reward, next_state, done))
 
-        if len(self.agent.n_step_buffer) == self.agent.n_steps :
+        if len(self.agent.n_step_buffer) == self.agent.n_steps:
             multi_step_reward, (s, a, _, ns, d), multi_step_done = self._get_n_step_transition()
             transition = (s, a, multi_step_reward, ns, multi_step_done)
 
@@ -504,7 +502,7 @@ class MultiStepExtension:
         """
         multi_step_reward = 0
         for idx, (s, a, r, ns, d) in enumerate(self.agent.n_step_buffer):
-            multi_step_reward += (self.agent.gamma ** idx) * r
+            multi_step_reward += (self.agent.gamma**idx) * r
             if d:
                 return multi_step_reward, (s, a, r, ns, d), True
         return multi_step_reward, self.agent.n_step_buffer[-1], False
@@ -531,13 +529,14 @@ class MultiStepExtension:
             accumulated_reward = 0
             for n in range(self.agent.n_steps):
                 if t + n < num_samples:
-                    accumulated_reward += (self.agent.gamma ** n) * rewards[t + n]
+                    accumulated_reward += (self.agent.gamma**n) * rewards[t + n]
                     if dones[t + n]:
                         break
             multi_step_targets[t] = accumulated_reward
 
-        q_targets = multi_step_targets + (1 - dones) * (self.agent.gamma ** self.agent.n_steps) * baseline_targets
+        q_targets = multi_step_targets + (1 - dones) * (self.agent.gamma**self.agent.n_steps) * baseline_targets
         return q_targets
+
 
 EXTENSION_REGISTRY = {
     "double": DoubleDQNExtension,

@@ -248,7 +248,7 @@ class NoisyAdapter(nn.Module):
         return f"{self.base_network}"
 
 
-def convert_to_distributional_network(base_network, action_size, num_atoms):
+def convert_to_distributional_network(base_network, action_size, num_atoms, v_min, v_max):
     """
     Converts a base Q-network into a Distributional Q-network.
 
@@ -264,11 +264,13 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
     """
 
     class DistributionalAdapter(nn.Module):
-        def __init__(self, base_network, action_size, num_atoms):
+        def __init__(self, base_network, action_size, num_atoms, v_min, v_max):
             super().__init__()
             self.base_network = base_network
             self.action_size = action_size
             self.num_atoms = num_atoms
+            self.v_min = v_min
+            self.v_max = v_max
 
             if isinstance(base_network, DNN):
                 feature_layers = list(base_network.model[:-1])  # Remove last layer
@@ -291,9 +293,14 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
             """
             Forward method for distributional network, propagating prior logic.
             """
+            probs = self.create_dist(x)
+            return torch.sum(probs * torch.linspace(self.v_min, self.v_max, self.num_atoms), dim=2)
+        
+        def create_dist(self, x):
             features = self.feature_layer(x)
             logits = self.output_layer(features).view(-1, self.action_size, self.num_atoms)
             return torch.softmax(logits, dim=-1)
+
 
         def __str__(self):
             """
@@ -301,7 +308,7 @@ def convert_to_distributional_network(base_network, action_size, num_atoms):
             """
             return f"{self.base_network}"
 
-    return DistributionalAdapter(base_network, action_size, num_atoms)
+    return DistributionalAdapter(base_network, action_size, num_atoms, v_min, v_max)
 
 
 def create_dueling_network(base_network, action_size, extensionparameters):
