@@ -390,24 +390,34 @@ class Environment(object):
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
 
+        filtered_item_locs = []
+        filtered_item_times = []
+        # Filter reachable items and limit to observation_tuple_size
+        for loc, time in zip(self.item_locs, self.item_times):
+            if self.is_reachable(loc, self.max_response_time - time):
+                filtered_item_locs.append(loc)
+                filtered_item_times.append(time)
+
         # Channel 1: Agent position
         position_agent = np.zeros(grid_shape)
         position_agent[self.agent_loc] = 1
 
         # Channel 2: Item positions
         position_items = np.zeros(grid_shape)
-        for loc in self.item_locs:
+        for loc in filtered_item_locs:
             position_items[loc] = 1
 
         # Channel 3: Remaining time of items
         remaining_time_items = np.zeros(grid_shape)
-        for loc, time in zip(self.item_locs, self.item_times):
+        for loc, time in zip(filtered_item_locs, filtered_item_times):
             remaining_time = (self.max_response_time - time) / self.max_response_time
             remaining_time_items[loc] = remaining_time
 
         # Channel 4: Prioritization ratio 1 of items
         prioritization_ratio_items_1 = np.zeros(grid_shape)
-        for loc, time in zip(self.item_locs, self.item_times):
+        prioritization_ratio_items_2 = np.zeros(grid_shape)
+        prioritization_ratio_items_3 = np.zeros(grid_shape)
+        for loc, time in zip(filtered_item_locs, filtered_item_times):
             d_agent = self.manhatten_dist(self.agent_loc, loc)
             d_target = self.manhatten_dist(loc, self.target_loc)
             remaining_time_after_collection = self.max_response_time - time - d_agent
@@ -415,32 +425,42 @@ class Environment(object):
                 prioritization_ratio_items_1[loc] = (
                     (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / (remaining_time + 1))
                 )
+                prioritization_ratio_items_2[loc]  = (self.max_response_time - remaining_time) / (d_agent + d_target)
+                prioritization_ratio_items_3[loc]  = (self.max_response_time - (d_agent + d_target)) / remaining_time
 
         # Channel 5: Manhattan distance from agent to items
         manhatten_distance_agent_to_items = np.zeros(grid_shape)
-        for loc in self.item_locs:
+        for loc in filtered_item_locs:
             manhatten_distance_agent_to_items[loc] = self.manhatten_dist(self.agent_loc, loc)
 
         # Channel 6: Manhattan distance from items to target
         manhatten_distance_target_to_items = np.zeros(grid_shape)
-        for loc in self.item_locs:
+        for loc in filtered_item_locs:
             manhatten_distance_target_to_items[loc] = self.manhatten_dist(loc, self.target_loc)
 
         # Channel 7: Proximity scores for items
         proximity_scores = np.zeros(grid_shape)
-        for loc in self.item_locs:
+        for loc in filtered_item_locs:
             score = 1
-            for other_loc in self.item_locs:
+            for other_loc in filtered_item_locs:
                 if loc != other_loc:
                     distance_to_other = self.manhatten_dist(loc, other_loc) / (self.vertical_cell_count * 2)
                     score *= distance_to_other
             proximity_scores[loc] = score
 
+        # Channel 8: Closest item
+        closest_item = np.zeros(grid_shape)
+        if filtered_item_locs:
+            distances = [self.manhatten_dist(self.agent_loc, loc) for loc in filtered_item_locs]
+            closest_idx = np.argmin(distances)
+            closest_item_loc = filtered_item_locs[closest_idx]
+            closest_item[closest_item_loc] = 1
+
         # Scalar values
         free_capacity_agent = (self.agent_capacity - self.agent_load) / self.agent_capacity
         cumulative_timeout_risk = sum(
-            [(self.max_response_time - time) / self.max_response_time for time in self.item_times]
-        ) / (len(self.item_times) or 1)
+            [(self.max_response_time - time) / self.max_response_time for time in filtered_item_times]
+        ) / (len(filtered_item_times) or 1)
 
         distance_to_target = self.manhatten_dist(self.agent_loc, self.target_loc) / (self.vertical_cell_count * 2)
 
@@ -451,31 +471,61 @@ class Environment(object):
             (self.horizontal_cell_count - 1 - self.agent_loc[1]) / 4,
         ]
 
+        vector_closest = [0,0]
+        if filtered_item_locs:
+            vector_closest = [
+                (closest_item_loc[0] - self.agent_loc[0]) / self.vertical_cell_count,
+                (closest_item_loc[1] - self.agent_loc[1]) / self.horizontal_cell_count,
+            ]
+
         # Remaining Episode Time (normalized)
         remaining_episode_time = (self.episode_steps - self.step_count) / self.episode_steps
 
-        # Stack channels
-        grid_state = np.stack(
-            [
-                position_agent,
-                position_items,
-                remaining_time_items,
-                #prioritization_ratio_items_1,
-                manhatten_distance_agent_to_items,
-                #manhatten_distance_target_to_items,
-                proximity_scores,
-            ],
-            axis=-1,
-        )
+        channels = []
+        if self.obs_config.get("position_agent", True):
+            channels.append(position_agent)
+        if self.obs_config.get("position_items", True):
+            channels.append(position_items)
+        if self.obs_config.get("remaining_time_items", True):
+            channels.append(remaining_time_items)
+        if self.obs_config.get("prioritization_ratio_items", 1) == 1:
+            channels.append(prioritization_ratio_items_1)
+        if self.obs_config.get("prioritization_ratio_items", 2) == 2:
+            channels.append(prioritization_ratio_items_2)
+        if self.obs_config.get("prioritization_ratio_items", 3) == 3:
+            channels.append(prioritization_ratio_items_3)
+        if self.obs_config.get("manhatten_distance_agent_to_items", True):
+            channels.append(manhatten_distance_agent_to_items)
+        if self.obs_config.get("manhatten_distance_target_to_items", True):
+            channels.append(manhatten_distance_target_to_items)
+        if self.obs_config.get("proximity_scores", True):
+            channels.append(proximity_scores)
+        if self.obs_config.get("closest_item", True):
+            channels.append(closest_item)
 
-        scalar_state = np.array(
-            [
-                free_capacity_agent,
-                cumulative_timeout_risk,
-                distance_to_target,
-                remaining_episode_time,
-                *vector_to_walls,
-            ]
-        )
+        # Stack channels
+        grid_state = np.stack(channels, axis=-1)
+
+        scalar_values = []
+
+        if self.obs_config.get("free_capacity_agent", True):
+            scalar_values.append([free_capacity_agent])
+
+        if self.obs_config.get("cumulative_timeout_risk", True):
+            scalar_values.append([cumulative_timeout_risk])
+
+        if self.obs_config.get("distance_to_target", True):
+            scalar_values.append([distance_to_target])
+
+        if self.obs_config.get("remaining_episode_time", True):
+            scalar_values.append([remaining_episode_time])
+
+        if self.obs_config.get("vector_to_walls", True):
+            scalar_values.append(vector_to_walls)
+
+        if self.obs_config.get("vector_closest", True):
+            scalar_values.append(vector_closest)
+
+        scalar_state = np.concatenate(scalar_values).astype(float)
 
         return grid_state, scalar_state

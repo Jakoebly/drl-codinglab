@@ -31,15 +31,15 @@ DQN:
   nn_architecture:
     structure: "CNN"
     num_convolutional_layers: 3
-    num_convolutional_channels: 256
+    num_convolutional_channels: 128
     kernel_size: 3
     stride: 1
     padding: 1
-    num_neurons_fully_feature_input: 128
-    num_fully_connected_layers: 4
-    num_neurons_fully_connected: 512
-    activation_convolutional_layers: "tanh"
-    activation_fully_connected_layers: "tanh"
+    num_neurons_fully_feature_input: 64
+    num_fully_connected_layers: 3
+    num_neurons_fully_connected: 256
+    activation_convolutional_layers: "relu"
+    activation_fully_connected_layers: "relu"
     activation_output:
 
   # nn_architecture:

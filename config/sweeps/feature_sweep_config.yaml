@@ -12,29 +12,25 @@ metric:
 parameters:
   features:
     parameters:
-      distance_to_target:
-        values: [True, False]
-      vector_to_target:
-        values: [True, False]
-      vector_to_walls:
-        values: [True, False]
-      cumulative_timeout_risk:
-        values: [True, False]
-      vector_agent_to_items:
+      prioritization_ratio_items:
+        values: [0,1,2,3]
+      manhatten_distance_agent_to_items:
         values: [True, False]
       manhatten_distance_target_to_items:
         values: [True, False]
-      manhatten_distance_agent_to_items:
-        values: [True, False]
-      prioritization_ratio_items:
-        values: [0,1,2,3]
-      closest_item:
-        values: [True, False]
-      vector_closest:
-        values: [True, False]
       proximity_scores:
         values: [True, False]
+      closest_item:
+        values: [True, False]
+      cumulative_timeout_risk:
+        values: [True, False]
+      distance_to_target:
+        values: [True, False]
       remaining_episode_time:
+        values: [True, False]
+      vector_to_walls:
+        values: [True, False]
+      vector_closest:
         values: [True, False]
 
 command:

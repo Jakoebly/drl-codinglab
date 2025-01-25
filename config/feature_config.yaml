@@ -12,6 +12,6 @@ obs:
   manhatten_distance_agent_to_items: True
   prioritization_ratio_items: 0
   closest_item: True
-  vector_closest: False
+  vector_closest: True
   proximity_scores: True
   remaining_episode_time: True
