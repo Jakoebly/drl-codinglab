@@ -98,10 +98,9 @@ class CNN(nn.Module):
         activation = nn_architecture["activation_convolutional_layers"]
 
         for _ in range(num_conv_layers):
-            # Calculate 'same' padding
             '''padding = (kernel_size - 1) // 2 if stride == 1 else \
-                    (stride - 1) * height - stride + kernel_size // 2
-            layers.append(nn.Conv2d(input_channels, num_channels, kernel_size, stride, padding))'''
+                    (stride - 1) * height - stride + kernel_size // 2'''
+            layers.append(nn.Conv2d(input_channels, num_channels, kernel_size, stride, padding))
             layers.append(self.get_activation(activation))
             input_channels = num_channels
             height = (height + 2 * padding - kernel_size) // stride + 1
