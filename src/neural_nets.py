@@ -74,6 +74,8 @@ class CNN(nn.Module):
         
         # Update input size for fully connected layers to include scalar inputs
         fc_input_size = self.num_neurons_fully_feature_input + scalar_state_size[0]
+        #fc_input_size = self.fc_input_size + scalar_state_size[0]
+
         self.fc_layers = self.build_fc_layers(nn_architecture, fc_input_size, action_size)
 
     def build_conv_layers(self, nn_architecture, grid_state_size):
@@ -106,7 +108,14 @@ class CNN(nn.Module):
             height = (height + 2 * padding - kernel_size) // stride + 1
             width = (width + 2 * padding - kernel_size) // stride + 1
 
+        
         self.fc_input_size = num_channels * height * width
+        # Add a global average pooling layer
+        '''layers.append(nn.AdaptiveAvgPool2d((2, 2)))
+        self.fc_input_size = num_channels * 2 * 2'''
+
+        #layers.append(nn.MaxPool2d(kernel_size=2, stride=1))  # Smaller stride retains more spatial dimensions
+
 
         return nn.Sequential(*layers)
 
@@ -159,6 +168,8 @@ class CNN(nn.Module):
 
         # Concatenate processed convolutional features with scalar inputs
         combined_input = torch.cat((feature_out, scalar_state), dim=1)
+        #combined_input = torch.cat((conv_out, scalar_state), dim=1)
+
 
         # Process through the fully connected layers
         x = self.fc_layers(combined_input)
