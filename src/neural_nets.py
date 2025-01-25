@@ -66,7 +66,14 @@ class CNN(nn.Module):
 
         grid_state_size, scalar_state_size = state_size
         self.conv_layers = self.build_conv_layers(nn_architecture, grid_state_size)
-        fc_input_size = self.fc_input_size + scalar_state_size[0]
+        
+        # Adding a fully connected layer to process convolutional output
+        self.num_neurons_fully_feature_input = nn_architecture["num_neurons_fully_feature_input"]
+        self.feature_fc = nn.Linear(self.fc_input_size, self.num_neurons_fully_feature_input)
+        self.feature_activation = self.get_activation(nn_architecture["activation_fully_connected_layers"])
+        
+        # Update input size for fully connected layers to include scalar inputs
+        fc_input_size = self.num_neurons_fully_feature_input + scalar_state_size[0]
         self.fc_layers = self.build_fc_layers(nn_architecture, fc_input_size, action_size)
 
     def build_conv_layers(self, nn_architecture, grid_state_size):
@@ -91,6 +98,9 @@ class CNN(nn.Module):
         activation = nn_architecture["activation_convolutional_layers"]
 
         for _ in range(num_conv_layers):
+            # Calculate 'same' padding
+            padding = (kernel_size - 1) // 2 if stride == 1 else \
+                    (stride - 1) * height - stride + kernel_size // 2
             layers.append(nn.Conv2d(input_channels, num_channels, kernel_size, stride, padding))
             layers.append(self.get_activation(activation))
             input_channels = num_channels
@@ -141,9 +151,17 @@ class CNN(nn.Module):
         Returns:
             torch.Tensor: Output of the network.
         """
+        # Process grid state through convolutional layers
         grid_state = grid_state.permute(0, 3, 1, 2)
         conv_out = self.conv_layers(grid_state).flatten(1)
-        combined_input = torch.cat((conv_out, scalar_state), dim=1)
+
+        # Process convolutional output through the fully connected feature layer
+        feature_out = self.feature_activation(self.feature_fc(conv_out))
+
+        # Concatenate processed convolutional features with scalar inputs
+        combined_input = torch.cat((feature_out, scalar_state), dim=1)
+
+        # Process through the fully connected layers
         x = self.fc_layers(combined_input)
 
         return x
@@ -153,7 +171,13 @@ class CNN(nn.Module):
         """
         Return the activation function based on its name.
         """
-        activations = {"relu": nn.ReLU(), "sigmoid": nn.Sigmoid(), "tanh": nn.Tanh(), "linear": nn.Identity(), "softmax": nn.Softmax(dim=1)}
+        activations = {
+            "relu": nn.ReLU(),
+            "sigmoid": nn.Sigmoid(),
+            "tanh": nn.Tanh(),
+            "linear": nn.Identity(),
+            "softmax": nn.Softmax(dim=1),
+        }
 
         if name not in activations:
             raise ValueError(f"Unsupported activation function: {name}")
