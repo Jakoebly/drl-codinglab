@@ -441,13 +441,14 @@ class Environment(object):
         cumulative_timeout_risk = sum(
             [(self.max_response_time - time) / self.max_response_time for time in self.item_times]
         ) / (len(self.item_times) or 1)
-        distance_to_target = self.manhatten_dist(self.agent_loc, self.target_loc)
+
+        distance_to_target = self.manhatten_dist(self.agent_loc, self.target_loc) / (self.vertical_cell_count * 2)
 
         vector_to_walls = [
-            self.agent_loc[0],
-            self.vertical_cell_count - 1 - self.agent_loc[0],
-            self.agent_loc[1],
-            self.horizontal_cell_count - 1 - self.agent_loc[1],
+            self.agent_loc[0] / 4,
+            (self.vertical_cell_count - 1 - self.agent_loc[0]) / 4,
+            self.agent_loc[1] / 4,
+            (self.horizontal_cell_count - 1 - self.agent_loc[1]) / 4,
         ]
 
         # Remaining Episode Time (normalized)
@@ -472,8 +473,8 @@ class Environment(object):
                 free_capacity_agent,
                 cumulative_timeout_risk,
                 distance_to_target,
-                [remaining_episode_time]
-                #*vector_to_walls,
+                remaining_episode_time,
+                *vector_to_walls,
             ]
         )
 
