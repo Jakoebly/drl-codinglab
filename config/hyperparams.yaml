@@ -35,6 +35,7 @@ DQN:
     kernel_size: 3
     stride: 1
     padding: 1
+    num_neurons_fully_feature_input: 64
     num_fully_connected_layers: 3
     num_neurons_fully_connected: 256
     activation_convolutional_layers: "relu"
