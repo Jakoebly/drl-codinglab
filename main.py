@@ -60,7 +60,7 @@ if __name__ == "__main__":
         CONFIG_DIR = MODEL_DIR
 
     # Create environment
-    env = Environment(variant, DATA_DIR, render=False)
+    env = Environment(variant, DATA_DIR, mode, render=True)
 
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
@@ -68,8 +68,8 @@ if __name__ == "__main__":
     # Setup sweep if sweep flag is toggled
     if args.sweep:
         sweep_name = f"Sweep__{run_name}"
-        # spec = algorithm.lower()
-        spec = "feature"
+        spec = algorithm.lower()
+        #spec = "feature"
         sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, spec)
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     rew_test = None
 
     if mode == "train":
-        rew_train = agent.run("training", config["general"]["num_episodes_train"])
+        rew_train = agent.run("training", config["general"]["num_episodes_train"]*2)
         rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
     elif mode == "validate":
         rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
@@ -127,6 +127,14 @@ if __name__ == "__main__":
         wandb.log({"Charts/Avg. Test Reward": np.mean(rew_test)})
 
     rewards = (rew_train, rew_val, rew_test)
+
+    # Log render
+    if env.render_enabled:
+        train_images, val_images = env.renderer.get_images()
+        if train_images is not None:
+            wandb.log({"train_video": wandb.Video(train_images, fps=5, format="mp4")})
+        if val_images is not None:
+            wandb.log({"val_video": wandb.Video(val_images, fps=5, format="mp4")})
 
     # Update best model
     ut.update_best(algorithm, variant, rewards, model_name, run_name, BEST_DIR)
