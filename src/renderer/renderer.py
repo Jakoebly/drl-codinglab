@@ -22,6 +22,9 @@ class Renderer:
         self.item_images = [
             mpimg.imread(os.path.join(self.image_dir, f"item_{i}.png")) for i in range(4)
         ]
+        self.small_item_images = [
+            mpimg.imread(os.path.join(self.image_dir, f"item_{i}_small.png")) for i in range(4)
+        ]
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
 
@@ -83,9 +86,8 @@ class Renderer:
         )
 
         # Display the number of items carried by the agent
-        if agent_load > 0:
-            self.ax.text(
-                agent_y, rows - 1 - agent_x + 0.3, f"{agent_load}",
+        self.ax.text(
+                agent_y -0.25, rows - 1 - agent_x, f"{agent_load}",
                 fontsize=10, ha="center", color="white", bbox=dict(facecolor="black", alpha=0.5),
             )
 
@@ -119,13 +121,6 @@ class Renderer:
                 extent=(item_y - size_factor / 2, item_y + size_factor / 2,
                         rows - 1 - item_x - size_factor / 2, rows - 1 - item_x + size_factor / 2),
             )
-
-        # Show sparks if the target count increased
-        '''if target_count > self.previous_target_count:
-            self.ax.imshow(
-                self.sparks_img,
-                extent=(target_y - 0.5, target_y + 0.5, rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5),
-            )'''
 
         # Update the previous target count
         self.previous_target_count = target_count
