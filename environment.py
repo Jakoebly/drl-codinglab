@@ -101,6 +101,9 @@ class Environment(object):
             self.remaining_training_episodes.remove(episode)
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
+        # Reset target count for render
+        self.current_episode_target_count = 0  
+
         return self.get_new_obs()
 
     # take one environment step based on the action act

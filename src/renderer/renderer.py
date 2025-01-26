@@ -5,8 +5,7 @@ from src import settings
 from io import BytesIO
 import numpy as np
 from PIL import Image
-
-
+import random
 
 class Renderer:
     def __init__(self, grid_size, eligible_cells, max_response_time, mode):
@@ -19,7 +18,9 @@ class Renderer:
         # Load images once
         self.agent_img = mpimg.imread(os.path.join(self.image_dir, "agent.png"))
         self.target_img = mpimg.imread(os.path.join(self.image_dir, "target.png"))
-        self.item_img = mpimg.imread(os.path.join(self.image_dir, "item_0.png"))
+        self.item_images = [
+            mpimg.imread(os.path.join(self.image_dir, f"item_{i}.png")) for i in range(4)
+        ]
         self.sparks_img = mpimg.imread(os.path.join(self.image_dir, "sparks.png"))
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
@@ -81,21 +82,12 @@ class Renderer:
             extent=(agent_y - 0.5, agent_y + 0.5, rows - 1 - agent_x - 0.5, rows - 1 - agent_x + 0.5),
         )
 
-        # If the agent is carrying an item, display it in its left hand
+        # Display the number of items carried by the agent
         if agent_load > 0:
-            item_size = 0.2  # Adjust the size of the item
-            self.ax.imshow(
-                #self.apples_one_img,
-                extent=(agent_y - 0.4, agent_y - 0.4 + item_size,  # Positioned slightly left of the agent
-                        rows - 1 - agent_x + 0, rows - 1 - agent_x + 0 + item_size),
-                # Positioned slightly above the agent
+            self.ax.text(
+                agent_y, rows - 1 - agent_x + 0.3, f"{agent_load}",
+                fontsize=10, ha="center", color="white", bbox=dict(facecolor="black", alpha=0.5),
             )
-
-        self.ax.text(
-            agent_y, rows - 1 - agent_x + 0.3, f"Load: {agent_load}",
-            fontsize=10, ha="center", color="white", bbox=dict(facecolor="black", alpha=0.5),
-        )
-
 
         # Draw the target cell background
         target_x, target_y = target_loc
@@ -110,12 +102,13 @@ class Renderer:
             fontsize=12, ha="center", color="red", bbox=dict(facecolor="white", alpha=0.7),
         )
 
-        # Draw items
+        # Draw items with random images
         for (item_x, item_y), response_time in zip(item_locs, item_times):
             lifetime = (self.max_response_time - response_time) / self.max_response_time
             size_factor = 0.3 + 0.7 * lifetime
+            random_item_image = random.choice(self.item_images)  # Randomly choose an item image
             self.ax.imshow(
-                self.item_img,
+                random_item_image,
                 extent=(item_y - size_factor / 2, item_y + size_factor / 2,
                         rows - 1 - item_x - size_factor / 2, rows - 1 - item_x + size_factor / 2),
             )
