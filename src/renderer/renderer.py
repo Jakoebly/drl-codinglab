@@ -2,38 +2,40 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import os
 from src import settings
+from io import BytesIO
+import numpy as np
+from PIL import Image
+
 
 
 class Renderer:
-    def __init__(self, grid_size, eligible_cells, max_response_time):
-        """
-        Initialize the renderer.
-        :param grid_size: Tuple (rows, cols) representing the grid dimensions.
-        :param eligible_cells: List of tuples [(row, col), ...] for eligible cells.
-        :param max_response_time: Maximum response time for items (used to calculate lifetimes).
-        """
+    def __init__(self, grid_size, eligible_cells, max_response_time, mode):
         self.grid_size = grid_size
         self.eligible_cells = eligible_cells
         self.max_response_time = max_response_time
         self.previous_target_count = 0
-        #self.image_dir = "./renderer/Images/"
         self.image_dir = settings.RENDER_DIR
 
-        # Load images
+        # Load images once
         self.agent_img = mpimg.imread(os.path.join(self.image_dir, "agent.png"))
         self.target_img = mpimg.imread(os.path.join(self.image_dir, "target.png"))
         self.item_img = mpimg.imread(os.path.join(self.image_dir, "item_0.png"))
         self.sparks_img = mpimg.imread(os.path.join(self.image_dir, "sparks.png"))
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
-
-        # Load target-based images
         self.apples_one_img = mpimg.imread(os.path.join(self.image_dir, "apples_one.png"))
         self.apples_few_img = mpimg.imread(os.path.join(self.image_dir, "apples_few.png"))
         self.apples_lot_img = mpimg.imread(os.path.join(self.image_dir, "apples_lot.png"))
 
+        # Initialize figure and axis once
         self.fig, self.ax = plt.subplots(figsize=(5, 5))
+
+        # Pre-render grid once
         self._pre_render_grid()
+
+        self.train_images = []
+        self.val_images = []
+        self.mode = mode
 
     def _pre_render_grid(self):
         """
@@ -53,7 +55,20 @@ class Renderer:
                 img = self.eligible_cell_img if (r, c) in self.eligible_cells else self.ineligible_cell_img
                 self.ax.imshow(img, extent=(c - 0.5, c + 0.5, rows - 1 - r - 0.5, rows - 1 - r + 0.5))
 
-    def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count):
+    def get_images(self):
+        return np.array(self.train_images), np.array(self.val_images)
+
+    def figure_to_numpy_array(self):
+        buf = BytesIO()
+        self.fig.savefig(buf, format='png', dpi=100)
+        buf.seek(0)
+        image = Image.open(buf)
+        image_array = np.array(image)
+        image_array = np.transpose(image_array, (2, 0, 1))
+        buf.close()
+        return image_array
+
+    def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count, show_render=False):
         """
         Render the environment dynamically (agent, target, items, sparks).
         """
@@ -68,14 +83,15 @@ class Renderer:
             self.agent_img,
             extent=(agent_y - 0.5, agent_y + 0.5, rows - 1 - agent_x - 0.5, rows - 1 - agent_x + 0.5),
         )
-        
+
         # If the agent is carrying an item, display it in its left hand
         if agent_load > 0:
             item_size = 0.2  # Adjust the size of the item
             self.ax.imshow(
                 self.apples_one_img,
                 extent=(agent_y - 0.4, agent_y - 0.4 + item_size,  # Positioned slightly left of the agent
-                        rows - 1 - agent_x + 0, rows - 1 - agent_x + 0 + item_size),  # Positioned slightly above the agent
+                        rows - 1 - agent_x + 0, rows - 1 - agent_x + 0 + item_size),
+                # Positioned slightly above the agent
             )
 
         self.ax.text(
@@ -134,5 +150,10 @@ class Renderer:
         # Update the previous target count
         self.previous_target_count = target_count
 
-        plt.pause(0.0001)
+        # Store image for logging
+        image_array = self.figure_to_numpy_array()
+        if self.mode == "training":
+            self.train_images.append(image_array)
+        else:
+            self.val_images.append(image_array)
 

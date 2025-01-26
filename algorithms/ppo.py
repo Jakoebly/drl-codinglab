@@ -5,6 +5,7 @@ import torch.optim as optim
 import wandb
 from torch.distributions.categorical import Categorical
 from src import neural_nets as nnets
+import math
 
 class PPOMemory:
     def __init__(self, batch_size, num_trajectories, num_steps_trajectory, state_size, device):
@@ -140,6 +141,11 @@ class PPO_Agent():
         self.minibatch_size = self.batch_size // self.num_minibatches
         self.num_updates = general["num_episodes_train"] // self.num_trajectories
 
+        # Evaluation settings
+        self.eval_interval = eval_settings["eval_interval"]
+        self.evaluation_treshold = eval_settings["evaluation_treshold"]
+        self.evaluation_episodes = eval_settings["evaluation_episodes"]
+
         # NN-Architecture
         self.nn_architecture_actor = nn_architecture_actor
         self.nn_structure_actor = nn_architecture_actor["structure"]
@@ -147,6 +153,13 @@ class PPO_Agent():
         self.nn_structure_critic = nn_architecture_critic["structure"]
 
         # Hyperparameters
+        self.reward_norm = hyperparameters["reward_norm"]
+        self.advantage_norm = hyperparameters["advantage_norm"]
+        self.value_loss_clipping = hyperparameters["value_loss_clipping"]
+        self.min_entropy_coef = hyperparameters["min_entropy_coef"]
+        self.lr_decay = hyperparameters["lr_decay"]
+        self.entropy_decay = hyperparameters["entropy_decay"]
+        self.lr_decay_rate = hyperparameters["lr_decay_rate"]
         self.learning_rate_actor = hyperparameters["learning_rate_actor"]
         self.learning_rate_critic = hyperparameters["learning_rate_critic"]
         self.gamma = hyperparameters["gamma"]
@@ -174,15 +187,18 @@ class PPO_Agent():
         torch.save(self.actor.state_dict(), path)
 
     def update_learning_rate(self, update_ctr):
-        learning_rate_decay = 1.0 - (update_ctr / (self.num_updates - 1))
-        lr_actor_new = learning_rate_decay * self.learning_rate_actor
-        lr_critic_new = learning_rate_decay * self.learning_rate_critic
+        # lr_decay_rate = 1.0 - (update_ctr / (self.num_updates - 1))
+        # lr_actor_new = learning_rate_decay * self.learning_rate_actor
+        # lr_critic_new = learning_rate_decay * self.learning_rate_critic
+        lr_actor_new = self.learning_rate_actor * math.exp(-self.lr_decay_rate * update_ctr)
+        lr_critic_new = self.learning_rate_critic * math.exp(-self.lr_decay_rate * update_ctr)
         self.actor.optimizer.param_groups[0]['lr'] = lr_actor_new
         self.critic.optimizer.param_groups[0]['lr'] = lr_critic_new
 
+
     def update_entropy_coef(self, update_ctr):
         entropy_coef_decay = 1.0 - (update_ctr / (self.num_updates - 1))
-        entropy_coef_new = entropy_coef_decay * self.entropy_coef
+        entropy_coef_new = max(self.min_entropy_coef, entropy_coef_decay * self.entropy_coef)
         self.entropy_coef = entropy_coef_new
 
     def get_action(self, state):
@@ -206,6 +222,10 @@ class PPO_Agent():
 
     def calc_advantage(self, values, next_states, rewards, dones, device):
         with torch.no_grad():
+            # Reward normalization
+            if self.reward_norm:
+                rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+
             # Initialize advantages and returns
             advantages = torch.zeros_like(values).to(device)
             returns = torch.zeros_like(values).to(device)
@@ -236,7 +256,7 @@ class PPO_Agent():
 
         return advantages, returns
 
-    def compute_loss(self, states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb):
+    def compute_loss(self, states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_mb, returns_mb):
         # Compute prob_ratio
         logits = self.actor(states_mb)
 
@@ -252,18 +272,18 @@ class PPO_Agent():
         entropy_loss = entropy.mean()
 
         # Compute PPO objective function
-        actor_loss = -(torch.min(advantages_norm_mb * prob_ratio, advantages_norm_mb * clipped_prob_ratio).mean() + self.entropy_coef * entropy_loss)
+        actor_loss = -(torch.min(advantages_mb * prob_ratio, advantages_mb * clipped_prob_ratio).mean() + self.entropy_coef * entropy_loss)
 
-        # Compute clipped critic loss
+        # Compute clipped/unclipped critic loss
         critic_values = self.critic(states_mb)
-        # critic_loss_unclipped = (critic_values - returns_mb) ** 2
-        # values_clipped = values_mb + torch.clamp(critic_values - values_mb, -self.clip_ratio, self.clip_ratio)
-        # critic_loss_clipped = (values_clipped - returns_mb) ** 2
-        # critic_loss_max = torch.max(critic_loss_unclipped, critic_loss_clipped)
-        # critic_loss = 0.5 * critic_loss_max.mean()
-
-        # Compute unclipped critic loss
-        critic_loss = 0.5 * ((critic_values - returns_mb) ** 2).mean()
+        if self.value_loss_clipping:
+            critic_loss_unclipped = (critic_values - returns_mb) ** 2
+            values_clipped = values_mb + torch.clamp(critic_values - values_mb, -self.clip_ratio, self.clip_ratio)
+            critic_loss_clipped = (values_clipped - returns_mb) ** 2
+            critic_loss_max = torch.max(critic_loss_unclipped, critic_loss_clipped)
+            critic_loss = 0.5 * critic_loss_max.mean()
+        else:
+            critic_loss = 0.5 * ((critic_values - returns_mb) ** 2).mean()
 
         # Compute total loss
         total_loss = actor_loss + self.value_coef * critic_loss
@@ -297,9 +317,10 @@ class PPO_Agent():
 
                 # Advantage normalization for the current minibatch
                 advantages_mb = advantages[minibatch]
-                advantages_norm_mb = (advantages_mb - advantages_mb.mean()) / (advantages_mb.std() + 1e-8)
+                if self.advantage_norm:
+                    advantages_mb = (advantages_mb - advantages_mb.mean()) / (advantages_mb.std() + 1e-8)
 
-                total_loss, actor_loss, critic_loss, entropy_loss = self.compute_loss(states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_norm_mb, returns_mb)
+                total_loss, actor_loss, critic_loss, entropy_loss = self.compute_loss(states_mb, values_mb, actions_mb, old_logprobs_mb, advantages_mb, returns_mb)
 
                 # Perform updates
                 self.actor.optimizer.zero_grad()
@@ -318,6 +339,7 @@ class PPO_Agent():
     def run(self, mode, num_episodes):
 
         rewards = []
+        last_evaluation_reward = -10000
 
         if mode == "training":
             training = True
@@ -327,7 +349,7 @@ class PPO_Agent():
         total_loss, actor_loss, critic_loss, entropy_loss = 0, 0, 0, 0
         update_ctr = 0
 
-        for episode in range(num_episodes):
+        for episode in range(1):
 
             # Initialize reward to zero
             reward_episode = 0
@@ -339,7 +361,7 @@ class PPO_Agent():
             state = torch.tensor(self.env.reset(mode), dtype=torch.float32).to(self.device)
 
             # Perform one trajectory
-            for step in range(self.num_steps_trajectory):
+            for step in range(1):
 
                 # Perform one environment step
                 with torch.no_grad():
@@ -372,10 +394,12 @@ class PPO_Agent():
                 if trajectory == self.num_trajectories - 1:
 
                     # LR & entropy annealing
-                    # if episode > self.warm_up_period:
-                    #     self.update_learning_rate(update_ctr)
-                    #     self.update_entropy_coef(update_ctr)
-                    #     update_ctr += 1
+                    if episode > self.warm_up_period:
+                        if self.lr_decay:
+                            self.update_learning_rate(update_ctr)
+                        if self.entropy_decay:
+                            self.update_entropy_coef(update_ctr)
+                        update_ctr += 1
 
                     total_loss, actor_loss, critic_loss, entropy_loss = self.update_networks()
 
@@ -392,8 +416,24 @@ class PPO_Agent():
                     "Parameters/Critic Learning Rate": self.critic.optimizer.param_groups[0]['lr'],
                     "Parameters/Entropy Coef": self.entropy_coef,
                 }
-                wandb.log(log_dict)
+                wandb.log(log_dict, episode)
 
+            # Evaluation
+            if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
+                print("Evaluation Start")
+                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes)
+                average_eval_reward = np.mean(eval_reward)
+
+                wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
+
+                difference = average_eval_reward - last_evaluation_reward
+
+                if difference < last_evaluation_reward * self.evaluation_treshold and self.evaluation_treshold != 0:
+                    print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
+                    rewards = rewards[: episode + 1]
+                    break
+
+                last_evaluation_reward = average_eval_reward
         print("Avg. Rewards: ", np.mean(rewards))
 
         return rewards
