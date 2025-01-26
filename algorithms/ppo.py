@@ -349,7 +349,7 @@ class PPO_Agent():
         total_loss, actor_loss, critic_loss, entropy_loss = 0, 0, 0, 0
         update_ctr = 0
 
-        for episode in range(1):
+        for episode in range(num_episodes):
 
             # Initialize reward to zero
             reward_episode = 0
@@ -361,7 +361,7 @@ class PPO_Agent():
             state = torch.tensor(self.env.reset(mode), dtype=torch.float32).to(self.device)
 
             # Perform one trajectory
-            for step in range(1):
+            for step in range(self.num_steps_trajectory):
 
                 # Perform one environment step
                 with torch.no_grad():
@@ -417,7 +417,7 @@ class PPO_Agent():
                     "Parameters/Entropy Coef": self.entropy_coef,
                 }
                 wandb.log(log_dict, episode)
-                
+
             # Evaluation
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
                 print("Evaluation Start")

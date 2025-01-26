@@ -7,9 +7,8 @@ import numpy as np
 from PIL import Image
 
 
-
 class Renderer:
-    def __init__(self, grid_size, eligible_cells, max_response_time, mode):
+    def __init__(self, grid_size, eligible_cells, max_response_time):
         self.grid_size = grid_size
         self.eligible_cells = eligible_cells
         self.max_response_time = max_response_time
@@ -30,9 +29,7 @@ class Renderer:
         # Pre-render grid once
         self._pre_render_grid()
 
-        self.train_images = []
-        self.val_images = []
-        self.mode = mode
+        self.images = []
 
     def _pre_render_grid(self):
         """
@@ -53,7 +50,7 @@ class Renderer:
                 self.ax.imshow(img, extent=(c - 0.5, c + 0.5, rows - 1 - r - 0.5, rows - 1 - r + 0.5))
 
     def get_images(self):
-        return np.array(self.train_images), np.array(self.val_images)
+        return np.array(self.images)
 
     def figure_to_numpy_array(self):
         buf = BytesIO()
@@ -65,7 +62,7 @@ class Renderer:
         buf.close()
         return image_array
 
-    def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count, show_render=False):
+    def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count):
         """
         Render the environment dynamically (agent, target, items, sparks).
         """
@@ -132,8 +129,9 @@ class Renderer:
 
         # Store image for logging
         image_array = self.figure_to_numpy_array()
-        if self.mode == "training":
-            self.train_images.append(image_array)
-        else:
-            self.val_images.append(image_array)
+        self.images.append(image_array)
+
+        plt.pause(0.0001)
+
+
 

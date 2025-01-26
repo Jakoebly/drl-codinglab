@@ -11,6 +11,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, nargs="?", help="Name of the model to load weights for validation/testing, format: 'CL__{args.algorithm.upper()}__Var{args.variant}__{datetime.now}__{args.experiment_name}'")
     parser.add_argument("--best", action="store_true", help="If toggled, the current best model will be used for validation/testing")
     parser.add_argument("--save", action="store_true", default=True, help="If toggled, the run will be saved under './logs'")
+    parser.add_argument("--render", action="store_true", default=False, help="If toggled, a render of the run will be tracked'")
     # TODO: validate with modes!
     parser.add_argument("--sweep", type=bool, default=False, nargs="?", const=True, help="If toggled, a sweep will be initilized")
 
