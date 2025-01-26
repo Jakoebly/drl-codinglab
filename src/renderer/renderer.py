@@ -16,12 +16,12 @@ class Renderer:
         self.image_dir = settings.RENDER_DIR
 
         # Load images once
+        self.item_map = {}  # Map of item locations to image indices
         self.agent_img = mpimg.imread(os.path.join(self.image_dir, "agent.png"))
         self.target_img = mpimg.imread(os.path.join(self.image_dir, "target.png"))
         self.item_images = [
             mpimg.imread(os.path.join(self.image_dir, f"item_{i}.png")) for i in range(4)
         ]
-        self.sparks_img = mpimg.imread(os.path.join(self.image_dir, "sparks.png"))
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
 
@@ -35,7 +35,7 @@ class Renderer:
 
     def _pre_render_grid(self):
         """
-        Pre-render the static grid with eligible/ineligible cells.
+        Pre-render the static grid with eligible/ineligible cells, excluding the target cell.
         """
         rows, cols = self.grid_size
         self.ax.set_xlim(-0.5, cols - 0.5)
@@ -48,9 +48,11 @@ class Renderer:
 
         for r in range(rows):
             for c in range(cols):
+                if (r, c) == (2,0):  # Skip the target cell
+                    continue
                 img = self.eligible_cell_img if (r, c) in self.eligible_cells else self.ineligible_cell_img
                 self.ax.imshow(img, extent=(c - 0.5, c + 0.5, rows - 1 - r - 0.5, rows - 1 - r + 0.5))
-
+                
     def get_images(self):
         return np.array(self.images)
 
@@ -100,23 +102,30 @@ class Renderer:
             fontsize=12, ha="center", color="red", bbox=dict(facecolor="white", alpha=0.7),
         )
 
-        # Draw items with random images
+        # Draw items
         for (item_x, item_y), response_time in zip(item_locs, item_times):
+            # Assign a random ID/image index if this is a new item
+            if (item_x, item_y) not in self.item_map:
+                self.item_map[(item_x, item_y)] = random.choice(range(4))
+
+            image_index = self.item_map[(item_x, item_y)]
+            item_image = self.item_images[image_index]
+
+            # Calculate item size based on remaining lifetime
             lifetime = (self.max_response_time - response_time) / self.max_response_time
             size_factor = 0.3 + 0.7 * lifetime
-            random_item_image = random.choice(self.item_images)  # Randomly choose an item image
             self.ax.imshow(
-                random_item_image,
+                item_image,
                 extent=(item_y - size_factor / 2, item_y + size_factor / 2,
                         rows - 1 - item_x - size_factor / 2, rows - 1 - item_x + size_factor / 2),
             )
 
         # Show sparks if the target count increased
-        if target_count > self.previous_target_count:
+        '''if target_count > self.previous_target_count:
             self.ax.imshow(
                 self.sparks_img,
                 extent=(target_y - 0.5, target_y + 0.5, rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5),
-            )
+            )'''
 
         # Update the previous target count
         self.previous_target_count = target_count

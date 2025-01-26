@@ -17,4 +17,4 @@ CONFIG_DIR = "./config"
 #CONFIG_DIR = "drl-codinglab/config"
 
 RENDER_DIR = "./Images/"
-#RENDER_DIR = "drl-codinglab/renderer/Images"
+#RENDER_DIR = "drl-codinglab/src/renderer/Images"
