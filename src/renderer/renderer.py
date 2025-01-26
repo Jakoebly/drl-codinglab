@@ -85,7 +85,7 @@ class Renderer:
         if agent_load > 0:
             item_size = 0.2  # Adjust the size of the item
             self.ax.imshow(
-                self.apples_one_img,
+                #self.apples_one_img,
                 extent=(agent_y - 0.4, agent_y - 0.4 + item_size,  # Positioned slightly left of the agent
                         rows - 1 - agent_x + 0, rows - 1 - agent_x + 0 + item_size),
                 # Positioned slightly above the agent
@@ -96,14 +96,6 @@ class Renderer:
             fontsize=10, ha="center", color="white", bbox=dict(facecolor="black", alpha=0.5),
         )
 
-        # Select the appropriate target image based on the target count
-        overlay_img = None
-        if target_count == 1:
-            overlay_img = self.apples_one_img
-        elif 3 <= target_count <= 6:
-            overlay_img = self.apples_few_img
-        elif target_count > 6:
-            overlay_img = self.apples_lot_img
 
         # Draw the target cell background
         target_x, target_y = target_loc
@@ -111,15 +103,6 @@ class Renderer:
             self.target_img,
             extent=(target_y - 0.5, target_y + 0.5, rows - 1 - target_x - 0.5, rows - 1 - target_x + 0.5),
         )
-
-        # Draw the overlay image anchored at the bottom of the cell if applicable
-        if overlay_img is not None:
-            image_size = 0.3  # Adjust image size
-            self.ax.imshow(
-                overlay_img,
-                extent=(target_y - 0.5 * image_size, target_y + 0.5 * image_size,  # Horizontal scaling
-                        rows - 1 - target_x - 0.5, rows - 1 - target_x - 0.5 + image_size),  # Anchor at bottom
-            )
 
         # Draw the target count, centered in the cell
         self.ax.text(
