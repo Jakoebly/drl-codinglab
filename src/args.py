@@ -12,7 +12,6 @@ def parse_args():
     parser.add_argument("--best", action="store_true", help="If toggled, the current best model will be used for validation/testing")
     parser.add_argument("--save", action="store_true", default=True, help="If toggled, the run will be saved under './logs'")
     parser.add_argument("--render", action="store_true", default=False, help="If toggled, a render of the run will be tracked'")
-    # TODO: validate with modes!
     parser.add_argument("--sweep", type=bool, default=False, nargs="?", const=True, help="If toggled, a sweep will be initilized")
 
     # Cuda related args
@@ -58,5 +57,8 @@ def validate_args(args):
 
     if args.mode.lower() == "train" and args.best:
         raise ValueError("Arg 'best' is not applicable to mode 'train'!")
+
+    if args.sweep in ["validate", "test"]:
+        raise ValueError("Specify mode as 'train' for sweeps")
 
     return args

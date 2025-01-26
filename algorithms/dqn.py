@@ -5,7 +5,7 @@ import random
 import wandb
 from typing import List, Tuple
 
-from src import neural_nets as nnets
+from src import neural_nets as nnets, experiment_settings as expset
 from algorithms import dqn_extensions as dqn_ext
 
 
@@ -301,7 +301,7 @@ class DQN_Agent:
 
         return loss
 
-    def run(self, mode, num_episodes) -> List[float]:
+    def run(self, mode, num_episodes, eval=False) -> List[float]:
         """
         Run the agent in the environment for a specified number of episodes.
 
@@ -315,6 +315,8 @@ class DQN_Agent:
         """
         rewards = []
         last_evaluation_reward = -100
+        if expset.Heatmap:
+            self.env.reset_cell_visit_count()
 
         if mode == "training":
             training = True
@@ -359,12 +361,20 @@ class DQN_Agent:
                 }
                 wandb.log(log_dict, episode)
 
+            # Log heatmaps
+            if expset.heatmap:
+                if not eval and (episode + 1) % expset.heatmap_log_interval == 0 and (episode + 1) >= expset.heatmap_log_interval:
+                    self.env.generate_and_log_heatmap(mode, episode)
+
             print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
             # Evaluation
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
                 print("Evaluation Start")
-                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes)
+                old_cell_visit_count = self.env.get_cell_visit_count().copy()
+                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes, eval=True)
+                self.env.set_cell_visit_count(old_cell_visit_count)
+
                 average_eval_reward = np.mean(eval_reward)
 
                 wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)

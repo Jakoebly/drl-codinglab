@@ -4,8 +4,9 @@ import torch.nn as nn
 import torch.optim as optim
 import wandb
 from torch.distributions.categorical import Categorical
-from src import neural_nets as nnets
+from src import neural_nets as nnets, utils as ut, experiment_settings as expset
 import math
+
 
 class PPOMemory:
     def __init__(self, batch_size, num_trajectories, num_steps_trajectory, state_size, device):
@@ -336,10 +337,12 @@ class PPO_Agent():
 
         return total_loss, actor_loss, critic_loss, entropy_loss
 
-    def run(self, mode, num_episodes):
+    def run(self, mode, num_episodes, eval=False):
 
         rewards = []
         last_evaluation_reward = -10000
+        if expset.Heatmap:
+            self.env.reset_cell_visit_count()
 
         if mode == "training":
             training = True
@@ -387,6 +390,7 @@ class PPO_Agent():
             # Append episodic reward
             rewards.append(reward_episode)
 
+
             print("Episode: ", episode, "Reward: ", reward_episode)
 
             # Perform update step with rollout data and clear memory afterwards for new rollout phase
@@ -418,10 +422,19 @@ class PPO_Agent():
                 }
                 wandb.log(log_dict, episode)
 
+            # Log heatmaps
+            if expset.heatmap:
+                if not eval and (episode + 1) % expset.heatmap_log_interval == 0 and (episode + 1) >= expset.heatmap_log_interval:
+                    self.env.generate_and_log_heatmap(mode, episode)
+
             # Evaluation
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
+
                 print("Evaluation Start")
-                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes)
+                old_cell_visit_count = self.env.get_cell_visit_count().copy()
+                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes, eval=True)
+                self.env.set_cell_visit_count(old_cell_visit_count)
+
                 average_eval_reward = np.mean(eval_reward)
 
                 wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
@@ -434,6 +447,7 @@ class PPO_Agent():
                     break
 
                 last_evaluation_reward = average_eval_reward
+
         print("Avg. Rewards: ", np.mean(rewards))
 
         return rewards
