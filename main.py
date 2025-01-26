@@ -60,7 +60,7 @@ if __name__ == "__main__":
         CONFIG_DIR = MODEL_DIR
 
     # Create environment
-    env = Environment(variant, DATA_DIR, mode, render=True)
+    env = Environment(variant, DATA_DIR, mode, render=False)
 
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
