@@ -14,13 +14,13 @@ import pandas as pd
 from copy import deepcopy
 from itertools import compress
 import numpy as np
+
 import yaml
 from src.renderer.renderer import Renderer
 import src.settings as settings
 
-
 class Environment(object):
-    def __init__(self, variant, data_dir, mode, render=False):
+    def __init__(self, variant, data_dir, render = False):
         self.variant = variant
         self.vertical_cell_count = 5
         self.horizontal_cell_count = 5
@@ -49,63 +49,57 @@ class Environment(object):
             self.agent_capacity = 3
 
         if self.variant == 0 or self.variant == 1:
-            self.eligible_cells = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
-                                   (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
-                                   (2, 0), (2, 1), (2, 2), (2, 3), (2, 4),
-                                   (3, 0), (3, 1), (3, 2), (3, 3), (3, 4),
-                                   (4, 0), (4, 1), (4, 2), (4, 3), (4, 4)]
+            self.eligible_cells = [(0,0), (0,1), (0,2), (0,3), (0,4),
+                                   (1,0), (1,1), (1,2), (1,3), (1,4),
+                                   (2,0), (2,1), (2,2), (2,3), (2,4),
+                                   (3,0), (3,1), (3,2), (3,3), (3,4),
+                                   (4,0), (4,1), (4,2), (4,3), (4,4)]
         else:
-            self.eligible_cells = [(0, 0), (0, 2), (0, 3), (0, 4),
-                                   (1, 0), (1, 2), (1, 4),
-                                   (2, 0), (2, 2), (2, 4),
-                                   (3, 0), (3, 1), (3, 2), (3, 4),
-                                   (4, 0), (4, 1), (4, 2), (4, 4)]
+            self.eligible_cells = [(0,0),        (0,2), (0,3), (0,4),
+                                   (1,0),        (1,2),        (1,4),
+                                   (2,0),        (2,2),        (2,4),
+                                   (3,0), (3,1), (3,2),        (3,4),
+                                   (4,0), (4,1), (4,2),        (4,4)]
 
         # FOR RENDERING ONLY:
         self.render_enabled = render
         if self.render_enabled:
-            self.renderer = Renderer(grid_size=(self.vertical_cell_count, self.horizontal_cell_count),
-                                     eligible_cells=self.eligible_cells, max_response_time=self.max_response_time,
-                                     mode=mode)
-
+            self.renderer = Renderer(grid_size =(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
+        
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
         self.obs_config = {}
 
     # Initializing new episode (specify if training, validation, or testing via the mode argument)
-    def reset(self, mode, structure="DNN"):
+    def reset(self, mode, structure = "DNN"):
         modes = ["training", "validation", "testing"]
         if mode not in modes:
             raise ValueError("Invalid mode. Expected one of: %s" % modes)
-
+        
         structures = ["DNN", "CNN"]
         if structure not in structures:
             raise ValueError("Invalid NN structure. Expected one of: %s" % structures)
         self.nn_structure = structure
-        if self.render_enabled:
-            self.renderer.mode = mode
 
         self.step_count = 0
         self.agent_loc = (self.vertical_idx_target, self.horizontal_idx_target)
         self.agent_load = 0  # number of items loaded (0 or 1, except for first extension, where it can be 0,1,2,3)
         self.item_locs = []
         self.item_times = []
-        # self.item_distances = []
+        #self.item_distances = []
 
         if mode == "testing":
-            self.episode = self.test_episodes[0]
-            self.test_episodes.remove(self.episode)
+            episode = self.test_episodes[0]
+            self.test_episodes.remove(episode)
         elif mode == "validation":
-            self.episode = self.validation_episodes[self.validation_episode_counter]
+            episode = self.validation_episodes[self.validation_episode_counter]
             self.validation_episode_counter = (self.validation_episode_counter + 1) % 100
         else:
             if not self.remaining_training_episodes:
                 self.remaining_training_episodes = deepcopy(self.training_episodes)
-            self.episode = random.choice(self.remaining_training_episodes)
-            self.remaining_training_episodes.remove(self.episode)
-
-        self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{self.episode:03d}.csv",
-                                index_col=0)
+            episode = random.choice(self.remaining_training_episodes)
+            self.remaining_training_episodes.remove(episode)
+        self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv", index_col=0)
 
         return self.get_new_obs()
 
@@ -146,7 +140,7 @@ class Environment(object):
         # item drop-off
         if self.agent_loc == self.target_loc:
             rew += self.agent_load * self.reward / 2
-            # FOR RENDER
+            #FOR RENDER
             self.current_episode_target_count += self.agent_load
             self.agent_load = 0
 
@@ -181,29 +175,31 @@ class Environment(object):
             item_locs=self.item_locs,
             item_times=self.item_times,
             agent_load=self.agent_load,
-            target_count=self.current_episode_target_count,
-        )
-
+            target_count=self.current_episode_target_count
+            )
+    
     def get_new_obs(self):
         if self.nn_structure == "DNN":
             return self.get_dnn_obs()
         if self.nn_structure == "CNN":
             return self.get_cnn_obs()
-
+        
     def get_state_size(self, structure="DNN"):
         if structure == "DNN":
             return self.reset(mode="training", structure=structure).shape[0]
         if structure == "CNN":
             # (Height, Width, Channels) i.e. (5, 5, x)
-            # state = self.reset(mode = "training", structure = structure).shape
+            #state = self.reset(mode = "training", structure = structure).shape
             # return state
             grid_state, scalar_state = self.reset(mode="training", structure=structure)
 
             return grid_state.shape, scalar_state.shape
-
+            
+        
     def manhatten_dist(self, pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
         return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
-
+    
+    
     def is_reachable(self, item_loc: Tuple[int, int], remaining_time: int) -> bool:
         """
         Check if an item is reachable before its time runs out and within the remaining episode time.
@@ -217,8 +213,9 @@ class Environment(object):
         """
         distance = self.manhatten_dist(self.agent_loc, item_loc)
         remaining_episode_time = self.episode_steps - self.step_count
-        # return distance <= remaining_time and distance <= remaining_episode_time
+        #return distance <= remaining_time and distance <= remaining_episode_time
         return distance <= min(remaining_time, remaining_episode_time)
+
 
     def get_dnn_obs(self) -> np.ndarray:
         """Returns the 2D encoded observations of the environment."""
@@ -293,27 +290,28 @@ class Environment(object):
             ]
 
         # Process filtered items for observations
-        # for loc, time in zip(filtered_item_locs[:observation_tuple_size], filtered_item_times[:observation_tuple_size]):
+        #for loc, time in zip(filtered_item_locs[:observation_tuple_size], filtered_item_times[:observation_tuple_size]):
         for loc, time in zip(filtered_item_locs, filtered_item_times):
             position_items.extend([loc[0], loc[1]])
 
             # Normalized item time
             remaining_time = (self.max_response_time - time) / self.max_response_time
             remaining_time_items.append(remaining_time)
-            cumulative_items_time += remaining_time
+            cumulative_items_time+= remaining_time
 
-            d_agent = self.manhatten_dist(self.agent_loc, loc)
+            d_agent = self.manhatten_dist(self.agent_loc, loc) 
             d_target = self.manhatten_dist(loc, self.target_loc)
 
             manhatten_distance_agent_to_items.append(d_agent / (self.vertical_cell_count * 2))
             manhatten_distance_target_to_items.append(d_target / (self.vertical_cell_count * 2))
-
+       
             prioritization_ratio_1 = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
             prioritization_ratio_2 = (self.max_response_time - remaining_time) / (d_agent + d_target)
             prioritization_ratio_3 = (self.max_response_time - (d_agent + d_target)) / remaining_time
             prioritization_ratio_items_1.append(prioritization_ratio_1)
             prioritization_ratio_items_2.append(prioritization_ratio_2)
             prioritization_ratio_items_3.append(prioritization_ratio_3)
+
 
             vector_agent_to_items.extend([
                 self.agent_loc[0] - loc[0],
@@ -332,6 +330,7 @@ class Environment(object):
                     distance_to_other = self.manhatten_dist(loc, other_loc) / (self.vertical_cell_count * 2)
                     proximity_score *= distance_to_other
             proximity_scores.append(proximity_score)
+
 
         # Pad 2d observations
         while len(position_items) < observation_tuple_size * 2:
@@ -362,145 +361,171 @@ class Environment(object):
             cumulative_timeout_risk = 1
 
         obs = np.concatenate([
-            position_agent if self.obs_config.get("position_agent", True) else [],  # (x,y)
-            distance_to_target if self.obs_config.get("distance_to_target", True) else [],  # z
-            vector_to_target if self.obs_config.get("vector_to_target", True) else [],  # (x,y)
-            vector_to_walls if self.obs_config.get("vector_to_walls", True) else [],  # (a,b,c,d)
-            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", True) else [],  # z (normalized)
-            [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", True) else [],  # z (normalized)
-
-            position_items if self.obs_config.get("position_items", True) else [],  # ((x,y), (x,y),...)
-            vector_agent_to_items if self.obs_config.get("vector_agent_to_items", True) else [],  # ((x,y), (x,y),...)
-            remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  # z (normalized)
-            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items",
-                                                                      True) else [],  # z (normalized)
-            manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [],
-            # z (normalized)
+            position_agent if self.obs_config.get("position_agent", True) else [], #(x,y)
+            distance_to_target if self.obs_config.get("distance_to_target", True) else [], # z
+            vector_to_target if self.obs_config.get("vector_to_target", True) else [], # (x,y)
+            vector_to_walls if self.obs_config.get("vector_to_walls", True) else [], #(a,b,c,d)
+            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", True) else [], #z (normalized)
+            [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", True) else [], #z (normalized)
+                  
+            position_items if self.obs_config.get("position_items", True) else [], #((x,y), (x,y),...)
+            vector_agent_to_items if self.obs_config.get("vector_agent_to_items", True) else [], #((x,y), (x,y),...)
+            remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  #z (normalized)
+            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", True) else [], #z (normalized)
+            manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [], #z (normalized)
             prioritization_ratio_items_1 if self.obs_config.get("prioritization_ratio_items", 1) == 1 else [],
             prioritization_ratio_items_2 if self.obs_config.get("prioritization_ratio_items", 2) == 2 else [],
             prioritization_ratio_items_3 if self.obs_config.get("prioritization_ratio_items", 3) == 3 else [],
-
+            
             closest_item if self.obs_config.get("closest_item", True) else [],
             distance_closest if self.obs_config.get("distance_closest", True) else [],
 
             proximity_scores if self.obs_config.get("proximity_scores", True) else [],
-            [remaining_episode_time] if self.obs_config.get("remaining_episode_time", True) else [],  # z (normalized)
+            [remaining_episode_time] if self.obs_config.get("remaining_episode_time", True) else [], #z (normalized)
         ])
 
         return obs
 
-    # CNN OBS
-    def get_cnn_obs(self) -> np.ndarray:
+    def get_cnn_obs(self) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
-        cumulative_timeout_risk = 0
+
+        filtered_item_locs = []
+        filtered_item_times = []
+        # Filter reachable items and limit to observation_tuple_size
+        for loc, time in zip(self.item_locs, self.item_times):
+            if self.is_reachable(loc, self.max_response_time - time):
+                filtered_item_locs.append(loc)
+                filtered_item_times.append(time)
 
         # Channel 1: Agent position
-        agent_channel = np.zeros(grid_shape)
-        agent_channel[self.agent_loc] = 1
+        position_agent = np.zeros(grid_shape)
+        position_agent[self.agent_loc] = 1
 
         # Channel 2: Item positions
-        item_positions_channel = np.zeros(grid_shape)
-        for loc in self.item_locs:
-            item_positions_channel[loc] = 1
+        position_items = np.zeros(grid_shape)
+        for loc in filtered_item_locs:
+            position_items[loc] = 1
 
-        # Channel 3: Remaining times of items
-        remaining_times_channel = np.zeros(grid_shape)
-        for loc, time in zip(self.item_locs, self.item_times):
+        # Channel 3: Remaining time of items
+        remaining_time_items = np.zeros(grid_shape)
+        for loc, time in zip(filtered_item_locs, filtered_item_times):
             remaining_time = (self.max_response_time - time) / self.max_response_time
-            remaining_times_channel[loc] = remaining_time
-            cumulative_timeout_risk += remaining_time
+            remaining_time_items[loc] = remaining_time
 
-        # Channel 5: Free capacity
-        free_capacity_channel = np.full(grid_shape, self.agent_capacity - self.agent_load)
-
-        # Channel 6: Manhattan distances to all grid cells
-        distances_channel = np.zeros(grid_shape)
-        for i in range(self.vertical_cell_count):
-            for j in range(self.horizontal_cell_count):
-                distances_channel[i, j] = self.manhatten_dist(self.agent_loc, (i, j))
-
-        # Channel 7: Target location
-        target_channel = np.zeros(grid_shape)
-        target_channel[self.target_loc] = 1
-
-        # Channel 8: Prioritization ratios
-        prioritization_channel = np.zeros(grid_shape)
-        for loc, time in zip(self.item_locs, self.item_times):
+        # Channel 4: Prioritization ratio 1 of items
+        prioritization_ratio_items_1 = np.zeros(grid_shape)
+        prioritization_ratio_items_2 = np.zeros(grid_shape)
+        prioritization_ratio_items_3 = np.zeros(grid_shape)
+        for loc, time in zip(filtered_item_locs, filtered_item_times):
             d_agent = self.manhatten_dist(self.agent_loc, loc)
             d_target = self.manhatten_dist(loc, self.target_loc)
             remaining_time_after_collection = self.max_response_time - time - d_agent
             if remaining_time_after_collection > 0:
-                prioritization_channel[loc] = ((1 / (d_target + 1)) + (1 / (d_agent + 1)))
+                prioritization_ratio_items_1[loc] = (
+                    (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / (remaining_time + 1))
+                )
+                prioritization_ratio_items_2[loc]  = (self.max_response_time - remaining_time) / (d_agent + d_target)
+                prioritization_ratio_items_3[loc]  = (self.max_response_time - (d_agent + d_target)) / remaining_time
 
-        free_capacity = self.agent_capacity - self.agent_load
+        # Channel 5: Manhattan distance from agent to items
+        manhatten_distance_agent_to_items = np.zeros(grid_shape)
+        for loc in filtered_item_locs:
+            manhatten_distance_agent_to_items[loc] = self.manhatten_dist(self.agent_loc, loc)
 
-        # Distance to Target
-        distance_to_target = [
-            self.manhatten_dist(self.agent_loc, self.target_loc)
+        # Channel 6: Manhattan distance from items to target
+        manhatten_distance_target_to_items = np.zeros(grid_shape)
+        for loc in filtered_item_locs:
+            manhatten_distance_target_to_items[loc] = self.manhatten_dist(loc, self.target_loc)
+
+        # Channel 7: Proximity scores for items
+        proximity_scores = np.zeros(grid_shape)
+        for loc in filtered_item_locs:
+            score = 1
+            for other_loc in filtered_item_locs:
+                if loc != other_loc:
+                    distance_to_other = self.manhatten_dist(loc, other_loc) / (self.vertical_cell_count * 2)
+                    score *= distance_to_other
+            proximity_scores[loc] = score
+
+        # Channel 8: Closest item
+        closest_item = np.zeros(grid_shape)
+        if filtered_item_locs:
+            distances = [self.manhatten_dist(self.agent_loc, loc) for loc in filtered_item_locs]
+            closest_idx = np.argmin(distances)
+            closest_item_loc = filtered_item_locs[closest_idx]
+            closest_item[closest_item_loc] = 1
+
+        # Scalar values
+        free_capacity_agent = (self.agent_capacity - self.agent_load) / self.agent_capacity
+        cumulative_timeout_risk = sum(
+            [(self.max_response_time - time) / self.max_response_time for time in filtered_item_times]
+        ) / (len(filtered_item_times) or 1)
+
+        distance_to_target = self.manhatten_dist(self.agent_loc, self.target_loc) / (self.vertical_cell_count * 2)
+
+        vector_to_walls = [
+            self.agent_loc[0] / 4,
+            (self.vertical_cell_count - 1 - self.agent_loc[0]) / 4,
+            self.agent_loc[1] / 4,
+            (self.horizontal_cell_count - 1 - self.agent_loc[1]) / 4,
         ]
 
-        state = np.stack(
-            [agent_channel,
-             prioritization_channel,
-             item_positions_channel,
-             distances_channel,
-             remaining_times_channel,
-             ],
-            axis=-1,
-        )
+        vector_closest = [0,0]
+        if filtered_item_locs:
+            vector_closest = [
+                (closest_item_loc[0] - self.agent_loc[0]) / self.vertical_cell_count,
+                (closest_item_loc[1] - self.agent_loc[1]) / self.horizontal_cell_count,
+            ]
 
-        scalar_state = np.array([free_capacity, distance_to_target[0], cumulative_timeout_risk])
+        # Remaining Episode Time (normalized)
+        remaining_episode_time = (self.episode_steps - self.step_count) / self.episode_steps
 
-        return state, scalar_state
+        channels = []
+        if self.obs_config.get("position_agent", True):
+            channels.append(position_agent)
+        if self.obs_config.get("position_items", True):
+            channels.append(position_items)
+        if self.obs_config.get("remaining_time_items", True):
+            channels.append(remaining_time_items)
+        if self.obs_config.get("prioritization_ratio_items", 1) == 1:
+            channels.append(prioritization_ratio_items_1)
+        if self.obs_config.get("prioritization_ratio_items", 2) == 2:
+            channels.append(prioritization_ratio_items_2)
+        if self.obs_config.get("prioritization_ratio_items", 3) == 3:
+            channels.append(prioritization_ratio_items_3)
+        if self.obs_config.get("manhatten_distance_agent_to_items", True):
+            channels.append(manhatten_distance_agent_to_items)
+        if self.obs_config.get("manhatten_distance_target_to_items", True):
+            channels.append(manhatten_distance_target_to_items)
+        if self.obs_config.get("proximity_scores", True):
+            channels.append(proximity_scores)
+        if self.obs_config.get("closest_item", True):
+            channels.append(closest_item)
 
-    # GREEDY OBS
-    def get_to_tgt(self, tgt):
-        """Determines which action to take to get to tgt coordinates."""
-        if self.agent_loc[0] > tgt[0]:
-            act = 1
-        elif self.agent_loc[0] < tgt[0]:
-            act = 3
-        elif self.agent_loc[1] > tgt[1]:
-            act = 4
-        elif self.agent_loc[1] < tgt[1]:
-            act = 2
-        else:
-            act = 0
+        # Stack channels
+        grid_state = np.stack(channels, axis=-1)
 
-        return act
+        scalar_values = []
 
-    def get_greedy_obs(self):
-        """Greedy get_obs. Only works with base variant!"""
+        if self.obs_config.get("free_capacity_agent", True):
+            scalar_values.append([free_capacity_agent])
 
-        # Case 1: Agent already carries an item
-        if self.agent_load == 1:
-            # Take direct route to drop-off
-            act = self.get_to_tgt([2, 0])  # drop-off is at (2,0)
+        if self.obs_config.get("cumulative_timeout_risk", True):
+            scalar_values.append([cumulative_timeout_risk])
 
-        # Case 2: Agent carries no item and no item has spawned on the grid => do nothing
-        elif self.agent_load == 0 and len(self.item_locs) == 0:
-            # Stay at current position
-            act = 0
+        if self.obs_config.get("distance_to_target", True):
+            scalar_values.append([distance_to_target])
 
-        # Case 3: Agent carries no item and item has spawned => Pick up closest item
-        else:
-            # Calculate distances to all items
-            item_dist = [self.manhatten_dist(self.agent_loc, item) for item in self.item_locs]
+        if self.obs_config.get("remaining_episode_time", True):
+            scalar_values.append([remaining_episode_time])
 
-            # Calculate time each item will still remain on the grid
-            remaining_times = [(self.max_response_time - i) for i in self.item_times]
+        if self.obs_config.get("vector_to_walls", True):
+            scalar_values.append(vector_to_walls)
 
-            # Make unreachable items unattractive
-            for i, _ in enumerate(item_dist):
-                if item_dist[i] > remaining_times[i]:  # if unreachable
-                    item_dist[i] = 1e5  # set distance to unreachable items very high
+        if self.obs_config.get("vector_closest", True):
+            scalar_values.append(vector_closest)
 
-            # Pick closest item
-            closest_item_idx = item_dist.index(min(item_dist))
-            closest_item = self.item_locs[closest_item_idx]
+        scalar_state = np.concatenate(scalar_values).astype(float)
 
-            # Determine best route to closest item
-            act = self.get_to_tgt(closest_item)
-
-        return np.array([act])
+        return grid_state, scalar_state

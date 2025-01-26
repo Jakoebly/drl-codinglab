@@ -23,9 +23,6 @@ class Renderer:
         self.sparks_img = mpimg.imread(os.path.join(self.image_dir, "sparks.png"))
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
-        self.apples_one_img = mpimg.imread(os.path.join(self.image_dir, "apples_one.png"))
-        self.apples_few_img = mpimg.imread(os.path.join(self.image_dir, "apples_few.png"))
-        self.apples_lot_img = mpimg.imread(os.path.join(self.image_dir, "apples_lot.png"))
 
         # Initialize figure and axis once
         self.fig, self.ax = plt.subplots(figsize=(5, 5))
