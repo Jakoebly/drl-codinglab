@@ -12,17 +12,6 @@ from algorithms.ppo import PPO_Agent
 import yaml
 # from algorithms.sac import SAC_Agent
 
-# TODO:
-# - get state size abh. von cnn oder normal
-# - bash for execute
-# - implement renderer
-# - outsource memory class / replay buffer
-# - integrate device handling into DQN
-# - discuss functions in src
-# - discuss where to store args, src, settings, renderer and how to name the folders#
-# - validate sweep arg
-# - integrate running of sweep from file
-
 if __name__ == "__main__":
     # Get args
     args = args.parse_args()
@@ -60,7 +49,8 @@ if __name__ == "__main__":
         CONFIG_DIR = MODEL_DIR
 
     # Create environment
-    env = Environment(variant, DATA_DIR, render=False)
+    render = True if args.render else False
+    env = Environment(variant, DATA_DIR, render=render)
 
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
@@ -128,12 +118,20 @@ if __name__ == "__main__":
 
     rewards = (rew_train, rew_val, rew_test)
 
+    # Log render
+    if args.render:
+        images = env.renderer.get_images()
+        if images is not None:
+            wandb.log({"val_video": wandb.Video(images, fps=5, format="mp4")})
+
     # Update best model
     ut.update_best(algorithm, variant, rewards, model_name, run_name, BEST_DIR)
 
     # Log the run locally
     if args.save:
         ut.save_run_info(rewards, config, CONFIG_DIR, agent, algorithm, variant, mode, run_name, run)
+
+
 
 
 
