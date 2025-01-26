@@ -32,6 +32,10 @@ parameters:
         values: [True, False]
       vector_closest:
         values: [True, False]
+      vector_to_target:
+        values: [True, False]
+      vector_agent_to_items:
+        values: [True, False]	
 
 command:
   - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe

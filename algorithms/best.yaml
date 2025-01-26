@@ -20,8 +20,8 @@ Variant_1:
     avg_validation_reward: -10000
 Variant_2:
   DQN:
-    model_name: null
-    avg_validation_reward: -10000
+    model_name: CL__DQN__Var2__20250126_1749__[v2_test]
+    avg_validation_reward: 249.475
   PPO:
     model_name: null
     avg_validation_reward: -10000

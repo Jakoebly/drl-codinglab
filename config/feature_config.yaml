@@ -15,8 +15,3 @@ obs:
   vector_closest: True
   proximity_scores: True
   remaining_episode_time: True
-  
-  
-  
-  
-  
