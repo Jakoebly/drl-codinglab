@@ -28,26 +28,26 @@ DQN:
     multi_step:
       n_steps: 3
 
-  nn_architecture:
-    structure: "CNN"
-    num_convolutional_layers: 4
-    num_convolutional_channels: 64
-    kernel_size: 2
-    stride: 2
-    padding: 1
-    num_neurons_fully_feature_input: 64
-    num_fully_connected_layers: 4
-    num_neurons_fully_connected: 512
-    activation_convolutional_layers: "tanh"
-    activation_fully_connected_layers: "tanh"
-    activation_output:
-
   # nn_architecture:
-  #   structure: "DNN"
-  #   num_layers: 5
-  #   num_neurons: 512
-  #   activation_layers: "tanh"
+  #   structure: "CNN"
+  #   num_convolutional_layers: 4
+  #   num_convolutional_channels: 64
+  #   kernel_size: 2
+  #   stride: 2
+  #   padding: 1
+  #   num_neurons_fully_feature_input: 64
+  #   num_fully_connected_layers: 4
+  #   num_neurons_fully_connected: 512
+  #   activation_convolutional_layers: "tanh"
+  #   activation_fully_connected_layers: "tanh"
   #   activation_output:
+
+  nn_architecture:
+    structure: "DNN"
+    num_layers: 5
+    num_neurons: 512
+    activation_layers: "tanh"
+    activation_output:
 
   eval_settings:
     eval_interval: 100

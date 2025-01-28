@@ -10,26 +10,23 @@ metric:
   name: Charts/Avg. Validation Reward
 
 parameters:
-  nn_architecture:
+  extensions:
     parameters:
-      num_convolutional_layers:
-        min: 2
-        max: 4
-      num_convolutional_channels:
-        values: [64, 128, 256, 512]
-      kernel_size:
-        values: [2,3,4,5]
-      stride:
-        values: [1,2]
-      num_fully_connected_layers:
-        values: [3,4,5]
-      num_neurons_fully_connected:
-        values: [128, 256, 512]
-      activation_convolutional_layers:
-        values: ["relu", "tanh"]
-      activation_fully_connected_layers:
-        values: ["relu", "tanh"]
-
+      vanilla:
+        values: [True, False]
+      multi_step:
+        values: [True, False]
+      noisy:
+        values: [True, False]
+      distribution:
+        values: [True, False]
+      dueling:
+        values: [True, False]
+      replay:
+        values: [True, False]
+      rainbow:
+        values: [True, False]
+        
 command:
   - C:\Users\Marc\coding-lab\drl-codinglab\.venv\Scripts\python.exe
   - ${program}
