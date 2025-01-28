@@ -61,6 +61,12 @@ def load_config(env, config_dir, algorithm):
         # Open existing run_info config and load parameters
         with open(f"{config_dir}/run_info.yaml", "r") as file:
             config = yaml.safe_load(file)
+            config = config.get("_items")
+
+        print(config)
+
+        feature_config = config["features"]
+        env.obs_config = feature_config
 
     return config
 
@@ -69,6 +75,8 @@ def load_sweep_config(config_dir, sweep_name, algorithm):
     with open(f"{config_dir}/sweeps/{algorithm.lower()}_sweep_config.yaml", "r+") as file:
         sweep_config = yaml.safe_load(file)
         sweep_config["name"] = sweep_name
+
+
 
     return sweep_config
 
@@ -119,7 +127,7 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
 
     # Write run info into the corresponding .yaml file
     with open(f"{model_dir}/run_info.yaml", 'w') as file:
-        yaml.dump(config, file, default_flow_style=False, sort_keys=False)
+        yaml.dump(config._items, file, default_flow_style=False, sort_keys=False)
 
 
     # Write episode data into the corresponding .csv file
