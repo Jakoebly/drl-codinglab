@@ -119,7 +119,7 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
 
     # Write run info into the corresponding .yaml file
     with open(f"{model_dir}/run_info.yaml", 'w') as file:
-        yaml.dump(config, file, default_flow_style=False, sort_keys=False)
+        yaml.dump(config._items, file, default_flow_style=False, sort_keys=False)
 
 
     # Write episode data into the corresponding .csv file
