@@ -7,10 +7,10 @@ from torchrl.modules import NoisyLinear
 def build_network(device, nn_architecture, state_size, action_size, learning_rate, extensions=None, extension_params=None):
     structure = nn_architecture["structure"]
     if structure == "DNN":
-        # network = DNN(nn_architecture, state_size, action_size)
+        #network = DNN(nn_architecture, state_size, action_size)
         network = DNN_NEW(device, nn_architecture, state_size, action_size, extensions, extension_params)
     elif structure == "CNN":
-        # network = CNN(nn_architecture, state_size, action_size)
+        #network = CNN(nn_architecture, state_size, action_size)
         network = CNN_NEW(device, nn_architecture, state_size, action_size, extensions, extension_params)
     else:
         raise ValueError(f"Unsupported structure: {structure}")

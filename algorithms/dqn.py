@@ -43,8 +43,8 @@ class DQN_Agent:
         self.evaluation_episodes = eval_settings["evaluation_episodes"]
 
         # Network Initialization
-        self.q_network = nnets.build_network(self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
-        self.target_network = nnets.build_network(self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
+        self.q_network = nnets.build_network(device, self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
+        self.target_network = nnets.build_network(device, self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
         self.update_target_weights()
 
         # Assign CNN-specific methods if structure is CNN
@@ -315,7 +315,7 @@ class DQN_Agent:
         """
         rewards = []
         last_evaluation_reward = -100
-        if expset.Heatmap:
+        if expset.heatmap:
             self.env.reset_cell_visit_count()
 
         if mode == "training":

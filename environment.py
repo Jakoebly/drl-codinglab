@@ -205,7 +205,6 @@ class Environment(object):
             visited = set()
             q = Queue()
             q.put((pos, 0))
-            
             while not q.empty():
                 current, dist = q.get()
                 if current == tgt:
@@ -283,290 +282,289 @@ class Environment(object):
 
         return distances, directions
 
-
     def get_dnn_obs(self) -> np.ndarray:
-        """Returns the 2D encoded observations of the environment."""
-        observation_tuple_size = 8
-        pad_value = 0
-        cumulative_items_time = 0
+            """Returns the 2D encoded observations of the environment."""
+            observation_tuple_size = 8
+            pad_value = 0
+            cumulative_items_time = 0
 
-        if self.variant == 2:
-            distances, directions = self.shortest_path(self.agent_loc)
+            if self.variant == 2:
+                distances, directions = self.shortest_path(self.agent_loc)
 
-        # Free capacity of agent (normalized)
-        free_capacity_agent = (self.agent_capacity - self.agent_load) / self.agent_capacity
+            # Free capacity of agent (normalized)
+            free_capacity_agent = (self.agent_capacity - self.agent_load) / self.agent_capacity
 
-        # Agent Position
-        position_agent = [self.agent_loc[0], self.agent_loc[1]]
+            # Agent Position
+            position_agent = [self.agent_loc[0], self.agent_loc[1]]
 
-        # Remaining Episode Time (normalized)
-        remaining_episode_time = (self.episode_steps - self.step_count) / self.episode_steps
+            # Remaining Episode Time (normalized)
+            remaining_episode_time = (self.episode_steps - self.step_count) / self.episode_steps
 
-        # Manhatten Distance to Target (normalized)
-        if self.variant == 2:
-            distance_to_target = [distances.get(self.target_loc, 0) / (self.vertical_cell_count * 2)]
-        else:
-            distance_to_target = [
-            self.manhatten_dist(self.agent_loc, self.target_loc) / (self.vertical_cell_count * 2)
-        ]
-
-        # Vector Distance to Target - 2D
-        if self.variant == 2:
-            if self.target_loc in directions:
-                vector_to_target = {
-                    "up": [-1, 0],
-                    "down": [1, 0],
-                    "left": [0, -1],
-                    "right": [0, 1]
-                }.get(directions[self.target_loc], [0, 0])
+            # Manhatten Distance to Target (normalized)
+            if self.variant == 2:
+                distance_to_target = [distances.get(self.target_loc, 0) / (self.vertical_cell_count * 2)]
             else:
-                vector_to_target = [0, 0]
+                distance_to_target = [
+                self.manhatten_dist(self.agent_loc, self.target_loc) / (self.vertical_cell_count * 2)
+                ]
 
-        else:
-            vector_to_target = [
-                self.target_loc[0] - self.agent_loc[0],
-                self.target_loc[1] - self.agent_loc[1],
-            ]
-        
-        # Vector Distance to Walls
-        if self.variant == 2:
-            vector_to_walls = [
-                min(
-                    (
-                        self.agent_loc[0] - row
-                        for row in range(self.agent_loc[0], -1, -1)
-                        if (row, self.agent_loc[1]) not in self.eligible_cells
-                    ),
-                    default=self.agent_loc[0],
-                ),  # Up
-                min(
-                    (
-                        row - self.agent_loc[0]
-                        for row in range(self.agent_loc[0], self.vertical_cell_count)
-                        if (row, self.agent_loc[1]) not in self.eligible_cells
-                    ),
-                    default=self.vertical_cell_count - self.agent_loc[0] - 1,
-                ),  # Down
-                min(
-                    (
-                        self.agent_loc[1] - col
-                        for col in range(self.agent_loc[1], -1, -1)
-                        if (self.agent_loc[0], col) not in self.eligible_cells
-                    ),
-                    default=self.agent_loc[1],
-                ),  # Left
-                min(
-                    (
-                        col - self.agent_loc[1]
-                        for col in range(self.agent_loc[1], self.horizontal_cell_count)
-                        if (self.agent_loc[0], col) not in self.eligible_cells
-                    ),
-                    default=self.horizontal_cell_count - self.agent_loc[1] - 1,
-                ),  # Right
-            ]
+            # Vector Distance to Target - 2D
+            if self.variant == 2:
+                if self.target_loc in directions:
+                    vector_to_target = {
+                        "up": [-1, 0],
+                        "down": [1, 0],
+                        "left": [0, -1],
+                        "right": [0, 1]
+                    }.get(directions[self.target_loc], [0, 0])
+                else:
+                    vector_to_target = [0, 0]
 
-            # Apply overrides based on the agent's current position
-            if self.agent_loc in [(0, 0), (1, 0), (2, 0), (1, 2), (2, 2), (3, 2), (4, 2)]:
-                vector_to_walls[3] = 0  # "Right"
-            if self.agent_loc in [(0, 2), (1, 2), (2, 2), (1, 4), (2, 4), (3, 4), (4, 4)]:
-                vector_to_walls[2] = 0  # "Left"
-            if self.agent_loc == (3, 1):
-                vector_to_walls[0] = 0  # "Up"
-            if self.agent_loc == (0, 3):
-                vector_to_walls[1] = 0  # "Down"
+            else:
+                vector_to_target = [
+                    self.target_loc[0] - self.agent_loc[0],
+                    self.target_loc[1] - self.agent_loc[1],
+                ]
             
-            # New Overrides
-            if self.agent_loc in [(3, 0), (4, 0)]:
-                vector_to_walls[3] = 2  # "Right"
-            if self.agent_loc in [(3, 1), (4, 1)]:
-                vector_to_walls[3] = 1  # "Right"
-            if self.agent_loc == (4, 1):
-                vector_to_walls[0] = 1  # "Up"
-            if self.agent_loc == (0, 4):
-                vector_to_walls[2] = 2  # "Left"
-            if self.agent_loc == (0, 3):
-                vector_to_walls[2] = 1  # "Left"
-
-        else:
-            # Standard vector_to_walls calculation
-            vector_to_walls = [
-                self.agent_loc[0],
-                self.vertical_cell_count - 1 - self.agent_loc[0],
-                self.agent_loc[1],
-                self.horizontal_cell_count - 1 - self.agent_loc[1],
-            ]
-
-        # Initialize item-based observations
-        position_items = []
-        remaining_time_items = []
-        prioritization_ratio_items_1 = []
-        prioritization_ratio_items_2 = []
-        prioritization_ratio_items_3 = []
-        vector_agent_to_items = []
-        distances_target_to_items = []
-        proximity_scores = []
-        manhatten_distance_agent_to_items = []
-        manhatten_distance_target_to_items = []
-        filtered_item_locs = []
-        filtered_item_times = []
-        closest_item = [pad_value, pad_value]
-        vector_closest = [pad_value, pad_value]
-
-        # Filter reachable items and limit to observation_tuple_size
-        for loc, time in zip(self.item_locs, self.item_times):
-            if len(filtered_item_locs) >= observation_tuple_size:
-                break
-            if self.is_reachable(loc, self.max_response_time - time):
-                filtered_item_locs.append(loc)
-                filtered_item_times.append(time)
-
-        # Closest item
-        closest_idx = -1
-        if filtered_item_locs:
+            # Vector Distance to Walls
             if self.variant == 2:
-                item_distances = [distances.get(item, 0) for item in filtered_item_locs]
+                vector_to_walls = [
+                    min(
+                        (
+                            self.agent_loc[0] - row
+                            for row in range(self.agent_loc[0], -1, -1)
+                            if (row, self.agent_loc[1]) not in self.eligible_cells
+                        ),
+                        default=self.agent_loc[0],
+                    ),  # Up
+                    min(
+                        (
+                            row - self.agent_loc[0]
+                            for row in range(self.agent_loc[0], self.vertical_cell_count)
+                            if (row, self.agent_loc[1]) not in self.eligible_cells
+                        ),
+                        default=self.vertical_cell_count - self.agent_loc[0] - 1,
+                    ),  # Down
+                    min(
+                        (
+                            self.agent_loc[1] - col
+                            for col in range(self.agent_loc[1], -1, -1)
+                            if (self.agent_loc[0], col) not in self.eligible_cells
+                        ),
+                        default=self.agent_loc[1],
+                    ),  # Left
+                    min(
+                        (
+                            col - self.agent_loc[1]
+                            for col in range(self.agent_loc[1], self.horizontal_cell_count)
+                            if (self.agent_loc[0], col) not in self.eligible_cells
+                        ),
+                        default=self.horizontal_cell_count - self.agent_loc[1] - 1,
+                    ),  # Right
+                ]
+
+                # Apply overrides based on the agent's current position
+                if self.agent_loc in [(0, 0), (1, 0), (2, 0), (1, 2), (2, 2), (3, 2), (4, 2)]:
+                    vector_to_walls[3] = 0  # "Right"
+                if self.agent_loc in [(0, 2), (1, 2), (2, 2), (1, 4), (2, 4), (3, 4), (4, 4)]:
+                    vector_to_walls[2] = 0  # "Left"
+                if self.agent_loc == (3, 1):
+                    vector_to_walls[0] = 0  # "Up"
+                if self.agent_loc == (0, 3):
+                    vector_to_walls[1] = 0  # "Down"
+                
+                # New Overrides
+                if self.agent_loc in [(3, 0), (4, 0)]:
+                    vector_to_walls[3] = 2  # "Right"
+                if self.agent_loc in [(3, 1), (4, 1)]:
+                    vector_to_walls[3] = 1  # "Right"
+                if self.agent_loc == (4, 1):
+                    vector_to_walls[0] = 1  # "Up"
+                if self.agent_loc == (0, 4):
+                    vector_to_walls[2] = 2  # "Left"
+                if self.agent_loc == (0, 3):
+                    vector_to_walls[2] = 1  # "Left"
+
             else:
-                item_distances = [self.manhatten_dist(self.agent_loc, item) for item in filtered_item_locs]
-            closest_idx = np.argmin(item_distances)
-            closest_item = [filtered_item_locs[closest_idx][0], filtered_item_locs[closest_idx][1]]
+                # Standard vector_to_walls calculation
+                vector_to_walls = [
+                    self.agent_loc[0],
+                    self.vertical_cell_count - 1 - self.agent_loc[0],
+                    self.agent_loc[1],
+                    self.horizontal_cell_count - 1 - self.agent_loc[1],
+                ]
 
-        # Distance to Closest Item
-        if closest_idx != -1:
-            if self.variant == 2:
-                closest_item_tuple = tuple(closest_item)
-                if closest_item_tuple in directions:
-                    vector_closest = {
-                        "up": [-1, 0],
-                        "down": [1, 0],
-                        "left": [0, -1],
-                        "right": [0, 1]
-                    }.get(directions[closest_item_tuple], [0, 0])
+            # Initialize item-based observations
+            position_items = []
+            remaining_time_items = []
+            prioritization_ratio_items_1 = []
+            prioritization_ratio_items_2 = []
+            prioritization_ratio_items_3 = []
+            vector_agent_to_items = []
+            distances_target_to_items = []
+            proximity_scores = []
+            manhatten_distance_agent_to_items = []
+            manhatten_distance_target_to_items = []
+            filtered_item_locs = []
+            filtered_item_times = []
+            closest_item = [pad_value, pad_value]
+            vector_closest = [pad_value, pad_value]
+
+            # Filter reachable items and limit to observation_tuple_size
+            for loc, time in zip(self.item_locs, self.item_times):
+                if len(filtered_item_locs) >= observation_tuple_size:
+                    break
+                if self.is_reachable(loc, self.max_response_time - time):
+                    filtered_item_locs.append(loc)
+                    filtered_item_times.append(time)
+
+            # Closest item
+            closest_idx = -1
+            if filtered_item_locs:
+                if self.variant == 2:
+                    item_distances = [distances.get(item, 0) for item in filtered_item_locs]
                 else:
-                    vector_closest = [0,0]
-            else:
-                vector_closest = [
-                        self.agent_loc[0] - filtered_item_locs[closest_idx][0],
-                        self.agent_loc[1] - filtered_item_locs[closest_idx][1],
-                    ]
+                    item_distances = [self.manhatten_dist(self.agent_loc, item) for item in filtered_item_locs]
+                closest_idx = np.argmin(item_distances)
+                closest_item = [filtered_item_locs[closest_idx][0], filtered_item_locs[closest_idx][1]]
 
-        # Process filtered items for observations
-        #for loc, time in zip(filtered_item_locs[:observation_tuple_size], filtered_item_times[:observation_tuple_size]):
-        for loc, time in zip(filtered_item_locs, filtered_item_times):
-            position_items.extend([loc[0], loc[1]])
-
-            # Normalized item time
-            remaining_time = (self.max_response_time - time) / self.max_response_time
-            remaining_time_items.append(remaining_time)
-            cumulative_items_time+= remaining_time
-
-            if self.variant == 2:
-                d_agent = distances.get(loc, 0)
-                d_target = distances.get(self.target_loc, 0)
-
-            else:
-                d_agent = self.manhatten_dist(self.agent_loc, loc) 
-                d_target = self.manhatten_dist(loc, self.target_loc)
-
-            manhatten_distance_agent_to_items.append(d_agent / (self.vertical_cell_count * 2))
-            manhatten_distance_target_to_items.append(d_target / (self.vertical_cell_count * 2))
-       
-            prioritization_ratio_1 = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
-            prioritization_ratio_2 = (self.max_response_time - remaining_time) / (d_agent + d_target)
-            prioritization_ratio_3 = (self.max_response_time - (d_agent + d_target)) / remaining_time
-            prioritization_ratio_items_1.append(prioritization_ratio_1)
-            prioritization_ratio_items_2.append(prioritization_ratio_2)
-            prioritization_ratio_items_3.append(prioritization_ratio_3)
-
-            # Vector direction from agent to items
-            if self.variant == 2:
-                if loc in directions:
-                    direction_to_item = {
-                        "up": [-1, 0],
-                        "down": [1, 0],
-                        "left": [0, -1],
-                        "right": [0, 1]
-                    }.get(directions[loc], [0, 0])
+            # Distance to Closest Item
+            if closest_idx != -1:
+                if self.variant == 2:
+                    jaja = closest_item
+                    closest_item_tuple = tuple(jaja)
+                    if closest_item_tuple in directions:
+                        vector_closest = {
+                            "up": [-1, 0],
+                            "down": [1, 0],
+                            "left": [0, -1],
+                            "right": [0, 1]
+                        }.get(directions[closest_item_tuple], [0, 0])
+                    else:
+                        vector_closest = [0,0]
                 else:
-                        direction_to_item = (0, 0)
-                        vector_agent_to_items.extend(direction_to_item)
+                    vector_closest = [
+                            self.agent_loc[0] - filtered_item_locs[closest_idx][0],
+                            self.agent_loc[1] - filtered_item_locs[closest_idx][1],
+                        ]
+
+            # Process filtered items for observations
+            #for loc, time in zip(filtered_item_locs[:observation_tuple_size], filtered_item_times[:observation_tuple_size]):
+            for loc, time in zip(filtered_item_locs, filtered_item_times):
+                position_items.extend([loc[0], loc[1]])
+
+                # Normalized item time
+                remaining_time = (self.max_response_time - time) / self.max_response_time
+                remaining_time_items.append(remaining_time)
+                cumulative_items_time+= remaining_time
+
+                if self.variant == 2:
+                    d_agent = distances.get(loc, 0)
+                    d_target = distances.get(self.target_loc, 0)
+
+                else:
+                    d_agent = self.manhatten_dist(self.agent_loc, loc) 
+                    d_target = self.manhatten_dist(loc, self.target_loc)
+
+                manhatten_distance_agent_to_items.append(d_agent / (self.vertical_cell_count * 2))
+                manhatten_distance_target_to_items.append(d_target / (self.vertical_cell_count * 2))
+        
+                prioritization_ratio_1 = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
+                prioritization_ratio_2 = (self.max_response_time - remaining_time) / (d_agent + d_target)
+                prioritization_ratio_3 = (self.max_response_time - (d_agent + d_target)) / remaining_time
+                prioritization_ratio_items_1.append(prioritization_ratio_1)
+                prioritization_ratio_items_2.append(prioritization_ratio_2)
+                prioritization_ratio_items_3.append(prioritization_ratio_3)
+
+                # Vector direction from agent to items
+                if self.variant == 2:
+                    if loc in directions:
+                        direction_to_item = {
+                            "up": [-1, 0],
+                            "down": [1, 0],
+                            "left": [0, -1],
+                            "right": [0, 1]
+                        }.get(directions[loc], [0, 0])
+                    else:
+                            direction_to_item = (0, 0)
+                            vector_agent_to_items.extend(direction_to_item)
+                else:
+                    vector_agent_to_items.extend([
+                            self.agent_loc[0] - loc[0],
+                            self.agent_loc[1] - loc[1],
+                        ])
+
+
+                distances_target_to_items.extend([
+                    self.target_loc[0] - loc[0],
+                    self.target_loc[1] - loc[1],
+                ])
+
+                # Proximity/density score
+                proximity_score = 1
+                for other_loc in filtered_item_locs:
+                    if loc != other_loc:
+                        if self.variant == 2:
+                            distance_to_other = distances.get(other_loc, 0) / (self.vertical_cell_count * 2)
+                        else:
+                            distance_to_other = self.manhatten_dist(loc, other_loc) / (self.vertical_cell_count * 2)
+                        proximity_score *= distance_to_other
+                proximity_scores.append(proximity_score)
+
+
+            # Pad 2d observations
+            while len(position_items) < observation_tuple_size * 2:
+                position_items.extend([pad_value, pad_value])
+            while len(remaining_time_items) < observation_tuple_size:
+                remaining_time_items.append(pad_value)
+            while len(vector_agent_to_items) < observation_tuple_size * 2:
+                vector_agent_to_items.extend([pad_value, pad_value])
+            while len(distances_target_to_items) < observation_tuple_size:
+                distances_target_to_items.append(pad_value)
+            while len(prioritization_ratio_items_1) < observation_tuple_size:
+                prioritization_ratio_items_1.append(pad_value)
+            while len(prioritization_ratio_items_2) < observation_tuple_size:
+                prioritization_ratio_items_2.append(pad_value)
+            while len(prioritization_ratio_items_3) < observation_tuple_size:
+                prioritization_ratio_items_3.append(pad_value)
+            while len(proximity_scores) < observation_tuple_size:
+                proximity_scores.append(pad_value)
+            while len(manhatten_distance_agent_to_items) < observation_tuple_size:
+                manhatten_distance_agent_to_items.append(pad_value)
+            while len(manhatten_distance_target_to_items) < observation_tuple_size:
+                manhatten_distance_target_to_items.append(pad_value)
+
+            # Cummulative Timeout Risk (normalized)
+            if len(filtered_item_locs) != 0:
+                cumulative_timeout_risk = cumulative_items_time / len(filtered_item_locs)
             else:
-                vector_agent_to_items.extend([
-                        self.agent_loc[0] - loc[0],
-                        self.agent_loc[1] - loc[1],
-                    ])
+                cumulative_timeout_risk = 1
 
+            obs = np.concatenate([
+                position_agent if self.obs_config.get("position_agent", True) else [], #(x,y) 2
+                distance_to_target if self.obs_config.get("distance_to_target", True) else [], # z 1
+                vector_to_target if self.obs_config.get("vector_to_target", True) else [], # (x,y) 2
+                vector_to_walls if self.obs_config.get("vector_to_walls", True) else [], #(a,b,c,d) 4
+                [free_capacity_agent] if self.obs_config.get("free_capacity_agent", True) else [], #z (normalized) 1
+                [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", True) else [], #z (normalized) 1
+                    
+                position_items if self.obs_config.get("position_items", True) else [], #((x,y), (x,y),...) 16
+                vector_agent_to_items if self.obs_config.get("vector_agent_to_items", True) else [], #((x,y), (x,y),...) 16
+                remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  #z (normalized) 8
+                manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", True) else [], #z (normalized) 8
+                manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [], #z (normalized) 8
+                prioritization_ratio_items_1 if self.obs_config.get("prioritization_ratio_items", 1) == 1 else [], 
+                prioritization_ratio_items_2 if self.obs_config.get("prioritization_ratio_items", 2) == 2 else [],
+                prioritization_ratio_items_3 if self.obs_config.get("prioritization_ratio_items", 3) == 3 else [],
+                
+                closest_item if self.obs_config.get("closest_item", True) else [], #2
+                vector_closest if self.obs_config.get("vector_closest", True) else [], #2
 
-            distances_target_to_items.extend([
-                self.target_loc[0] - loc[0],
-                self.target_loc[1] - loc[1],
+                proximity_scores if self.obs_config.get("proximity_scores", True) else [], #8
+                [remaining_episode_time] if self.obs_config.get("remaining_episode_time", True) else [], #z (normalized) #1
             ])
 
-            # Proximity/density score
-            proximity_score = 1
-            for other_loc in filtered_item_locs:
-                if loc != other_loc:
-                    if self.variant == 2:
-                        distance_to_other = distances.get(other_loc, 0) / (self.vertical_cell_count * 2)
-                    else:
-                        distance_to_other = self.manhatten_dist(loc, other_loc) / (self.vertical_cell_count * 2)
-                    proximity_score *= distance_to_other
-            proximity_scores.append(proximity_score)
-
-
-        # Pad 2d observations
-        while len(position_items) < observation_tuple_size * 2:
-            position_items.extend([pad_value, pad_value])
-        while len(remaining_time_items) < observation_tuple_size:
-            remaining_time_items.append(pad_value)
-        while len(vector_agent_to_items) < observation_tuple_size * 2:
-            vector_agent_to_items.extend([pad_value, pad_value])
-        while len(distances_target_to_items) < observation_tuple_size:
-            distances_target_to_items.append(pad_value)
-        while len(prioritization_ratio_items_1) < observation_tuple_size:
-            prioritization_ratio_items_1.append(pad_value)
-        while len(prioritization_ratio_items_2) < observation_tuple_size:
-            prioritization_ratio_items_2.append(pad_value)
-        while len(prioritization_ratio_items_3) < observation_tuple_size:
-            prioritization_ratio_items_3.append(pad_value)
-        while len(proximity_scores) < observation_tuple_size:
-            proximity_scores.append(pad_value)
-        while len(manhatten_distance_agent_to_items) < observation_tuple_size:
-            manhatten_distance_agent_to_items.append(pad_value)
-        while len(manhatten_distance_target_to_items) < observation_tuple_size:
-            manhatten_distance_target_to_items.append(pad_value)
-
-        # Cummulative Timeout Risk (normalized)
-        if len(filtered_item_locs) != 0:
-            cumulative_timeout_risk = cumulative_items_time / len(filtered_item_locs)
-        else:
-            cumulative_timeout_risk = 1
-
-        obs = np.concatenate([
-            position_agent if self.obs_config.get("position_agent", True) else [], #(x,y)
-            distance_to_target if self.obs_config.get("distance_to_target", True) else [], # z
-            vector_to_target if self.obs_config.get("vector_to_target", True) else [], # (x,y)
-            vector_to_walls if self.obs_config.get("vector_to_walls", True) else [], #(a,b,c,d)
-            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", True) else [], #z (normalized)
-            [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", True) else [], #z (normalized)
-                  
-            position_items if self.obs_config.get("position_items", True) else [], #((x,y), (x,y),...)
-            vector_agent_to_items if self.obs_config.get("vector_agent_to_items", True) else [], #((x,y), (x,y),...)
-            remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  #z (normalized)
-            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", True) else [], #z (normalized)
-            manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [], #z (normalized)
-            prioritization_ratio_items_1 if self.obs_config.get("prioritization_ratio_items", 1) == 1 else [],
-            prioritization_ratio_items_2 if self.obs_config.get("prioritization_ratio_items", 2) == 2 else [],
-            prioritization_ratio_items_3 if self.obs_config.get("prioritization_ratio_items", 3) == 3 else [],
-            
-            #vector_to_closest
-            closest_item if self.obs_config.get("closest_item", True) else [],
-            vector_closest if self.obs_config.get("vector_closest", True) else [],
-
-            proximity_scores if self.obs_config.get("proximity_scores", True) else [],
-            [remaining_episode_time] if self.obs_config.get("remaining_episode_time", True) else [], #z (normalized)
-        ])
-
-        return obs
+            return obs
 
     def get_cnn_obs(self) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the state of the environment as a 3D grid with multiple channels."""

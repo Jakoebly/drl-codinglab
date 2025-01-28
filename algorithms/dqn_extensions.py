@@ -191,8 +191,8 @@ class PrioritizedReplayExtension:
         Implements Prioritized Experience Replay.
         """
         self.agent = agent
-        self.agent.alpha = self.agent.extension_parameters["replay"]["alpha"]
-        self.agent.beta = self.agent.extension_parameters["replay"]["beta"]
+        self.agent.alpha = self.agent.extension_parameters["alpha"]
+        self.agent.beta = self.agent.extension_parameters["beta"]
         self.agent.buffer = PrioritizedReplayBuffer(capacity=agent.buffer.maxlen, alpha=self.agent.alpha, beta=self.agent.beta)
         self.last_sampled_indices = None
 
@@ -264,8 +264,8 @@ class NoisyDQNExtension:
     def __init__(self, agent):
         self.agent = agent
         action_size = self.agent.action_size
-        self.agent.std_init = self.agent.extension_parameters["noisy"]["std_init"]
-        self.agent.noisy_layers = self.agent.extension_parameters["noisy"]["noisy_layers"]
+        self.agent.std_init = self.agent.extension_parameters["std_init"]
+        self.agent.noisy_layers = self.agent.extension_parameters["noisy_layers"]
 
         self.agent.q_network = neural_nets.NoisyAdapter(base_network=self.agent.q_network, action_size=action_size, std_init=self.agent.std_init, noisy_layers=self.agent.noisy_layers)
         self.agent.target_network = neural_nets.NoisyAdapter(base_network=self.agent.target_network, action_size=action_size, std_init=self.agent.std_init, noisy_layers=self.agent.noisy_layers)
@@ -332,9 +332,9 @@ class DistributionalDQNExtension:
     def __init__(self, agent):
         self.agent = agent
 
-        self.agent.v_min = self.agent.extension_parameters["distribution"]["v_min"]
-        self.agent.v_max = self.agent.extension_parameters["distribution"]["v_max"]
-        self.agent.num_atoms = self.agent.extension_parameters["distribution"]["num_atoms"]
+        self.agent.v_min = self.agent.extension_parameters["v_min"]
+        self.agent.v_max = self.agent.extension_parameters["v_max"]
+        self.agent.num_atoms = self.agent.extension_parameters["num_atoms"]
 
         self.agent.q_network = neural_nets.convert_to_distributional_network(
             self.agent.q_network, action_size=self.agent.action_size, num_atoms=self.agent.num_atoms, v_min=self.agent.v_min, v_max=self.agent.v_max
@@ -468,7 +468,7 @@ class MultiStepExtension:
 
     def __init__(self, agent):
         self.agent = agent
-        self.agent.n_steps = self.agent.extensionparameters["multi_step"]["n_steps"]
+        self.agent.n_steps = self.agent.extensionparameters["n_steps"]
         self.agent.n_step_buffer = deque(maxlen=self.agent.n_steps)
 
         self.previous_record = agent.record

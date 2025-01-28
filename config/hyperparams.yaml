@@ -14,7 +14,7 @@ DQN:
     distribution: False
     dueling: False
     priority: False
-    double: True
+    double: False
     multi_step: False
 
   extension_parameters:
