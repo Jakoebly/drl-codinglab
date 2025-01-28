@@ -13,45 +13,56 @@ parameters:
   hyperparameters:
     parameters:
       learning_rate_actor:
-        values: [0.01, 0.001, 0.0001, 0.00001]
+        min: 0.00005
+        max: 0.01
       learning_rate_critic:
-        values: [0.01, 0.001, 0.0001, 0.00001]
+        min: 0.00005
+        max: 0.01
       gamma:
-        values: [0.999, 0.99, 0.93, 0.9]
+        min: 0.8
+        max: 0.9997
       lam:
-        values: [0.9, 0.95, 1.0]
+        min: 0.9
+        max: 1.0
       clip_ratio:
         values: [ 0.1, 0.2, 0.3 ]
+      value_coef:
+        min: 0.5
+        max: 1.0
       entropy_coef:
-        values: [ 0.0, 0.01, 0.1, 0.5 ]
+        min: 0.0
+        max: 0.3
       num_trajectories:
-        values: [ 2, 5, 10, 20, 50 ]
+        min: 1
+        max: 30
       num_epochs:
-        values: [4, 8, 16, 32, 64]
+        min: 2
+        max: 20
       num_minibatches:
-        values: [4, 8, 16, 32, 64]
+        min: 5
+        max: 40
   nn_architecture_actor:
     parameters:
       num_layers:
         min: 1
-        max: 5
+        max: 8
       num_neurons:
-        values: [32, 64, 128, 256, 512]
+        values: [64, 128, 256, 512]
       activation_layers:
-        values: ["relu", "tanh"]
+        values: ["relu", "tanh", "sigmoid"]
   nn_architecture_critic:
     parameters:
       num_layers:
         min: 1
-        max: 5
+        max: 8
       num_neurons:
-        values: [32, 64, 128, 256, 512]
+        values: [ 64, 128, 256, 512 ]
       activation_layers:
-        values: [ "relu", "tanh"]
+        values: [ "relu", "tanh", "sigmoid" ]
 
 command:
-  - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe
-  - ${program}
+  - python
+  - /dss/dsshome1/lxc09/drlearn002/drl-codinglab-2/main.py
   - "--algorithm"
   - "ppo"
   - "--variant"

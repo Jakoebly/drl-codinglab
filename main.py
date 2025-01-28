@@ -7,7 +7,7 @@ import torch
 import wandb
 from environment import Environment
 from src import utils as ut, args, settings
-from algorithms.dqn import DQN_Agent
+from algorithms.rainbow_dqn import DQN_Agent
 from algorithms.ppo import PPO_Agent
 import yaml
 # from algorithms.sac import SAC_Agent
@@ -59,7 +59,8 @@ if __name__ == "__main__":
     if args.sweep:
         sweep_name = f"Sweep__{run_name}"
         # spec = algorithm.lower()
-        spec = "feature"
+        # spec = "feature"
+        spec = "extension"
         sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, spec)
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)

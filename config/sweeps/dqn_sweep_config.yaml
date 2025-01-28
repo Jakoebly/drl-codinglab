@@ -31,7 +31,8 @@ parameters:
         values: ["relu", "tanh"]
 
 command:
-  - C:\Users\Marc\coding-lab\drl-codinglab\.venv\Scripts\python.exe
+  - python
+  # - /dss/dsshome1/lxc09/drlearn002/drl-codinglab-2/main.py
   - ${program}
   - "--algorithm"
   - "dqn"

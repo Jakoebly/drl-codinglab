@@ -1,4 +1,4 @@
-program: main.py
+program: drl-codinglab\main.py
 
 entity: gowiththetensorflow
 project: Coding_Lab
@@ -32,14 +32,10 @@ parameters:
         values: [True, False]
       vector_closest:
         values: [True, False]
-      vector_to_target:
-        values: [True, False]
-      vector_agent_to_items:
-        values: [True, False]	
 
 command:
-  - C:\Users\jakob\OneDrive\Uni\Master\3. Semester\Coding Lab\drl-codinglab\.venv\Scripts\python.exe
-  - ${program}
+  - python
+  - /dss/dsshome1/lxc09/drlearn002/drl-codinglab-2/main.py
   - "--algorithm"
   - "dqn"
   - "--variant"
