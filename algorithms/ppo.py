@@ -176,8 +176,8 @@ class PPO_Agent():
         self.memory = PPOMemory(self.batch_size, self.num_trajectories, self.num_steps_trajectory, self.state_size, self.device)
 
         # Network Initialization
-        self.actor = nnets.build_network(self.nn_architecture_actor, self.state_size, self.action_size, self.learning_rate_actor).to(self.device)
-        self.critic = nnets.build_network(self.nn_architecture_critic, self.state_size, 1, self.learning_rate_critic).to(self.device)
+        self.actor = nnets.build_network(self.device, self.nn_architecture_actor, self.state_size, self.action_size, self.learning_rate_actor).to(self.device)
+        self.critic = nnets.build_network(self.device, self.nn_architecture_critic, self.state_size, 1, self.learning_rate_actor).to(self.device)
 
 
     def load_weights(self, path):
@@ -341,7 +341,7 @@ class PPO_Agent():
 
         rewards = []
         last_evaluation_reward = -10000
-        if expset.Heatmap:
+        if expset.heatmap:
             self.env.reset_cell_visit_count()
 
         if mode == "training":
