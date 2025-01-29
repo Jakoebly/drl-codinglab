@@ -10,12 +10,12 @@ DQN:
     target_update_interval: 150
 
   extensions:
-    distribution: True
-    double: True
-    dueling: True
-    multi_step: False
+    distribution: True #T
+    double: True #T
+    dueling: True #T
+    multi_step: True
     noisy: False
-    priority: False
+    priority: True
 
   extension_parameters:
     alpha: 0.5
