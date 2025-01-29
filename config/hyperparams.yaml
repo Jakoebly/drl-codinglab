@@ -11,11 +11,11 @@ DQN:
 
   extensions:
     noisy: False
-    distribution: False
-    dueling: False
-    priority: False
-    double: False
-    multi_step: False
+    distribution: True
+    dueling: True
+    priority: True
+    double: True
+    multi_step: True
 
   extension_parameters:
     alpha: 0.5
@@ -63,7 +63,7 @@ PPO:
     entropy_decay: False
     lr_decay: True
     lr_decay_rate: 0.01
-    min_entropy_coef: 0.001
+    min_entropy_coef: 0
     learning_rate_actor: 0.001
     learning_rate_critic: 0.001
     gamma: 0.93
@@ -80,7 +80,7 @@ PPO:
 
   nn_architecture_actor:
     structure: "DNN"
-    num_layers: 3
+    num_layers: 5
     num_neurons: 64
     activation_layers: "tanh"
     activation_output:
