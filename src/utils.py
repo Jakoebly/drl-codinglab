@@ -61,7 +61,7 @@ def load_config(env, config_dir, algorithm):
         # Open existing run_info config and load parameters
         with open(f"{config_dir}/run_info.yaml", "r") as file:
             config = yaml.safe_load(file)
-            config = config.get("_items")
+            #config = config.get("_items")
 
         print(config)
 
@@ -75,8 +75,6 @@ def load_sweep_config(config_dir, sweep_name, algorithm):
     with open(f"{config_dir}/sweeps/{algorithm.lower()}_sweep_config.yaml", "r+") as file:
         sweep_config = yaml.safe_load(file)
         sweep_config["name"] = sweep_name
-
-
 
     return sweep_config
 

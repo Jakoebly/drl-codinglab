@@ -10,8 +10,8 @@ Variant_0:
     avg_validation_reward: -10000
 Variant_1:
   DQN:
-    model_name: CL__DQN__Var1__20250120_0814
-    avg_validation_reward: 395.91
+    model_name: CL__DQN__Var1__20250129_1652__[FINAL_V1_DQN_DNN]
+    avg_validation_reward: 402.905
   PPO:
     model_name: null
     avg_validation_reward: -10000
@@ -20,8 +20,8 @@ Variant_1:
     avg_validation_reward: -10000
 Variant_2:
   DQN:
-    model_name: CL__DQN__Var2__20250126_1749__[v2_test]
-    avg_validation_reward: 249.475
+    model_name: CL__DQN__Var2__20250129_1925__[FINAL_V2_DQN_DNN]
+    avg_validation_reward: 255.625
   PPO:
     model_name: null
     avg_validation_reward: -10000

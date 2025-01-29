@@ -12,7 +12,7 @@ from scipy.sparse.csgraph import dijkstra
 from environment import Environment
 
 
-variant = 2  # problem variant (0 for base variant, 1 for first extension, 2 for second extension)
+variant = 1  # problem variant (0 for base variant, 1 for first extension, 2 for second extension)
 mode = 'testing'  # validation or testing
 #data_dir = './data'  # relative path to data directory (e.g., './data', not './data/variant_0')
 data_dir = 'drl-codinglab\data'

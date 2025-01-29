@@ -1,21 +1,21 @@
 DQN:
   hyperparameters:
-    gamma: 0.95
-    epsilon: 1.0
-    epsilon_min: 0.118
-    epsilon_decay: 0.985
-    learning_rate: 0.0000105
     batch_size: 256
-    target_update_interval: 150
     buffer_size: 200000
+    epsilon: 1
+    epsilon_decay: 0.985
+    epsilon_min: 0.118
+    gamma: 0.95
+    learning_rate: 0.0000105
+    target_update_interval: 150
 
   extensions:
-    noisy: False
-    distribution: False
-    dueling: False
-    priority: False
-    double: False
+    distribution: True
+    double: True
+    dueling: True
     multi_step: False
+    noisy: False
+    priority: False
 
   extension_parameters:
     alpha: 0.5
@@ -54,54 +54,3 @@ DQN:
     eval_interval: 100
     evaluation_treshold: 0.000
     evaluation_episodes: 100
-
-PPO:
-  hyperparameters:
-    reward_norm: True
-    advantage_norm: True
-    value_loss_clipping: True
-    entropy_decay: False
-    lr_decay: True
-    lr_decay_rate: 0.01
-    min_entropy_coef: 0.001
-    learning_rate_actor: 0.001
-    learning_rate_critic: 0.001
-    gamma: 0.93
-    lam: 0.95
-    clip_ratio: 0.2
-    value_coef: 0.5
-    entropy_coef: 0.0
-    max_grad_norm: 0.5
-    num_trajectories: 10
-    num_epochs: 10
-    num_minibatches: 25
-    target_kl: 0.015
-    warm_up_period: 1
-
-  nn_architecture_actor:
-    structure: "DNN"
-    num_layers: 3
-    num_neurons: 64
-    activation_layers: "tanh"
-    activation_output:
-
-  nn_architecture_critic:
-    structure: "DNN"
-    num_layers: 5
-    num_neurons: 64
-    activation_layers: "tanh"
-    activation_output:
-
-  eval_settings:
-    eval_interval: 100
-    evaluation_treshold: 0.000
-    evaluation_episodes: 100
-
-SAC:
-  gamma: 000
-  initial_alpha: 000
-  alpha_decay: 000
-  rho: 000
-  mem_maxlen: 000
-  batch_size: 000
-  learning_rate: 000

@@ -469,7 +469,7 @@ class Environment(object):
                 manhatten_distance_agent_to_items.append(d_agent / (self.vertical_cell_count * 2))
                 manhatten_distance_target_to_items.append(d_target / (self.vertical_cell_count * 2))
         
-                prioritization_ratio_1 = (1 / (d_target + 1)) + (1 / (d_agent + 1)) * (1 / remaining_time)
+                prioritization_ratio_1 = ((1 / (d_target + 1)) + (1 / (d_agent + 1))) * (1 / remaining_time)
                 prioritization_ratio_2 = (self.max_response_time - remaining_time) / (d_agent + d_target)
                 prioritization_ratio_3 = (self.max_response_time - (d_agent + d_target)) / remaining_time
                 prioritization_ratio_items_1.append(prioritization_ratio_1)
