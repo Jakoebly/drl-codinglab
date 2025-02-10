@@ -49,8 +49,8 @@ if __name__ == "__main__":
         CONFIG_DIR = MODEL_DIR
 
     # Create environment
-    render = True if args.render else False
-    env = Environment(variant, DATA_DIR, render=render)
+    # render = True if args.render else False
+    env = Environment(variant, DATA_DIR)
 
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)

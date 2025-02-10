@@ -153,11 +153,11 @@ def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
         if model_name is None:
             model_name = run_name
 
-        # Open best.yaml file
+        # Open best_models.yaml file
         with open(best_dir, 'r') as file:
             content = yaml.safe_load(file)
 
-        # Extract relevant section from the content of the best.yaml file
+        # Extract relevant section from the content of the best_models.yaml file
         best = content[f"Variant_{variant}"].get(algorithm, {})
 
         # Adjust relevant parameters if current model is better than the current best model
@@ -165,10 +165,10 @@ def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
             best["model_name"] = model_name
             best["avg_validation_reward"] = float(np.mean(rew_val))
 
-        # Update the best.yaml content with new data
+        # Update the best_models.yaml content with new data
         content[f"Variant_{variant}"][algorithm] = best
 
-        # Update the best.yaml file
+        # Update the best_models.yaml file
         with open(best_dir, 'w') as file:
             yaml.safe_dump(content, file, default_flow_style=False, sort_keys=False)
 

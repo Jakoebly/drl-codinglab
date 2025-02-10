@@ -58,8 +58,8 @@ class DQN_Agent:
         self.buffer = deque(maxlen=hyperparameters["buffer_size"])
 
         # Network initialization
-        self.q_network = nnets.build_network(device, self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
-        self.target_network = nnets.build_network(device, self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
+        self.q_network = nnets.build_network(self.device, self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
+        self.target_network = nnets.build_network(self.device, self.nn_architecture, self.state_size, self.action_size, self.learning_rate).to(self.device)
         self.update_target_weights()
 
         # Apply CNN-specific methods if structure is CNN

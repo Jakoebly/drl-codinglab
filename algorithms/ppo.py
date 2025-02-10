@@ -15,7 +15,7 @@ class PPOMemory:
         Parameters:
             num_trajectories (int): Number of trajectories per rollout.
             num_steps_trajectory (int): Max. number of steps per trajectory.
-            state_size (int): Shape of a state.
+            state_size (int): The size of the state vector.
             device: The device (CPU/GPU) to run computations on.
         """
 
@@ -195,8 +195,7 @@ class PPO_Agent():
                                 self.device)
 
         # Network initialization
-        self.actor = nnets.build_network(self.device, self.nn_architecture_actor, self.state_size, self.action_size,
-                                         self.learning_rate_actor).to(self.device)
+        self.actor = nnets.build_network(self.device, self.nn_architecture_actor, self.state_size, self.action_size, self.learning_rate_actor).to(self.device)
         self.critic = nnets.build_network(self.device, self.nn_architecture_critic, self.state_size, 1,
                                           self.learning_rate_actor).to(self.device)
 

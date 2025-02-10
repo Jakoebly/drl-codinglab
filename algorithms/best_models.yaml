@@ -5,9 +5,7 @@ Variant_0:
   PPO:
     model_name: CL__PPO__Var0__20250128_1858
     avg_validation_reward: 214.965
-  SAC:
-    model_name: null
-    avg_validation_reward: -10000
+
 Variant_1:
   DQN:
     model_name: CL__DQN__Var1__20250129_1652__[FINAL_V1_DQN_DNN]
@@ -15,9 +13,7 @@ Variant_1:
   PPO:
     model_name: CL__PPO__Var1__20250128_1949
     avg_validation_reward: 380.36
-  SAC:
-    model_name: null
-    avg_validation_reward: -10000
+
 Variant_2:
   DQN:
     model_name: CL__DQN__Var2__20250129_1925__[FINAL_V2_DQN_DNN]
@@ -25,6 +21,3 @@ Variant_2:
   PPO:
     model_name: CL__PPO__Var2__20250128_1927
     avg_validation_reward: 234.49
-  SAC:
-    model_name: null
-    avg_validation_reward: -10000

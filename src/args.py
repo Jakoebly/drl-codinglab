@@ -1,38 +1,38 @@
 import argparse
 
 def parse_args():
+    """Specifies relevant command-line arguments."""
 
-    # Specify args
+    # Create parser
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument("--experiment_name", type=str, nargs="?", help="Name of the experiment, will be added to the default run_name")
+
+    # Algorithm-related args
     parser.add_argument("--algorithm", type=str, help="Algorithm to use, choose from ('dqn', 'ppo', 'sac')")
     parser.add_argument("--variant", type=int, default=0, help="Problem variant to use, choose from (0 = default, 1 = added capacity, 2 = obstacles)")
     parser.add_argument("--mode", type=str, default="train", help="Mode of the run, choose from ('train', 'validate', 'test')")
+    parser.add_argument("--experiment_name", type=str, nargs="?", help="Name of the experiment, will be added to the default run_name")
     parser.add_argument("--model_name", type=str, nargs="?", help="Name of the model to load weights for validation/testing, format: 'CL__{args.algorithm.upper()}__Var{args.variant}__{datetime.now}__{args.experiment_name}'")
     parser.add_argument("--best", action="store_true", help="If toggled, the current best model will be used for validation/testing")
     parser.add_argument("--save", action="store_true", default=True, help="If toggled, the run will be saved under './logs'")
-    parser.add_argument("--render", action="store_true", default=False, help="If toggled, a render of the run will be tracked'")
     parser.add_argument("--sweep", type=bool, default=False, nargs="?", const=True, help="If toggled, a sweep will be initilized")
 
-    # Cuda related args
+    # Cuda-related args
     parser.add_argument("--torch_deterministic", type=bool, default=True, nargs="?", const=True, help="If toggled, `torch.backends.cudnn.deterministic` will be set to 'False'")
     parser.add_argument("--cuda", type=bool, default=True, nargs="?", const=True, help="If toggled, cuda will be enabled by default")
 
-    # WandB args
+    # WandB-related args
     parser.add_argument("--track", type=bool, default=False, nargs="?", const=True, help="If toggled, the run will be tracked with WandB")
     parser.add_argument("--wandb_projectname", type=str, default="Coding_Lab", help="WandB's project name")
     parser.add_argument("--wandb_entity", type=str, default="gowiththetensorflow", help="Entity (team) of WandB's project")
 
-    # TODO: check if this works with the renderer
-    #parser.add_argument("--capture-video", type=bool, default=False, nargs="?", const=True, help="If toggled, a video of the agent's performance will be captured")
-    parser.add_argument("--visualize", type=bool, default=False, nargs="?", const=True, help="Toggle Render")
-
+    # Parse args
     args = parser.parse_args()
 
     return validate_args(args)
 
 def validate_args(args):
-    # Validate args
+    """Validates input args."""
+
     if args.algorithm.lower() not in ["dqn", "ppo", "sac"]:
         raise ValueError("Specify a valid algorithm ('dqn', 'ppo', 'sac')!")
 
