@@ -9,37 +9,37 @@ import random
 
 class Renderer:
     def __init__(self, grid_size, eligible_cells, max_response_time):
+        """A class for rendering the grid-based environment including the agent, targets, and items"""
+
+        # Set relevant attributes
         self.grid_size = grid_size
         self.eligible_cells = eligible_cells
         self.max_response_time = max_response_time
         self.previous_target_count = 0
         self.image_dir = settings.RENDER_DIR
 
-        # Load images once
-        self.item_map = {}  # Map of item locations to image indices
+        # Load images
+        self.item_map = {}
         self.agent_img = mpimg.imread(os.path.join(self.image_dir, "agent.png"))
         self.target_img = mpimg.imread(os.path.join(self.image_dir, "target.png"))
-        self.item_images = [
-            mpimg.imread(os.path.join(self.image_dir, f"item_{i}.png")) for i in range(4)
-        ]
-        self.small_item_images = [
-            mpimg.imread(os.path.join(self.image_dir, f"item_{i}_small.png")) for i in range(4)
-        ]
+        self.item_images = [mpimg.imread(os.path.join(self.image_dir, f"item_{i}.png")) for i in range(4)]
+        self.small_item_images = [mpimg.imread(os.path.join(self.image_dir, f"item_{i}_small.png")) for i in range(4)]
         self.eligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "eligible_cell.png"))
         self.ineligible_cell_img = mpimg.imread(os.path.join(self.image_dir, "ineligible_cell.png"))
 
-        # Initialize figure and axis once
+        # Initialize figure and axis
         self.fig, self.ax = plt.subplots(figsize=(5, 5))
 
-        # Pre-render grid once
+        # Pre-render grid
         self._pre_render_grid()
 
+        # Initialize buffer for images
         self.images = []
 
     def _pre_render_grid(self):
-        """
-        Pre-render the static grid with eligible/ineligible cells, excluding the target cell.
-        """
+        """Pre-renders the static grid with eligible/ineligible cells excluding the target cell."""
+
+        # Set the grid's x and y limits based on the grid size
         rows, cols = self.grid_size
         self.ax.set_xlim(-0.5, cols - 0.5)
         self.ax.set_ylim(-0.5, rows - 0.5)
@@ -49,6 +49,7 @@ class Renderer:
         self.ax.set_yticklabels([])
         self.ax.grid(False)
 
+        # Loop through each grid cell to render eligible or ineligible cell images
         for r in range(rows):
             for c in range(cols):
                 if (r, c) == (2,0):  # Skip the target cell
@@ -57,9 +58,13 @@ class Renderer:
                 self.ax.imshow(img, extent=(c - 0.5, c + 0.5, rows - 1 - r - 0.5, rows - 1 - r + 0.5))
                 
     def get_images(self):
-        return np.array(self.images)
+        """Returns the stored images as a NumPy array."""
+        image_buffer = np.array(self.images)
+        return image_buffer
 
     def figure_to_numpy_array(self):
+        """Converts the current figure to a NumPy array."""
+
         buf = BytesIO()
         self.fig.savefig(buf, format='png', dpi=100)
         buf.seek(0)
@@ -70,12 +75,11 @@ class Renderer:
         return image_array
 
     def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count):
-        """
-        Render the environment dynamically (agent, target, items, sparks).
-        """
+        """Renders the environment dynamically including agent, target, items, and sparks."""
+
+        # Clear and pre-render grid
         self.ax.clear()
         self._pre_render_grid()
-
         rows, cols = self.grid_size
 
         # Draw agent
@@ -106,10 +110,10 @@ class Renderer:
 
         # Draw items
         for (item_x, item_y), response_time in zip(item_locs, item_times):
+
             # Assign a random ID/image index if this is a new item
             if (item_x, item_y) not in self.item_map:
                 self.item_map[(item_x, item_y)] = random.choice(range(4))
-
             image_index = self.item_map[(item_x, item_y)]
             item_image = self.item_images[image_index]
 
@@ -125,7 +129,7 @@ class Renderer:
         # Update the previous target count
         self.previous_target_count = target_count
 
-        # Store image for logging
+        # Store image in image buffer
         image_array = self.figure_to_numpy_array()
         self.images.append(image_array)
 
