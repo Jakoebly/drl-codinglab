@@ -10,7 +10,6 @@ from src import utils as ut, args, settings
 from algorithms.rainbow_dqn import DQN_Agent
 from algorithms.ppo import PPO_Agent
 import yaml
-# from algorithms.sac import SAC_Agent
 
 if __name__ == "__main__":
     # Get args
@@ -30,6 +29,7 @@ if __name__ == "__main__":
     # Load directories from settings
     BEST_DIR = settings.BEST_DIR
     DATA_DIR = settings.DATA_DIR
+    CONFIG_DIR = settings.CONFIG_DIR
 
     # Set run-specific variables from args
     algorithm = args.algorithm.upper()
@@ -40,16 +40,12 @@ if __name__ == "__main__":
     if best:
         model_name = ut.load_best(BEST_DIR, variant, algorithm)
 
-    # Set config directory to the general config folder in case of training
-    CONFIG_DIR = settings.CONFIG_DIR
-
     # Set config directory to the folder associated with the model's training run in case of validating/testing
     if mode in ["validate", "test"]:
         MODEL_DIR = f"./logs/Variant_{variant}/{algorithm}/{model_name}"
         CONFIG_DIR = MODEL_DIR
 
     # Create environment
-    # render = True if args.render else False
     env = Environment(variant, DATA_DIR)
 
     # Load config
@@ -58,13 +54,10 @@ if __name__ == "__main__":
     # Setup sweep if sweep flag is toggled
     if args.sweep:
         sweep_name = f"Sweep__{run_name}"
-        spec = algorithm.lower()
-        # spec = "feature"
-        #spec = "extension"
-        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, spec)
+        sweep_type = args.sweep
+        sweep_config = ut.load_sweep_config(CONFIG_DIR, sweep_name, sweep_type)
         sweep_id = wandb.sweep(sweep_config, entity=args.wandb_entity, project=args.wandb_projectname)
         wandb.agent(sweep_id, entity=args.wandb_entity, project=args.wandb_projectname)
-
 
     # Login to wandb
     wandb.login(key=settings.WAND_API_KEY)
@@ -81,9 +74,11 @@ if __name__ == "__main__":
                      tags=[f"Var_{variant}"],
                      job_type="Sweep" if args.sweep else (f"{mode}/validate" if mode == "train" else mode)
                      )
-
     config = wandb.config
-    ut.update_env_features(env, config, algorithm)
+
+    # Make sure the correct feature config is set for the environment if feature sweeping
+    if args.sweep == "feature":
+        ut.update_env_features(env, config, algorithm)
 
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":
@@ -91,7 +86,7 @@ if __name__ == "__main__":
     elif algorithm == "PPO":
         agent = PPO_Agent(env, config, device)
     elif algorithm == "SAC":
-        agent = SAC_Agent(env, config).to(device)
+        pass
 
     # Load weights if validating/testing
     if mode in ["validate", "test"]:
@@ -110,6 +105,7 @@ if __name__ == "__main__":
     elif mode == "test":
         rew_test = agent.run("testing", config["general"]["num_episodes_test"])
 
+    # Log final average rewards
     if rew_train is not None:
         wandb.log({"Charts/Avg. Train Reward": np.mean(rew_train)})
     if rew_val is not None:

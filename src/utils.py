@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 
 from src import settings
 
-# Set seeds
 def set_seeds(seed, torch_deterministic):
+    """Sets relevant seeds"""
+
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -17,10 +18,10 @@ def set_seeds(seed, torch_deterministic):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
 
-# Load new or existing config depending on training or validation/testing
 def load_config(env, config_dir, algorithm):
+    """Loads config for a training, validation, or test run."""
 
-    # Load config for training run
+    # Load config if training run
     if config_dir == settings.CONFIG_DIR:
 
         # Open algorithm-specific config and load parameters
@@ -36,9 +37,10 @@ def load_config(env, config_dir, algorithm):
         # Open feature-specific config and load parameters
         with open(f"{config_dir}/feature_config.yaml", "r") as file:
             feature_config = yaml.safe_load(file).get("obs", {})
-            config["features"] = feature_config
-            env.obs_config = feature_config
+        config["features"] = feature_config
+        env.obs_config = feature_config
 
+        # Add environment-specific variables to config (i.e., state size, action size, episode numbers)
         if algorithm == "DQN":
             config["general"]["state_size"] = env.get_state_size(hyperparams["nn_architecture"]["structure"])
         elif algorithm == "PPO":
@@ -52,25 +54,24 @@ def load_config(env, config_dir, algorithm):
         config["general"]["num_episodes_test"] = len(env.test_episodes)
         config["general"]["num_steps_trajectory"] = env.episode_steps
 
+        # Create empty keys for reward tracking
         config["results"]["avg_train_reward"] = None
         config["results"]["avg_validation_reward"] = None
         config["results"]["avg_test_reward"] = None
 
-    # Load existing config for validation/test run
+    # Load existing config if validation/test run
     else:
+
         # Open existing run_info config and load parameters
         with open(f"{config_dir}/run_info.yaml", "r") as file:
             config = yaml.safe_load(file)
-            #config = config.get("_items")
-
-        print(config)
-
         feature_config = config["features"]
         env.obs_config = feature_config
 
     return config
 
 def load_sweep_config(config_dir, sweep_name, algorithm):
+    """Loads config for a sweep run."""
 
     with open(f"{config_dir}/sweeps/{algorithm.lower()}_sweep_config.yaml", "r+") as file:
         sweep_config = yaml.safe_load(file)
@@ -79,6 +80,7 @@ def load_sweep_config(config_dir, sweep_name, algorithm):
     return sweep_config
 
 def update_env_features(env, config, algorithm):
+    """Updates environment feature config when sweeping"""
 
     env.obs_config = config["features"]
     if algorithm == "DQN":
@@ -88,14 +90,14 @@ def update_env_features(env, config, algorithm):
     elif algorithm == "SAC":
         pass
 
-# Update run_info.yaml after a run
-def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, run_name, wandb_run):
 
-    # If training: create new subfolder and save weights
+def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, run_name, wandb_run):
+    """Updates run_info.yaml after a run"""
+
+    # Create new subfolder and save weights if in training mode
     if mode == "train":
         model_dir = f"./logs/Variant_{variant}/{algorithm}/{run_name}"
         os.makedirs(model_dir, exist_ok=True)
-
         agent.save_weights(f"{model_dir}/model.pt")
 
     # Extract rewards
@@ -103,10 +105,8 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
     rew_val = rewards[1]
     rew_test = rewards[2]
 
-
-    eps_dir = [None, None, None]
-
     # Update relevant key/value pairs and create/reference .csv files for reward tracking
+    eps_dir = [None, None, None]
     if rew_train is not None:
         eps_dir[0] = f"{model_dir}/train_eps.csv"
     if rew_val is not None:
@@ -114,6 +114,7 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
     if rew_test is not None:
         eps_dir[2] = f"{model_dir}/test_eps.csv"
 
+    # Log rewards to wandb config
     wandb_run.config.update({
         "results": {
             "avg_train_reward": float(np.mean(rew_train)) if rew_train else None,
@@ -122,11 +123,9 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
         }
     }, allow_val_change=True)
 
-
     # Write run info into the corresponding .yaml file
     with open(f"{model_dir}/run_info.yaml", 'w') as file:
         yaml.dump(config._items, file, default_flow_style=False, sort_keys=False)
-
 
     # Write episode data into the corresponding .csv file
     for mode, dir in enumerate(eps_dir):
@@ -138,18 +137,20 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
                     writer.writerow([eps, reward])
 
 def load_best(best_dir, variant, algorithm):
+    """Loads the best model from best_models.yaml based on the args"""
+
     with open(best_dir, 'r') as file:
         model_name = yaml.safe_load(file).get(f"Variant_{variant}", {}).get(algorithm, {}).get("model_name", {})
     return model_name
 
 def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
+    """Updates best_models.yaml if a new best model was found during training"""
+
     # Extract validation rewards
     rew_val = rewards[1]
 
-    # Check if validation rewards exist
+    # Check if the run was an integrated train/validation run and adjust naming
     if rew_val is not None:
-
-        # Check if the run was an integrated train/validation run and adjust naming
         if model_name is None:
             model_name = run_name
 
@@ -172,6 +173,7 @@ def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
         with open(best_dir, 'w') as file:
             yaml.safe_dump(content, file, default_flow_style=False, sort_keys=False)
 
+# TODO: delete?
 def visualize_prioritized_replay(agent, num_samples=1000):
     # Retrieve priorities from the buffer
     if not hasattr(agent.buffer, 'priorities'):
