@@ -1,0 +1,56 @@
+DQN:
+  hyperparameters:
+    batch_size: 256
+    buffer_size: 150000
+    epsilon: 1
+    epsilon_decay: 0.985
+    epsilon_min: 0.118
+    gamma: 0.95
+    learning_rate: 0.00003735555884107416
+    target_update_interval: 100
+
+  extensions:
+    distribution: true
+    double: true
+    dueling:  true
+    multi_step: false
+    noisy:  false
+    priority: false
+
+  extension_parameters:
+    alpha: 0.5
+    beta: 0.7
+    n_steps: 3
+    noisy_layers: 2
+    num_atoms: 10
+    num_layers_stream: 1
+    num_neurons_stream: 128
+    std_init: 0.5
+    v_max: 50
+    v_min: -1
+
+  nn_architecture:
+    structure: "CNN"
+    num_convolutional_layers: 4
+    num_convolutional_channels: 64
+    kernel_size: 2
+    stride: 2
+    padding: 1
+    num_neurons_fully_feature_input: 64
+    num_layers: 4
+    num_neurons: 512
+    activation_convolutional_layers: "tanh"
+    activation_layers: "tanh"
+    activation_output:
+
+  #nn_architecture:
+  #  structure: "DNN"
+  #  num_layers: 5
+  #  num_neurons: 512
+  #  activation_layers: "tanh"
+  #  activation_output:
+
+  eval_settings:
+    eval_interval: 100
+    evaluation_treshold: 0.000
+    evaluation_episodes: 100

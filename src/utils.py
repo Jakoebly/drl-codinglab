@@ -25,7 +25,7 @@ def load_config(env, config_dir, algorithm):
     if config_dir == settings.CONFIG_DIR:
 
         # Open algorithm-specific config and load parameters
-        with open(f"{config_dir}/hyperparams.yaml", "r") as file:
+        with open(f"{config_dir}/{algorithm.lower()}_hyperparams.yaml", "r") as file:
             hyperparams = yaml.safe_load(file).get(algorithm, {})
 
         # Adjust config with sections 'general' and 'results'
