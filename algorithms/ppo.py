@@ -566,7 +566,7 @@ class PPO_Agent():
                 }
                 wandb.log(log_dict, episode)
 
-            # Log experiment KPIs and heatmap
+            # Log experiments
             exp.log(self.env, mode, training, eval, episode, num_episodes)
 
             # Log render

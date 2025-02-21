@@ -91,6 +91,7 @@ def log(env, mode, training, eval, episode, num_episodes):
         if (episode + 1) % exp_set["heatmap_log_interval"] == 0 and (episode + 1) >= exp_set["heatmap_log_interval"]:
             log_heatmap(env, exp_set, mode, episode)
 
+
 def log_kpis(env, exp_set):
 
     if exp_set["KPIs"]["avg_distance_per_item"]:
@@ -121,16 +122,19 @@ def log_heatmap(env, exp_set, mode, episode):
         plt.close()
 
 def log_item_dist(env):
-    item_dist_norm = env.item_dist / np.max(env.item_dist)
-    plt.figure(figsize=(10, 8))
-    print("item_dist sum", np.sum(env.item_dist))
-    ax = sns.heatmap(item_dist_norm, annot=False, fmt=".0f", cmap="coolwarm")
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
-    heatmap = Image.open(buf).copy()
-    buf.close()
-    wandb.log({"Item Distribution": wandb.Image(heatmap)})
+    exp_set = load_experiment_settings()
+
+    if exp_set["item_distribution"]:
+        item_dist_norm = env.item_dist / np.max(env.item_dist)
+        plt.figure(figsize=(10, 8))
+        print("item_dist sum", np.sum(env.item_dist))
+        ax = sns.heatmap(item_dist_norm, annot=False, fmt=".0f", cmap="coolwarm")
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        heatmap = Image.open(buf).copy()
+        buf.close()
+        wandb.log({"Item Distribution": wandb.Image(heatmap)})
 
 def set_render_flag(env, mode, eval, episode):
 
@@ -154,6 +158,7 @@ def log_render(env, mode, episode):
             wandb.log({"train_video": wandb.Video(images, fps=24, format="mp4")})
         if mode == "validation" and (episode + 1) in exp_set["render_frames_val"]:
             wandb.log({"val_video": wandb.Video(images, fps=24, format="mp4")})
+
 
 
 

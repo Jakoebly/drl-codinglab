@@ -120,7 +120,7 @@ if __name__ == "__main__":
     exp.log_item_dist(env)
 
     # Log render
-    if args.render:
+    if render:
         images = env.renderer.get_images()
         if images is not None:
             wandb.log({"val_video": wandb.Video(images, fps=5, format="mp4")})
