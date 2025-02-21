@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 import wandb
-from src import neural_nets as nnets, experiment_settings as expset
+from src import neural_nets as nnets, experiments as exp, utils as ut
 
 
 class PPOMemory:
@@ -126,7 +126,6 @@ class PPOMemory:
         batches = [indices[i:i + minibatch_size] for i in batch_start_ind]
 
         return batches
-
 
 class PPO_Agent():
     def __init__(self, env, config, device):
@@ -392,7 +391,6 @@ class PPO_Agent():
         self.memory.returns = returns
 
         # Flatten memory
-        # TODO: check func
         states, actions, old_logprobs, advantages, returns, values = self.memory.flatten(self.state_size)
 
         # Loop through epochs
@@ -447,9 +445,13 @@ class PPO_Agent():
                 - terminate (bool): A flag indicating whether training should be terminated due to stagnation.
         """
 
-        # Run the evaluation for a specified number of episodes
+        # Run the evaluation for a specified number of episodes without updating cell visits for heatmap generation
         print("Evaluation Start")
+        old_cvc = exp.save_cell_visit_count(self.env)
         eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes, eval=True)
+        self.env.set_cell_visit_count(old_cvc)
+
+        # Compute average evaluation reward and log
         average_eval_reward = np.mean(eval_reward)
         wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
 
@@ -481,9 +483,9 @@ class PPO_Agent():
         rewards = []
         last_evaluation_reward = float('-inf')
 
-        # TODO: EXPERIMENTS!
-        if expset.heatmap:
-            self.env.reset_cell_visit_count()
+        # TODO:EXPERIMENTS
+        # Reset cell visit count for heatmap creation
+        exp.reset_cell_visit_count(self.env)
 
         # Enable/disable training mode based on 'mode' argument
         training = mode == "training"
@@ -494,6 +496,8 @@ class PPO_Agent():
 
         # Loop through episodes
         for episode in range(num_episodes):
+
+            exp.set_render_flag(self.env, mode, eval, episode)
 
             # Initialize episode reward
             reward_episode = 0
@@ -563,14 +567,13 @@ class PPO_Agent():
                 wandb.log(log_dict, episode)
 
             # TODO: EXPERIMENTS!
-            # Log heatmaps
-            if expset.heatmap:
-                if not eval and (episode + 1) % expset.heatmap_log_interval == 0 and (
-                        episode + 1) >= expset.heatmap_log_interval:
-                    self.env.generate_and_log_heatmap(mode, episode)
+            # Log experiment KPIs and heatmap
+            exp.log(self.env, mode, training, eval, episode, num_episodes)
+
+            # Log render
+            exp.log_render(self.env, mode, episode)
 
             # Perform evaluation if current episode is an evaluation episode
-            # TODO: Check func
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
                 last_evaluation_reward, terminate = self.evaluate(last_evaluation_reward, episode)
                 if terminate:

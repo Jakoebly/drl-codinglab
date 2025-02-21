@@ -1,0 +1,13 @@
+experiments:
+  heatmap: True
+  heatmap_log_interval: 1
+  item_distribution: False
+
+  KPIs:
+    avg_distance_per_item: False
+    avg_time_per_item: False
+    item_completion_rate: False
+
+  render: True
+  render_frames_train: [ 1, 25, 50, 400, 780 ]
+  render_frames_val: [ 95 ]

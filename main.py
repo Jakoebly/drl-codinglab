@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import wandb
 from environment import Environment
-from src import utils as ut, args, settings
+from src import utils as ut, experiments as exp, args, settings
 from algorithms.rainbow_dqn import DQN_Agent
 from algorithms.ppo import PPO_Agent
 import yaml
@@ -46,7 +46,8 @@ if __name__ == "__main__":
         CONFIG_DIR = MODEL_DIR
 
     # Create environment
-    env = Environment(variant, DATA_DIR)
+    render = exp.load_experiment_settings()["render"]
+    env = Environment(variant, DATA_DIR, render)
 
     # Load config
     config = ut.load_config(env, CONFIG_DIR, algorithm)
@@ -104,6 +105,8 @@ if __name__ == "__main__":
         rew_val = agent.run("validation", config["general"]["num_episodes_validate"])
     elif mode == "test":
         rew_test = agent.run("testing", config["general"]["num_episodes_test"])
+    rewards = (rew_train, rew_val, rew_test)
+
 
     # Log final average rewards
     if rew_train is not None:
@@ -113,7 +116,8 @@ if __name__ == "__main__":
     if rew_test is not None:
         wandb.log({"Charts/Avg. Test Reward": np.mean(rew_test)})
 
-    rewards = (rew_train, rew_val, rew_test)
+    # Log item distribution
+    exp.log_item_dist(env)
 
     # Log render
     if args.render:

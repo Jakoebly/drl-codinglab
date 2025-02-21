@@ -19,9 +19,10 @@ from collections import deque
 import yaml
 from src.renderer.renderer import Renderer
 import src.settings as settings
+import src.experiments as exp
 
 class Environment(object):
-    def __init__(self, variant, data_dir, render = False):
+    def __init__(self, variant, data_dir, render=False):
         self.variant = variant
         self.vertical_cell_count = 5
         self.horizontal_cell_count = 5
@@ -68,6 +69,10 @@ class Environment(object):
             self.renderer = Renderer(grid_size =(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
         
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
+
+        # TODO:EXPERIMENTS
+        # Set experiment variables
+        exp.set_exp_vars(self)
 
         self.obs_config = {}
 
@@ -134,9 +139,11 @@ class Environment(object):
                 rew += -1
 
         # item pick-up
+        time = 0
         if (self.agent_load < self.agent_capacity) and (self.agent_loc in self.item_locs):
             self.agent_load += 1
             idx = self.item_locs.index(self.agent_loc)
+            time = self.item_times[idx]
             self.item_locs.pop(idx)
             self.item_times.pop(idx)
             rew += self.reward / 2
@@ -160,6 +167,8 @@ class Environment(object):
         new_items = self.data[self.data.step == self.step_count]
         new_items = list(zip(new_items.vertical_idx, new_items.horizontal_idx))
         new_items = [i for i in new_items if i not in self.item_locs]  # not more than one item per cell
+        num_new_items = len(new_items)
+
         self.item_locs += new_items
         self.item_times += [0] * len(new_items)
 
@@ -169,10 +178,15 @@ class Environment(object):
         if self.render_enabled:
             self.update_render()
 
+        # TODO:EXPERIMENTS
+        # Update experiment variables
+        exp.update_exp_vars(self, act, new_loc, new_items, num_new_items, time)
+
         return rew, next_obs, done
 
     def update_render(self):
         """Update the render."""
+
         self.renderer.render(
             agent_loc=self.agent_loc,
             target_loc=self.target_loc,
@@ -181,7 +195,7 @@ class Environment(object):
             agent_load=self.agent_load,
             target_count=self.current_episode_target_count
             )
-    
+
     def get_new_obs(self):
         if self.nn_structure == "DNN":
             return self.get_dnn_obs()

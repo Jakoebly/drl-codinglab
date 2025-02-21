@@ -5,6 +5,8 @@ import torch
 import yaml
 import numpy as np
 import matplotlib.pyplot as plt
+import wandb
+from src import experiments as exp
 
 from src import settings
 
@@ -173,50 +175,7 @@ def update_best(algorithm, variant, rewards, model_name, run_name, best_dir):
         with open(best_dir, 'w') as file:
             yaml.safe_dump(content, file, default_flow_style=False, sort_keys=False)
 
-# TODO: delete?
-def visualize_prioritized_replay(agent, num_samples=1000):
-    # Retrieve priorities from the buffer
-    if not hasattr(agent.buffer, 'priorities'):
-        print("Prioritized Replay not enabled!")
-        return
-    
-    priorities = np.array(agent.buffer.priorities)
-    if len(priorities) == 0:
-        print("Replay buffer is empty!")
-        return
-    
-    # Normalize priorities for sampling probabilities
-    sampling_probs = priorities / priorities.sum()
 
-    # Sample indices and compute IS weights
-    indices = np.random.choice(len(priorities), num_samples, p=sampling_probs)
-    sampled_priorities = priorities[indices]
-    weights = (len(priorities) * sampling_probs[indices]) ** -agent.beta
-    weights /= weights.max()  # Normalize IS weights
-
-    # Visualization
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-
-    # Priority Distribution
-    axes[0].hist(priorities, bins=50, color='skyblue', edgecolor='black')
-    axes[0].set_title("Priority Distribution")
-    axes[0].set_xlabel("Priority")
-    axes[0].set_ylabel("Count")
-
-    # Sampling Probability vs Priority
-    axes[1].scatter(priorities, sampling_probs, alpha=0.6, color='orange')
-    axes[1].set_title("Sampling Probability vs Priority")
-    axes[1].set_xlabel("Priority")
-    axes[1].set_ylabel("Sampling Probability")
-
-    # Importance Sampling Weights
-    axes[2].hist(weights, bins=50, color='green', edgecolor='black')
-    axes[2].set_title("Importance Sampling Weights")
-    axes[2].set_xlabel("Weight")
-    axes[2].set_ylabel("Count")
-
-    plt.tight_layout()
-    plt.show()
 
 
 
