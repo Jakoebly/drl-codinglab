@@ -8,6 +8,7 @@ from typing import List, Tuple
 from src import neural_nets as nnets
 from algorithms import dqn_extensions as dqn_ext
 from algorithms.dqn_extensions import PrioritizedReplayBuffer
+from src import experiments as exp
 
 
 class DQN_Agent:
@@ -20,7 +21,7 @@ class DQN_Agent:
         nn_architecture = config["nn_architecture"]
         hyperparameters = config["hyperparameters"]
         eval_settings = config["eval_settings"]
-        extensions = config["extensions"]  # config.get("extensions", [])
+        extensions = config["extensions"]
 
         # Extensions
         self.double = extensions["double"]  # "double" in extensions
@@ -192,6 +193,7 @@ class DQN_Agent:
         Returns:
             torch.Tensor: Projected target distribution.
         """
+
         delta_z = (v_max - v_min) / (num_atoms - 1)
         support = torch.linspace(v_min, v_max, num_atoms).to(rewards.device)
 
@@ -434,9 +436,44 @@ class DQN_Agent:
 
         return loss
 
-    def run(self, mode, num_episodes) -> List[float]:
+    def evaluate(self, last_evaluation_reward, episode):
         """
-        Run the agent in the environment for a specified number of episodes.
+        Evaluates the model's performance on the validation set and checks for stagnation in progress.
+
+        Parameters:
+            last_evaluation_reward (float): The reward from the last evaluation to compare against.
+            episode (int): The current episode number for logging purposes.
+
+        Returns:
+            tuple: A tuple containing:
+                - last_evaluation_reward (float): The updated evaluation reward from the current evaluation.
+                - terminate (bool): A flag indicating whether training should be terminated due to stagnation.
+        """
+
+        # Run the evaluation for a specified number of episodes without updating cell visits for heatmap generation
+        print("Evaluation Start")
+        old_cvc = exp.save_cell_visit_count(self.env)
+        eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes, eval=True)
+        self.env.set_cell_visit_count(old_cvc)
+
+        # Compute average evaluation reward and log
+        average_eval_reward = np.mean(eval_reward)
+        wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
+
+        # Check if progress has stagnated and set terminate variable accordingly
+        terminate = False
+        difference = average_eval_reward - last_evaluation_reward
+        if difference < last_evaluation_reward * self.evaluation_treshold and self.evaluation_treshold != 0:
+            terminate = True
+
+        # Update last evaluation reward
+        last_evaluation_reward = average_eval_reward
+
+        return last_evaluation_reward, terminate
+
+    def run(self, mode, num_episodes, eval=False):
+        """
+        Run the DQN agent in the environment for a specified number of episodes.
 
         Parameters:
             mode (str): Mode of operation ("training", "testing" or "validation").
@@ -446,40 +483,58 @@ class DQN_Agent:
         Returns:
             list: Total rewards collected in each episode.
         """
+
+        # Initialize variables to track rewards and evaluation progress
         rewards = []
         last_evaluation_reward = -100
 
-        if mode == "training":
-            training = True
-        else:
-            training = False
+        # Reset cell visit count for heatmap creation
+        exp.reset_cell_visit_count(self.env)
 
-        # Episodes
+        # Enable/disable training mode based on 'mode' argument
+        training = mode == "training"
+
+        # Loop through episodes
         for episode in range(num_episodes):
-            state = self.env.reset(mode, structure=self.nn_structure)
+
+            # Adjust render flag for rendering
+            exp.set_render_flag(self.env, mode, eval, episode)
+
+            # Initialize episode reward, loss, and done flag
             reward_episode = 0
             loss_episode = 0
             done = False
 
-            # Environment steps
+            # Reset environment
+            state = self.env.reset(mode, structure=self.nn_structure)
+
+            # Perform environment steps
             while not done:
+
+                # Perform one environment step
                 action = self.select_action(state, training)
                 reward, next_state, done = self.env.step(action)
+                reward_episode += reward
 
-                # Record and update if training
+                # Store transition data and update if in training mode
                 if training:
                     self.record(state, action, reward, next_state, done)
                     loss = self.train_step()
                     if loss is not None:
                         loss_episode += loss
 
+                # Update state for next step
                 state = next_state
-                reward_episode += reward
 
+            # Track total reward per episode
             rewards.append(reward_episode)
+
+            # Print progress
+            print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
 
             # Update epsilon and log if training
             if training:
+                # Update epsilon
                 self.update_epsilon()
 
                 # Log relevant data
@@ -492,25 +547,21 @@ class DQN_Agent:
                 }
                 wandb.log(log_dict, episode)
 
-            print(f"{mode} episode {episode + 1} / {num_episodes}, total reward: {reward_episode}")
+            # Log experiment KPIs and heatmap
+            exp.log(self.env, mode, training, eval, episode, num_episodes)
 
-            # Evaluation
+            # Log render
+            exp.log_render(self.env, mode, episode)
+
+            # Perform evaluation if current episode is an evaluation episode
             if training and (episode + 1) % self.eval_interval == 0 and episode < num_episodes - 1:
-                print("Evaluation Start")
-                eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes)
-                average_eval_reward = np.mean(eval_reward)
-
-                wandb.log({"Charts/Evaluation Rewards": average_eval_reward}, episode)
-
-                difference = average_eval_reward - last_evaluation_reward
-
-                if difference < last_evaluation_reward * self.evaluation_treshold and self.evaluation_treshold != 0:
+                last_evaluation_reward, terminate = self.evaluate(last_evaluation_reward, episode)
+                if terminate:
                     print(f"Training terminated after {episode + 1} episodes as training progress has terminated.")
                     rewards = rewards[: episode + 1]
                     break
 
-                last_evaluation_reward = average_eval_reward
-
+        # Print average rewards over total training/validation run
         print(f"--- {mode} finished - average reward after {num_episodes} episodes: {np.mean(rewards)} ---")
 
         return rewards

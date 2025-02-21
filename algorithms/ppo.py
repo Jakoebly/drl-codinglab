@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 import wandb
-from src import neural_nets as nnets, experiments as exp, utils as ut
+from src import neural_nets as nnets, experiments as exp
 
 
 class PPOMemory:
@@ -483,7 +483,6 @@ class PPO_Agent():
         rewards = []
         last_evaluation_reward = float('-inf')
 
-        # TODO:EXPERIMENTS
         # Reset cell visit count for heatmap creation
         exp.reset_cell_visit_count(self.env)
 
@@ -497,6 +496,7 @@ class PPO_Agent():
         # Loop through episodes
         for episode in range(num_episodes):
 
+            # Adjust render flag for rendering
             exp.set_render_flag(self.env, mode, eval, episode)
 
             # Initialize episode reward
@@ -566,7 +566,6 @@ class PPO_Agent():
                 }
                 wandb.log(log_dict, episode)
 
-            # TODO: EXPERIMENTS!
             # Log experiment KPIs and heatmap
             exp.log(self.env, mode, training, eval, episode, num_episodes)
 
