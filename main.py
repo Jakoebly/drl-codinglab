@@ -77,9 +77,8 @@ if __name__ == "__main__":
                      )
     config = wandb.config
 
-    # Make sure the correct feature config is set for the environment if feature sweeping
-    if args.sweep == "feature":
-        ut.update_env_features(env, config, algorithm)
+    # Make sure the correct feature config is set for the environment
+    ut.update_env_features(env, config, algorithm)
 
     # Initialize agent depending on the algorithm
     if algorithm == "DQN":

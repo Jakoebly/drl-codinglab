@@ -1,20 +1,20 @@
 obs:
-  closest_item: True
-  cumulative_timeout_risk: True
-  distance_to_target: True
-  free_capacity_agent: True
-  manhatten_distance_agent_to_items: True
-  manhatten_distance_target_to_items: False
-  position_agent: True
-  position_items: True
-  prioritization_ratio_items: 1
-  proximity_scores: True
-  remaining_episode_time: True
-  remaining_time_items: True
-  vector_agent_to_items: True
-  vector_closest: True
-  vector_to_target: True
-  vector_to_walls: True
+  closest_item: true
+  cumulative_timeout_risk: true
+  distance_to_target: true
+  free_capacity_agent: true
+  manhatten_distance_agent_to_items: true
+  manhatten_distance_target_to_items: false
+  position_agent: true
+  position_items: true
+  prioritization_ratio_items: 0
+  proximity_scores: true
+  remaining_episode_time: true
+  remaining_time_items: true
+  vector_agent_to_items: true
+  vector_closest: true
+  vector_to_target: false
+  vector_to_walls: true
 
 # obs:
 #   closest_item: True

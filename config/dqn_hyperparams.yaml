@@ -1,18 +1,18 @@
 DQN:
   hyperparameters:
     batch_size: 256
-    buffer_size: 150000
+    buffer_size: 200000
     epsilon: 1
     epsilon_decay: 0.985
     epsilon_min: 0.118
     gamma: 0.95
-    learning_rate: 0.00003735555884107416
-    target_update_interval: 100
+    learning_rate: 0.0000105
+    target_update_interval: 150
 
   extensions:
-    distribution: true
-    double: true
-    dueling:  true
+    distribution: false
+    double: false
+    dueling:  false
     multi_step: false
     noisy:  false
     priority: false
@@ -29,26 +29,26 @@ DQN:
     v_max: 50
     v_min: -1
 
-  nn_architecture:
-    structure: "CNN"
-    num_convolutional_layers: 4
-    num_convolutional_channels: 64
-    kernel_size: 2
-    stride: 2
-    padding: 1
-    num_neurons_fully_feature_input: 64
-    num_layers: 4
-    num_neurons: 512
-    activation_convolutional_layers: "tanh"
-    activation_layers: "tanh"
-    activation_output:
-
   #nn_architecture:
-  #  structure: "DNN"
-  #  num_layers: 5
+  #  structure: "CNN"
+  #  num_convolutional_layers: 4
+  #  num_convolutional_channels: 64
+  #  kernel_size: 2
+  #  stride: 2
+  #  padding: 1
+  #  num_neurons_fully_feature_input: 64
+  #  num_layers: 4
   #  num_neurons: 512
+  #  activation_convolutional_layers: "tanh"
   #  activation_layers: "tanh"
   #  activation_output:
+
+  nn_architecture:
+    structure: "DNN"
+    num_layers: 5
+    num_neurons: 512
+    activation_layers: "tanh"
+    activation_output:
 
   eval_settings:
     eval_interval: 100

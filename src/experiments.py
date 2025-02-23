@@ -68,7 +68,7 @@ def get_cell_visit_count(env):
 
 def save_cell_visit_count(env):
     exp_set = load_experiment_settings()
-    if exp_set["Heatmap"]:
+    if exp_set["heatmap"]:
         old_cell_visit_count = get_cell_visit_count(env).copy()
         return old_cell_visit_count
 
@@ -95,11 +95,11 @@ def log(env, mode, training, eval, episode, num_episodes):
 def log_kpis(env, exp_set):
 
     if exp_set["KPIs"]["avg_distance_per_item"]:
-        wandb.log({"KPIs/Avg. Distance per Item": np.mean(env.env.distance_per_item)})
+        wandb.log({"KPIs/Avg. Distance per Item": np.mean(env.distance_per_item)})
     if exp_set["KPIs"]["avg_time_per_item"]:
-        wandb.log({"KPIs/Avg. Remaining Time per Item": np.mean(env.env.remaining_time_per_item)})
+        wandb.log({"KPIs/Avg. Remaining Time per Item": np.mean(env.remaining_time_per_item)})
     if exp_set["KPIs"]["item_completion_rate"]:
-        wandb.log({"KPIs/Item Completion Rate": env.env.item_completion_count / env.env.item_count})
+        wandb.log({"KPIs/Item Completion Rate": env.item_completion_count / env.item_count})
 
 def log_heatmap(env, exp_set, mode, episode):
     if exp_set["heatmap"]:
