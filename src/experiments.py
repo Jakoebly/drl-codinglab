@@ -38,7 +38,8 @@ def update_exp_vars(env, act, new_loc, new_items, num_new_items, locs, time, loa
 
     if act != 0:
         if exp_set["heatmap"]:
-            env.cell_visit_count[env.agent_loc[0]][env.agent_loc[1]] += 1
+            if env.agent_loc != env.target_loc:
+                env.cell_visit_count[env.agent_loc[0]][env.agent_loc[1]] += 1
 
         if exp_set["KPIs"]["avg_distance_per_item"]:
             if act != 0:
@@ -117,6 +118,9 @@ def log_heatmap(env, exp_set, mode, episode):
         if mode == "validation":
             step = wandb.config["general"]["num_episodes_train"] + episode
             wandb.log({"Heatmap_Val": wandb.Image(heatmap)}, step)
+        if mode == "testing":
+            step = wandb.config["general"]["num_episodes_train"] + episode
+            wandb.log({"Heatmap_Test": wandb.Image(heatmap)}, step)
 
         plt.close()
 
@@ -126,7 +130,6 @@ def log_item_dist(env):
     if exp_set["item_distribution"]:
         item_dist_norm = env.item_dist / np.max(env.item_dist)
         plt.figure(figsize=(10, 8))
-        print("item_dist sum", np.sum(env.item_dist))
         ax = sns.heatmap(item_dist_norm, annot=False, fmt=".0f", cmap="coolwarm")
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
@@ -143,25 +146,59 @@ def set_render_flag(env, mode, eval, episode):
     env.render_enabled = False
 
     if render_flag:
-        if mode == "training" and (episode + 1) in exp_set["render_frames_train"]:
-            env.render_enabled = True
-        if mode == "validation" and (episode + 1) in exp_set["render_frames_val"]:
+        render_frames = {
+            "training": exp_set["render_frames_train"],
+            "validation": exp_set["render_frames_val"],
+            "testing": exp_set["render_frames_val"]
+        }
+        if mode in render_frames and (episode + 1) in render_frames[mode]:
+            print("Rendering Environment")
             env.render_enabled = True
 
 def log_render(env, mode, episode):
     exp_set = load_experiment_settings()
+
     # Render logging
     if env.render_enabled:
         images = env.renderer.get_images()
-        if mode == "training" and (episode + 1) in exp_set["render_frames_train"]:
-            wandb.log({"train_video": wandb.Video(images, fps=24, format="mp4")})
-        if mode == "validation" and (episode + 1) in exp_set["render_frames_val"]:
-            wandb.log({"val_video": wandb.Video(images, fps=24, format="mp4")})
+        log_keys = {
+            "training": [exp_set["render_frames_train"], "train_video"],
+            "validation": [exp_set["render_frames_val"], "val_video"],
+            "testing": [exp_set["render_frames_val"], "test_video"]
+        }
+        if mode in log_keys and (episode + 1) in log_keys[mode][0]:
+            wandb.log({log_keys[mode][1]: wandb.Video(images, fps=24, format="mp4")})
 
 
+def create_boxplot(algorithm):
+    BEST_DIR = settings.BEST_DIR
+    LOG_DIR = "./logs"
 
+    with open(BEST_DIR, "r") as file:
+        best_models = yaml.safe_load(file)
+        var0_model_name = best_models["Variant_0"][algorithm.upper()]["model_name"]
+        var1_model_name = best_models["Variant_1"][algorithm.upper()]["model_name"]
+        var2_model_name = best_models["Variant_2"][algorithm.upper()]["model_name"]
 
+    test_rews = np.zeros((3, 100))
 
+    test_rews[0] = np.loadtxt(f"{LOG_DIR}/Variant_0/{algorithm.upper()}/{var0_model_name}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
+    test_rews[1] = np.loadtxt(f"{LOG_DIR}/Variant_1/{algorithm.upper()}/{var1_model_name}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
+    test_rews[2] = np.loadtxt(f"{LOG_DIR}/Variant_2/{algorithm.upper()}/{var2_model_name}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
+
+    plt.figure(figsize=(8, 6))
+    box = plt.boxplot(test_rews.T,
+                      patch_artist=True,
+                      labels=["Variant 0", "Variant 1", "Variant 2"],
+                      boxprops=dict(facecolor="lightgray"),
+                      medianprops=dict(color='black')
+                      )
+
+    plt.ylabel("Rewards")
+    plt.grid(visible=True, axis='y')
+
+    # Show the plot
+    plt.show()
 
 
 

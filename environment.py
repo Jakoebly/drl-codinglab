@@ -67,7 +67,7 @@ class Environment(object):
         # FOR RENDERING ONLY:
         self.render_enabled = render
         if self.render_enabled:
-            self.renderer = Renderer(grid_size =(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
+            self.renderer = Renderer(grid_size=(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
         
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
@@ -182,7 +182,7 @@ class Environment(object):
         next_obs = self.get_new_obs()
 
         if self.render_enabled:
-            self.update_render()
+            self.update_render(done)
 
         # TODO:EXPERIMENTS
         # Update experiment variables
@@ -190,7 +190,7 @@ class Environment(object):
 
         return rew, next_obs, done
 
-    def update_render(self):
+    def update_render(self, done):
         """Update the render."""
 
         self.renderer.render(
@@ -199,7 +199,8 @@ class Environment(object):
             item_locs=self.item_locs,
             item_times=self.item_times,
             agent_load=self.agent_load,
-            target_count=self.current_episode_target_count
+            target_count=self.current_episode_target_count,
+            done=done
         )
 
     def get_new_obs(self):

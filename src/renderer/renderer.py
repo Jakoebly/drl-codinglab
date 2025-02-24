@@ -74,7 +74,7 @@ class Renderer:
         buf.close()
         return image_array
 
-    def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count):
+    def render(self, agent_loc, target_loc, item_locs, item_times, agent_load, target_count, done):
         """Renders the environment dynamically including agent, target, items, and sparks."""
 
         # Clear and pre-render grid
@@ -132,6 +132,7 @@ class Renderer:
         # Store image in image buffer
         image_array = self.figure_to_numpy_array()
         self.images.append(image_array)
+
 
         plt.pause(0.0001)
 

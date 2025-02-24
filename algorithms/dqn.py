@@ -5,7 +5,7 @@ import random
 import wandb
 from typing import List, Tuple
 
-from src import neural_nets as nnets, experiment_settings as expset
+from src import neural_nets as nnets
 from algorithms import dqn_extensions as dqn_ext
 
 
