@@ -14,7 +14,6 @@ def load_experiment_settings(): #TODO: load experiment settings from yaml file
 
     with open(f"{config_dir}/experiment_settings.yaml", "r") as file:
         exp_set = yaml.safe_load(file).get("experiments", {})
-
     return exp_set
 
 def set_exp_vars(env):
@@ -34,7 +33,7 @@ def set_exp_vars(env):
         env.item_count = 0
         env.item_completion_count = 0
 
-def update_exp_vars(env, act, new_loc, new_items, num_new_items, time):
+def update_exp_vars(env, act, new_loc, new_items, num_new_items, locs, time, load_before, load_after):
     exp_set = load_experiment_settings()
 
     if act != 0:
@@ -46,12 +45,12 @@ def update_exp_vars(env, act, new_loc, new_items, num_new_items, time):
                 if new_loc in env.eligible_cells:
                     env.distance += 1
                     if env.agent_loc == env.target_loc:
-                        if env.agent_load > 0:
-                            for _ in range(env.agent_load):
+                        if load_after > 0:
+                            for _ in range(load_after):
                                 env.distance_per_item.append(env.distance)
                             env.distance = 0
 
-    if (env.agent_load < env.agent_capacity) and (env.agent_loc in env.item_locs):
+    if (load_before < env.agent_capacity) and (env.agent_loc in locs):
         if exp_set["KPIs"]["avg_time_per_item"]:
             env.remaining_time_per_item.append(env.max_response_time - time)
         if exp_set["KPIs"]["item_completion_rate"]:

@@ -116,6 +116,7 @@ class Environment(object):
 
     # take one environment step based on the action act
     def step(self, act):
+
         self.step_count += 1
         rew = 0
         # done signal (1 if episode ends, 0 if not)
@@ -141,7 +142,9 @@ class Environment(object):
                 rew += -1
 
         # item pick-up
+        locs = self.item_locs.copy()
         time = 0
+        load_before = self.agent_load
         if (self.agent_load < self.agent_capacity) and (self.agent_loc in self.item_locs):
             self.agent_load += 1
             idx = self.item_locs.index(self.agent_loc)
@@ -151,6 +154,7 @@ class Environment(object):
             rew += self.reward / 2
 
         # item drop-off
+        load_after = self.agent_load
         if self.agent_loc == self.target_loc:
             rew += self.agent_load * self.reward / 2
             # FOR RENDER
@@ -182,7 +186,7 @@ class Environment(object):
 
         # TODO:EXPERIMENTS
         # Update experiment variables
-        exp.update_exp_vars(self, act, new_loc, new_items, num_new_items, time)
+        exp.update_exp_vars(self, act, new_loc, new_items, num_new_items, locs, time, load_before, load_after)
 
         return rew, next_obs, done
 
