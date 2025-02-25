@@ -125,9 +125,9 @@ def save_run_info(rewards, config, model_dir, agent, algorithm, variant, mode, r
         }
     }, allow_val_change=True)
 
-
-    if config["nn_architecture"]["structure"] == "CNN":
-        config._items["general"]["state_size"] = [list(t) for t in config._items["general"]["state_size"]]
+    if algorithm == "DQN":
+        if config["nn_architecture"]["structure"] == "CNN":
+            config._items["general"]["state_size"] = [list(t) for t in config._items["general"]["state_size"]]
 
     # Write run info into the corresponding .yaml file
     with open(f"{model_dir}/run_info.yaml", 'w') as file:

@@ -8,6 +8,6 @@ experiments:
     avg_time_per_item: False
     item_completion_rate: False
 
-  render: True
+  render: False
   render_frames_train: [ 1, 25, 50, 400, 780 ]
   render_frames_val: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]

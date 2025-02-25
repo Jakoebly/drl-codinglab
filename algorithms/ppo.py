@@ -449,7 +449,7 @@ class PPO_Agent():
         print("Evaluation Start")
         old_cvc = exp.save_cell_visit_count(self.env)
         eval_reward = self.run(mode="validation", num_episodes=self.evaluation_episodes, eval=True)
-        self.env.set_cell_visit_count(old_cvc)
+        exp.set_cell_visit_count(self.env, old_cvc)
 
         # Compute average evaluation reward and log
         average_eval_reward = np.mean(eval_reward)

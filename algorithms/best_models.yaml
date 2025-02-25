@@ -7,15 +7,15 @@ Variant_0:
     avg_validation_reward: 214.965
 Variant_1:
   DQN:
-    model_name: CL__DQN__Var1__20250129_1652__[FINAL_V1_CNN_DNN]
+    model_name: CL__DQN__Var1__20250129_1652__[FINAL_V1_DQN_CNN]
     avg_validation_reward: 402.905
   PPO:
-    model_name: CL__PPO__Var1__20250128_1949
-    avg_validation_reward: 380.36
+    model_name: CL__PPO__Var1__20250225_1908__[PPO_V1_Final_Confirmation]
+    avg_validation_reward: 392.45
 Variant_2:
   DQN:
-    model_name: CL__DQN__Var2__20250129_1925__[FINAL_V2_DQN_DNN]
-    avg_validation_reward: 255.625
+    model_name: CL__DQN__Var2__20250225_1406__[Feature_Abl_GlobalFalse]
+    avg_validation_reward: 259.29
   PPO:
-    model_name: CL__PPO__Var2__20250128_1927
-    avg_validation_reward: 234.49
+    model_name: CL__PPO__Var2__20250225_1951__[PPO_V1_Final_Confirmation]
+    avg_validation_reward: 242.47

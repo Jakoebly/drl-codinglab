@@ -176,15 +176,28 @@ def create_boxplot(algorithm):
 
     with open(BEST_DIR, "r") as file:
         best_models = yaml.safe_load(file)
-        var0_model_name = best_models["Variant_0"][algorithm.upper()]["model_name"]
-        var1_model_name = best_models["Variant_1"][algorithm.upper()]["model_name"]
-        var2_model_name = best_models["Variant_2"][algorithm.upper()]["model_name"]
+        var0_DNN_best = best_models["Variant_0"][algorithm.upper()]["model_name"]
+        var1_CNN_best = best_models["Variant_1"][algorithm.upper()]["model_name"]
+        var2_DNN_best = best_models["Variant_2"][algorithm.upper()]["model_name"]
+
+    var0_CNN = "CL__DQN__Var0__20250129_1652__[V0_DQN_CNN]"
+    var0_PPO = "CL__PPO__Var0__20250225_1832__[PPO_V0_Final_Confirmation]"
+    var0_greedy
+
+    var1_DNN = "CL__DQN__Var1__20250129_1652__[V1_DQN_DNN]"
+    var1_PPO = "CL__PPO__Var1__20250225_1908__[PPO_V1_Final_Confirmation]"
+    var1_greedy
+
+    var2_CNN = "CL__DQN__Var2__20250129_1925__[V2_DQN_CNN]"
+    var2_PPO = "CL__PPO__Var2__20250129_2212__[Var2_PPO_8k_final]"
+    var2_greedy
+
 
     test_rews = np.zeros((3, 100))
 
-    test_rews[0] = np.loadtxt(f"{LOG_DIR}/Variant_0/{algorithm.upper()}/{var0_model_name}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
-    test_rews[1] = np.loadtxt(f"{LOG_DIR}/Variant_1/{algorithm.upper()}/{var1_model_name}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
-    test_rews[2] = np.loadtxt(f"{LOG_DIR}/Variant_2/{algorithm.upper()}/{var2_model_name}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
+    test_rews[0] = np.loadtxt(f"{LOG_DIR}/Variant_0/{algorithm.upper()}/{var0_DNN_best}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
+    test_rews[1] = np.loadtxt(f"{LOG_DIR}/Variant_1/{algorithm.upper()}/{var1_CNN_best}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
+    test_rews[2] = np.loadtxt(f"{LOG_DIR}/Variant_2/{algorithm.upper()}/{var2_DNN_best}/test_eps.csv", delimiter=",", skiprows=1)[:, 1]
 
     plt.figure(figsize=(8, 6))
     box = plt.boxplot(test_rews.T,

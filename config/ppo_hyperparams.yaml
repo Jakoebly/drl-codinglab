@@ -1,23 +1,25 @@
 PPO:
   hyperparameters:
-    reward_norm: True
-    advantage_norm: True
-    value_loss_clipping: True
-    entropy_decay: False
-    min_entropy_coef: 0
-    lr_decay: True
-    lr_decay_rate: 0.01
-    learning_rate_actor: 0.001
-    learning_rate_critic: 0.001
+    advantage_norm: true
+    clip_ratio: 0.2
+    entropy_coef: 0.001
+    entropy_decay: false
     gamma: 0.99
     lam: 0.9
-    clip_ratio: 0.2
-    value_coef: 0.5
-    entropy_coef: 0.001
+    learning_rate_actor: 0.001
+    learning_rate_critic: 0.001
+    lr_decay: true
+    lr_decay_rate: 0.01
     max_grad_norm: 0.5
-    num_trajectories: 30
+    min_entropy_coef: 0
     num_epochs: 10
     num_minibatches: 30
+    num_trajectories: 30
+    reward_norm: true
+    target_kl: 0.015
+    value_coef: 0.5
+    value_loss_clipping: true
+    warm_up_period: 1
 
   nn_architecture_actor:
     structure: "DNN"

@@ -10,11 +10,11 @@ DQN:
     target_update_interval: 150
 
   extensions:
-    distribution: false
-    double: false
-    dueling:  false
+    distribution: true
+    double: true
+    dueling: true
     multi_step: false
-    noisy:  false
+    noisy: false
     priority: false
 
   extension_parameters:
@@ -51,6 +51,6 @@ DQN:
     activation_output:
 
   eval_settings:
-    eval_interval: 100
+    eval_interval: 8000
     evaluation_treshold: 0.000
     evaluation_episodes: 100
