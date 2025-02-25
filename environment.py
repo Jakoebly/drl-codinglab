@@ -71,7 +71,6 @@ class Environment(object):
         
         self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
 
-        # TODO:EXPERIMENTS
         # Set experiment variables
         exp.set_exp_vars(self)
 
@@ -93,7 +92,6 @@ class Environment(object):
         self.agent_load = 0  # number of items loaded (0 or 1, except for first extension, where it can be 0,1,2,3)
         self.item_locs = []
         self.item_times = []
-        # self.item_distances = []
 
         if mode == "testing":
             episode = self.test_episodes[0]
@@ -157,6 +155,7 @@ class Environment(object):
         load_after = self.agent_load
         if self.agent_loc == self.target_loc:
             rew += self.agent_load * self.reward / 2
+
             # FOR RENDER
             self.current_episode_target_count += self.agent_load
             self.agent_load = 0
@@ -184,7 +183,6 @@ class Environment(object):
         if self.render_enabled:
             self.update_render(done)
 
-        # TODO:EXPERIMENTS
         # Update experiment variables
         exp.update_exp_vars(self, act, new_loc, new_items, num_new_items, locs, time, load_before, load_after)
 
@@ -213,9 +211,6 @@ class Environment(object):
         if structure == "DNN":
             return self.reset(mode="training", structure=structure).shape[0]
         if structure == "CNN":
-            # (Height, Width, Channels) i.e. (5, 5, x)
-            # state = self.reset(mode = "training", structure = structure).shape
-            # return state
             grid_state, scalar_state = self.reset(mode="training", structure=structure)
 
             return grid_state.shape, scalar_state.shape
@@ -233,7 +228,6 @@ class Environment(object):
                     continue
                 visited.add(current)
 
-                # Add neighbors
                 neighbors = [
                     (current[0] - 1, current[1]), (current[0] + 1, current[1]),
                     (current[0], current[1] - 1), (current[0], current[1] + 1)
@@ -271,7 +265,7 @@ class Environment(object):
             directions (dict): A dictionary with directions to follow the shortest path.
         """
         distances = {start: 0}
-        directions = {}  # Will hold the first step direction for each cell
+        directions = {}
         queue = deque([start])
         visited = set([start])
 
@@ -279,20 +273,18 @@ class Environment(object):
             current = queue.popleft()
             cur_distance = distances[current]
 
-            # Explore neighbors
             for action, (dy, dx) in zip(["up", "down", "left", "right"], [(-1, 0), (1, 0), (0, -1), (0, 1)]):
                 neighbor = (current[0] + dy, current[1] + dx)
 
                 if (
-                        neighbor in self.eligible_cells and  # Not a blocked cell
-                        neighbor not in visited and  # Not already visited
+                        neighbor in self.eligible_cells and
+                        neighbor not in visited and
                         0 <= neighbor[0] < self.vertical_cell_count and
                         0 <= neighbor[1] < self.horizontal_cell_count
                 ):
-                    # Update distance only if the neighbor hasn't been visited
                     if neighbor not in distances:
                         distances[neighbor] = cur_distance + 1
-                        # Store the direction for the first step from the start position
+
                         if current == start:
                             directions[neighbor] = action
                         else:
