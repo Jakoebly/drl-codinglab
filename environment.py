@@ -23,7 +23,7 @@ import src.experiments as exp
 
 
 class Environment(object):
-    def __init__(self, variant, data_dir, render=False):
+    def __init__(self, variant, data_dir, render = False):
         self.variant = variant
         self.vertical_cell_count = 5
         self.horizontal_cell_count = 5
@@ -64,12 +64,13 @@ class Environment(object):
                                    (3,0), (3,1), (3,2),        (3,4),
                                    (4,0), (4,1), (4,2),        (4,4)]
 
-        # FOR RENDERING ONLY:
+        # Mounting the render to the environment if toggeled
         self.render_enabled = render
         if self.render_enabled:
             self.renderer = Renderer(grid_size=(self.vertical_cell_count, self.horizontal_cell_count), eligible_cells=self.eligible_cells, max_response_time=self.max_response_time)
         
-        self.current_episode_target_count = 0  # Counts number of items dropped off at target cell
+        # Number of items dropped off at target cell - needed for render only
+        self.current_episode_target_count = 0
 
         # Set experiment variables
         exp.set_exp_vars(self)
@@ -107,12 +108,12 @@ class Environment(object):
         self.data = pd.read_csv(self.data_dir + f"/variant_{self.variant}/episode_data/episode_{episode:03d}.csv",
                                 index_col=0)
 
-        # Reset target count for render
+        # Reset target count - needed for render only
         self.current_episode_target_count = 0
 
         return self.get_new_obs()
 
-    # take one environment step based on the action act
+    # take one environment step based on the selected action
     def step(self, act):
 
         self.step_count += 1
@@ -156,19 +157,19 @@ class Environment(object):
         if self.agent_loc == self.target_loc:
             rew += self.agent_load * self.reward / 2
 
-            # FOR RENDER
+            # Needed for render only
             self.current_episode_target_count += self.agent_load
             self.agent_load = 0
 
-        # track how long ago items appeared
+        # Track how long ago items appeared
         self.item_times = [i + 1 for i in self.item_times]
 
-        # remove items for which max response time is reached
+        # Remove items for which max response time is reached
         mask = [i < self.max_response_time for i in self.item_times]
         self.item_locs = list(compress(self.item_locs, mask))
         self.item_times = list(compress(self.item_times, mask))
 
-        # add items which appear in the current time step
+        # Add items which appear in the current time step
         new_items = self.data[self.data.step == self.step_count]
         new_items = list(zip(new_items.vertical_idx, new_items.horizontal_idx))
         new_items = [i for i in new_items if i not in self.item_locs]  # not more than one item per cell
@@ -177,7 +178,7 @@ class Environment(object):
         self.item_locs += new_items
         self.item_times += [0] * len(new_items)
 
-        # get new observation
+        # Get new observation
         next_obs = self.get_new_obs()
 
         if self.render_enabled:
@@ -202,12 +203,15 @@ class Environment(object):
         )
 
     def get_new_obs(self):
+        """Returns a new observation based on neural network architecture."""
+
         if self.nn_structure == "DNN":
             return self.get_dnn_obs()
         if self.nn_structure == "CNN":
             return self.get_cnn_obs()
 
     def get_state_size(self, structure="DNN"):
+        """Returns the size of the state space based on the neural network architecture."""
         if structure == "DNN":
             return self.reset(mode="training", structure=structure).shape[0]
         if structure == "CNN":
@@ -216,6 +220,7 @@ class Environment(object):
             return grid_state.shape, scalar_state.shape
 
     def manhatten_dist(self, pos: Tuple[int, int], tgt: Tuple[int, int]) -> Tuple[int, int]:
+        """Caclulating the manhatten distance between two points, taking ineligble cells into account."""
         if self.variant == 2:
             visited = set()
             q = Queue()
@@ -237,33 +242,20 @@ class Environment(object):
                         q.put((neighbor, dist + 1))
 
             return 0
+        
         else:
             return abs(pos[0] - tgt[0]) + abs(pos[1] - tgt[1])
 
     def is_reachable(self, item_loc: Tuple[int, int], remaining_time: int) -> bool:
-        """
-        Check if an item is reachable before its time runs out and within the remaining episode time.
-
-        Parameters:
-            item_loc (Tuple[int, int]): The location of the item.
-            remaining_time (int): Remaining time for the item.
-
-        Returns:
-            bool: True if reachable, False otherwise.
-        """
+        """Check if an item is reachable before its time runs out and within the remaining episode time."""
         distance = self.manhatten_dist(self.agent_loc, item_loc)
         remaining_episode_time = self.episode_steps - self.step_count
+
         return distance <= min(remaining_time, remaining_episode_time)
 
     def shortest_path(self, start: Tuple[int, int]) -> Tuple[dict, dict]:
-        """
-        Computes shortest path distances and directions from the start position
-        to all other positions in the grid, considering blocked cells.
-
-        Returns:
-            distances (dict): A dictionary with shortest path distances to each cell.
-            directions (dict): A dictionary with directions to follow the shortest path.
-        """
+        """Computes shortest path distances and directions from the start position
+        to all other positions in the grid, taking ineligble cells into account."""
         distances = {start: 0}
         directions = {}
         queue = deque([start])
@@ -296,10 +288,13 @@ class Environment(object):
 
     def get_dnn_obs(self) -> np.ndarray:
         """Returns the 2D encoded observations of the environment."""
+
         observation_tuple_size = 8
         pad_value = 0
         cumulative_items_time = 0
 
+
+        # Shortest path distances and directions needed for variant 2
         if self.variant == 2:
             distances, directions = self.shortest_path(self.agent_loc)
 
@@ -375,30 +370,28 @@ class Environment(object):
                 ),  # Right
             ]
 
-            # Apply overrides based on the agent's current position
+            # Apply overrides based on the agent's current position taking ineligble cells into account
             if self.agent_loc in [(0, 0), (1, 0), (2, 0), (1, 2), (2, 2), (3, 2), (4, 2)]:
-                vector_to_walls[3] = 0  # "Right"
+                vector_to_walls[3] = 0
             if self.agent_loc in [(0, 2), (1, 2), (2, 2), (1, 4), (2, 4), (3, 4), (4, 4)]:
-                vector_to_walls[2] = 0  # "Left"
+                vector_to_walls[2] = 0
             if self.agent_loc == (3, 1):
-                vector_to_walls[0] = 0  # "Up"
+                vector_to_walls[0] = 0
             if self.agent_loc == (0, 3):
-                vector_to_walls[1] = 0  # "Down"
-
-            # New Overrides
+                vector_to_walls[1] = 0
             if self.agent_loc in [(3, 0), (4, 0)]:
-                vector_to_walls[3] = 2  # "Right"
+                vector_to_walls[3] = 2
             if self.agent_loc in [(3, 1), (4, 1)]:
-                vector_to_walls[3] = 1  # "Right"
+                vector_to_walls[3] = 1
             if self.agent_loc == (4, 1):
-                vector_to_walls[0] = 1  # "Up"
+                vector_to_walls[0] = 1
             if self.agent_loc == (0, 4):
-                vector_to_walls[2] = 2  # "Left"
+                vector_to_walls[2] = 2
             if self.agent_loc == (0, 3):
-                vector_to_walls[2] = 1  # "Left"
+                vector_to_walls[2] = 1
 
         else:
-            # Standard vector_to_walls calculation
+            # Standard vector_to_walls calculation without taking ineligble cells into account
             vector_to_walls = [
                 self.agent_loc[0],
                 self.vertical_cell_count - 1 - self.agent_loc[0],
@@ -406,7 +399,7 @@ class Environment(object):
                 self.horizontal_cell_count - 1 - self.agent_loc[1],
             ]
 
-        # Initialize item-based observations
+        # Initialize item-based observations as empty lists
         position_items = []
         remaining_time_items = []
         prioritization_ratio_items_1 = []
@@ -461,11 +454,10 @@ class Environment(object):
                 ]
 
         # Process filtered items for observations
-        # for loc, time in zip(filtered_item_locs[:observation_tuple_size], filtered_item_times[:observation_tuple_size]):
         for loc, time in zip(filtered_item_locs, filtered_item_times):
             position_items.extend([loc[0], loc[1]])
 
-            # Normalized item time
+            # Item time (noramlized)
             remaining_time = (self.max_response_time - time) / self.max_response_time
             remaining_time_items.append(remaining_time)
             cumulative_items_time += remaining_time
@@ -522,7 +514,7 @@ class Environment(object):
                     proximity_score *= distance_to_other
             proximity_scores.append(proximity_score)
 
-        # Pad 2d observations
+        # Pad 2d observations with chosen pad value (0)
         while len(position_items) < observation_tuple_size * 2:
             position_items.extend([pad_value, pad_value])
         while len(remaining_time_items) < observation_tuple_size:
@@ -550,33 +542,26 @@ class Environment(object):
         else:
             cumulative_timeout_risk = 1
 
+        # Construct observation based on which observations are enabled
         obs = np.concatenate([
-            position_agent if self.obs_config.get("position_agent", True) else [],  # (x,y) 2
-            distance_to_target if self.obs_config.get("distance_to_target", True) else [],  # z 1
-            vector_to_target if self.obs_config.get("vector_to_target", True) else [],  # (x,y) 2
-            vector_to_walls if self.obs_config.get("vector_to_walls", True) else [],  # (a,b,c,d) 4
-            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", True) else [],  # z (normalized) 1
+            position_agent if self.obs_config.get("position_agent", True) else [],
+            distance_to_target if self.obs_config.get("distance_to_target", True) else [],
+            vector_to_target if self.obs_config.get("vector_to_target", True) else [],
+            vector_to_walls if self.obs_config.get("vector_to_walls", True) else [],
+            [free_capacity_agent] if self.obs_config.get("free_capacity_agent", True) else [],
             [cumulative_timeout_risk] if self.obs_config.get("cumulative_timeout_risk", True) else [],
-            # z (normalized) 1
-
-            position_items if self.obs_config.get("position_items", True) else [],  # ((x,y), (x,y),...) 16
+            position_items if self.obs_config.get("position_items", True) else [],
             vector_agent_to_items if self.obs_config.get("vector_agent_to_items", True) else [],
-            # ((x,y), (x,y),...) 16
-            remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],  # z (normalized) 8
-            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items",
-                                                                      True) else [],  # z (normalized) 8
+            remaining_time_items if self.obs_config.get("remaining_time_items", True) else [],
+            manhatten_distance_target_to_items if self.obs_config.get("manhatten_distance_target_to_items", True) else [],
             manhatten_distance_agent_to_items if self.obs_config.get("manhatten_distance_agent_to_items", True) else [],
-            # z (normalized) 8
             prioritization_ratio_items_1 if self.obs_config.get("prioritization_ratio_items", 1) == 1 else [],
             prioritization_ratio_items_2 if self.obs_config.get("prioritization_ratio_items", 2) == 2 else [],
             prioritization_ratio_items_3 if self.obs_config.get("prioritization_ratio_items", 3) == 3 else [],
-
-            closest_item if self.obs_config.get("closest_item", True) else [],  # 2
-            vector_closest if self.obs_config.get("vector_closest", True) else [],  # 2
-
-            proximity_scores if self.obs_config.get("proximity_scores", True) else [],  # 8
+            closest_item if self.obs_config.get("closest_item", True) else [],
+            vector_closest if self.obs_config.get("vector_closest", True) else [],
+            proximity_scores if self.obs_config.get("proximity_scores", True) else [],
             [remaining_episode_time] if self.obs_config.get("remaining_episode_time", True) else [],
-            # z (normalized) #1
         ])
 
         return obs
@@ -585,11 +570,14 @@ class Environment(object):
         """Returns the state of the environment as a 3D grid with multiple channels."""
         grid_shape = (self.vertical_cell_count, self.horizontal_cell_count)
 
+
+        # Shortest path distances and directions needed for variant 2
         if self.variant == 2:
             distances, directions = self.shortest_path(self.agent_loc)
 
         filtered_item_locs = []
         filtered_item_times = []
+
         # Filter reachable items and limit to observation_tuple_size
         for loc, time in zip(self.item_locs, self.item_times):
             if self.is_reachable(loc, self.max_response_time - time):
@@ -673,15 +661,15 @@ class Environment(object):
             closest_item[closest_item_loc] = 1
 
         # --- SCALAR VALUES ---
-        # free capacity
+        # Free capacity (normalized)
         free_capacity_agent = (self.agent_capacity - self.agent_load) / self.agent_capacity
 
-        # cumulative timeout risk
+        # Cumulative timeout risk
         cumulative_timeout_risk = sum(
             [(self.max_response_time - time) / self.max_response_time for time in filtered_item_times]
         ) / (len(filtered_item_times) or 1)
 
-        # distance to target
+        # Distance to target (normalized)
         if self.variant == 2:
             distance_to_target = distances.get(self.target_loc, 0) / (self.vertical_cell_count * 2)
         else:
@@ -697,7 +685,7 @@ class Environment(object):
                         if (row, self.agent_loc[1]) not in self.eligible_cells
                     ),
                     default=self.agent_loc[0],
-                ) / 4,  # Up
+                ) / 4,
                 min(
                     (
                         row - self.agent_loc[0]
@@ -705,7 +693,7 @@ class Environment(object):
                         if (row, self.agent_loc[1]) not in self.eligible_cells
                     ),
                     default=self.vertical_cell_count - self.agent_loc[0] - 1,
-                ) / 4,  # Down
+                ) / 4,
                 min(
                     (
                         self.agent_loc[1] - col
@@ -713,7 +701,7 @@ class Environment(object):
                         if (self.agent_loc[0], col) not in self.eligible_cells
                     ),
                     default=self.agent_loc[1],
-                ) / 4,  # Left
+                ) / 4,
                 min(
                     (
                         col - self.agent_loc[1]
@@ -721,33 +709,31 @@ class Environment(object):
                         if (self.agent_loc[0], col) not in self.eligible_cells
                     ),
                     default=self.horizontal_cell_count - self.agent_loc[1] - 1,
-                ) / 4,  # Right
+                ) / 4,
             ]
 
-            # Apply overrides based on the agent's current position
+            # Apply overrides based on the agent's current position taking ineligble cells into account
             if self.agent_loc in [(0, 0), (1, 0), (2, 0), (1, 2), (2, 2), (3, 2), (4, 2)]:
-                vector_to_walls[3] = 0  # "Right"
+                vector_to_walls[3] = 0
             if self.agent_loc in [(0, 2), (1, 2), (2, 2), (1, 4), (2, 4), (3, 4), (4, 4)]:
-                vector_to_walls[2] = 0  # "Left"
+                vector_to_walls[2] = 0 
             if self.agent_loc == (3, 1):
-                vector_to_walls[0] = 0  # "Up"
+                vector_to_walls[0] = 0
             if self.agent_loc == (0, 3):
-                vector_to_walls[1] = 0  # "Down"
-
-            # New Overrides
+                vector_to_walls[1] = 0
             if self.agent_loc in [(3, 0), (4, 0)]:
-                vector_to_walls[3] = 2  # "Right"
+                vector_to_walls[3] = 2
             if self.agent_loc in [(3, 1), (4, 1)]:
-                vector_to_walls[3] = 1  # "Right"
+                vector_to_walls[3] = 1
             if self.agent_loc == (4, 1):
-                vector_to_walls[0] = 1  # "Up"
+                vector_to_walls[0] = 1
             if self.agent_loc == (0, 4):
-                vector_to_walls[2] = 2  # "Left"
+                vector_to_walls[2] = 2
             if self.agent_loc == (0, 3):
-                vector_to_walls[2] = 1  # "Left"
+                vector_to_walls[2] = 1
 
         else:
-            # Standard vector_to_walls calculation
+            # Standard vector_to_walls calculation without taking ineligble cells into account
             vector_to_walls = [
                 self.agent_loc[0] / 4,
                 self.vertical_cell_count - 1 - self.agent_loc[0] / 4,
@@ -755,7 +741,7 @@ class Environment(object):
                 self.horizontal_cell_count - 1 - self.agent_loc[1] / 4,
             ]
 
-        # vector to closest item
+        # Vector to closest item
         vector_closest = [0, 0]
         if filtered_item_locs and closest_idx != -1:
             if self.variant == 2:
@@ -776,7 +762,7 @@ class Environment(object):
                     (closest_item_loc[1] - self.agent_loc[1]) / self.horizontal_cell_count,
                 ]
 
-        # vector to target
+        # Vector to target
         vector_to_target = [0, 0]
         if self.variant == 2:
             if self.target_loc in directions:
@@ -797,6 +783,8 @@ class Environment(object):
         # Remaining Episode Time (normalized)
         remaining_episode_time = (self.episode_steps - self.step_count) / self.episode_steps
 
+
+        # Construct grid channel state based on which observations are enabled
         channels = []
         if self.obs_config.get("position_agent", True):
             channels.append(position_agent)
@@ -824,6 +812,7 @@ class Environment(object):
 
         scalar_values = []
 
+        # Construct scalar state based on which observations are enabled
         if self.obs_config.get("free_capacity_agent", True):
             scalar_values.append([free_capacity_agent])
 
